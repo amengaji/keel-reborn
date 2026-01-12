@@ -1,57 +1,83 @@
-// keel-reborn/keel-web/src/App.tsx
-
-import { useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import LoginPage from "./pages/LoginPage";
+import Dashboard from "./pages/Dashboard";
+import VesselsPage from "./pages/VesselsPage";
+import SettingsPage from "./pages/SettingsPage";
+import DashboardLayout from "./components/layout/DashboardLayout";
 
-/**
- * MARITIME EXPERT NOTE:
- * The App shell manages the global environment of the Digital TRB.
- * It handles theme persistence (Day/Night Mode) which is critical 
- * for officer vision health during bridge watches.
- */
-
-function applyThemeFromStorage() {
-  const saved = localStorage.getItem("keel_theme");
-  const root = document.documentElement;
-  // If no setting exists, we default to Light mode for standard office use
-  if (saved === "dark") {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
-  }
-}
+// NEW IMPORTS
+import CadetsPage from "./pages/CadetsPage";
+import AssignmentsPage from "./pages/AssignmentsPage";
+import TrainingProgressPage from "./pages/TrainingProgressPage";
+import ApprovalsPage from "./pages/ApprovalsPage";
+import ReportsPage from "./pages/ReportsPage";
+import AuditLogsPage from "./pages/AuditLogsPage";
+import LockedTRBPage from "./pages/LockedTRBPage";
+import EvidencePage from "./pages/EvidencePage";
+import UsersPage from "./pages/UsersPage";
+import TasksPage from "./pages/TasksPage";
 
 export default function App() {
-  useEffect(() => {
-    applyThemeFromStorage();
-  }, []);
-
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900 transition-colors duration-300">
-      
-      {/* UI/UX Note: Toaster is configured for high-visibility success/error messages */}
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <Toaster 
         richColors 
-        position="top-right" 
+        position="bottom-right"
+        theme="light" 
         toastOptions={{
-          style: { border: '1px solid #3194A0' }, // Branded border for alerts
+          unstyled: true,
+          className: "p-4 rounded-lg shadow-xl flex items-center gap-3 w-full min-w-[320px] mb-2 font-medium border-2 backdrop-blur-none",
+          classNames: {
+            // ERROR: Red Glass (85% Opacity), Red Border, WHITE Text
+            error: "!bg-[rgba(220,38,38,0.5)] !border-[rgba(220,38,38,0.5)] !text-white",
+            
+            // SUCCESS: Light Green Glass (25% Opacity), Green Border, BLACK Text
+            success: "!bg-[rgba(74,222,128,0.25)] !border-[rgba(22,163,74,0.15)] !text-green",
+            
+            // WARNING: Light Orange Glass (25% Opacity), Orange Border, BLACK Text
+            warning: "!bg-[rgba(251,146,60,0.25)] !border-[rgba(234,88,12,0.15)] !text-orange",
+            
+            // INFO: Light Blue Glass (25% Opacity), Blue Border, BLACK Text
+            info: "!bg-[rgba(96,165,250,0.25)] !border-[rgba(37,99,235,0.15)] !text-black",
+            
+            title: "font-bold text-sm",
+            description: "text-xs opacity-90 font-medium"
+          }
+        }}
+        icons={{
+           success: <div className="w-2 h-2 rounded-full bg-green-600"></div>,
+           error: <div className="w-2 h-2 rounded-full bg-white"></div>,
+           warning: <div className="w-2 h-2 rounded-full bg-orange-600"></div>,
+           info: <div className="w-2 h-2 rounded-full bg-blue-600"></div>,
         }}
       />
-
+      
       <Routes>
-        {/* Landing on the site automatically takes the Officer to the Login screen */}
         <Route path="/" element={<Navigate to="/login" replace />} />
-        
         <Route path="/login" element={<LoginPage />} />
-
-        {/* MARITIME TRAINING NOTE:
-            As we build the "Clean Slate", we will add the Dashboard and 
-            Vessel management routes here once their controllers are ready.
-        */}
         
-        {/* Redirect any unknown paths back to login for security */}
+        {/* PROTECTED ROUTES */}
+        <Route path="/" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
+        
+        <Route path="/dashboard" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
+        <Route path="/vessels" element={<DashboardLayout><VesselsPage /></DashboardLayout>} />
+        <Route path="/cadets" element={<DashboardLayout><CadetsPage /></DashboardLayout>} />
+        
+        <Route path="/assignments" element={<DashboardLayout><AssignmentsPage /></DashboardLayout>} />
+        <Route path="/training-progress" element={<DashboardLayout><TrainingProgressPage /></DashboardLayout>} />
+        <Route path="/approvals" element={<DashboardLayout><ApprovalsPage /></DashboardLayout>} />
+        <Route path="/evidence" element={<DashboardLayout><EvidencePage /></DashboardLayout>} />
+
+        <Route path="/reports" element={<DashboardLayout><ReportsPage /></DashboardLayout>} />
+        
+        <Route path="/audit/main" element={<DashboardLayout><AuditLogsPage /></DashboardLayout>} />
+        <Route path="/audit/locked" element={<DashboardLayout><LockedTRBPage /></DashboardLayout>} />
+        
+        <Route path="/settings" element={<DashboardLayout><SettingsPage /></DashboardLayout>} />
+        <Route path="/users" element={<DashboardLayout><UsersPage /></DashboardLayout>} />
+        <Route path="/tasks" element={<DashboardLayout><TasksPage /></DashboardLayout>} />
+
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </div>

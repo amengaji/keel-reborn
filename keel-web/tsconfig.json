@@ -1,23 +1,19 @@
-﻿// keel-reborn/keel-web/tsconfig.json
 {
   "compilerOptions": {
-    "target": "ESNext",
-    "useDefineForClassFields": true,
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "allowJs": false,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "useDefineForClassFields": true,
+
+    "strict": true,
+    "skipLibCheck": true,
     "noEmit": true,
-    /* UI/UX NOTE: This line is critical for the Teal login page to render */
+
     "jsx": "react-jsx",
-    "ignoreDeprecations": "5.0"
+    "types": ["vite/client"]
   },
   "include": ["src"]
 }

@@ -2,12 +2,13 @@
 
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database';
+import Role from './Role'; // Import Role to define the relationship type
 
 /**
  * MARITIME EXPERT NOTE:
  * The User model is the foundation of the TRB. 
- * It handles role-based access to ensure only authorized officers 
- * can sign off on training tasks.
+ * We have added the 'role' property explicitly so the Auth Controller
+ * can identify the Officer's rank during login.
  */
 class User extends Model {
   public id!: number;
@@ -15,10 +16,12 @@ class User extends Model {
   public password_hash!: string;
   public first_name!: string;
   public last_name!: string;
-  public role_id!: number; // Links to the Roles table (CADET, CTO, etc.)
+  public role_id!: number;
   public phone?: string;
   
-  // Timestamps for audit trails required by STCW
+  // UX Note: This allows TypeScript to "see" the joined role data
+  public role?: Role; 
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 }
@@ -34,9 +37,7 @@ User.init(
       type: DataTypes.STRING(255),
       allowNull: false,
       unique: true,
-      validate: {
-        isEmail: true,
-      },
+      validate: { isEmail: true },
     },
     password_hash: {
       type: DataTypes.TEXT,
@@ -54,7 +55,7 @@ User.init(
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'roles', // Name of the target table
+        model: 'roles',
         key: 'id',
       },
     },
@@ -67,7 +68,7 @@ User.init(
     sequelize,
     tableName: 'users',
     underscored: true,
-    timestamps: true, // Ensures every change is tracked for the audit timeline
+    timestamps: true,
   }
 );
 
