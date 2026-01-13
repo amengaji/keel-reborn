@@ -3,6 +3,7 @@ const VESSELS_KEY = 'keel_vessels';
 const CADETS_KEY = 'keel_cadets';
 const TRB_KEY = 'keel_trb_syllabus';
 const PROGRESS_KEY = 'keel_trainee_progress';
+const SETTINGS_KEY = 'keel_settings';
 
 // --- CONSTANTS (Restored to prevent import crashes) ---
 export const CLASSIFICATION_SOCIETIES = [
@@ -36,6 +37,46 @@ export const VESSEL_TYPES = [
   "Platform Support Vessel",
   "Other"
 ];
+
+// --- SETTINGS DEFAULTS & OPERATIONS ---
+export const DEFAULT_SETTINGS = {
+  general: {
+    orgName: "Keel Maritime Training",
+    logo: null,       // Base64 string for the image
+    logoWidth: 150,   // Display width in pixels
+    sessionTimeout: 30, // In minutes
+    address: "",
+    country: "",
+    state: "",
+    city: "",
+    pincode: ""
+  },
+  roles: [
+    { id: 1, name: 'CADET', description: 'Trainee Officer', canSign: false, canUpload: true, verifyLevel: 0 },
+    { id: 2, name: 'CTO', description: 'Cadet Training Officer', canSign: true, canUpload: false, verifyLevel: 1 },
+    { id: 3, name: 'MASTER', description: 'Ship Captain', canSign: true, canUpload: false, verifyLevel: 2 },
+    { id: 4, name: 'SHORE_ADMIN', description: 'Office Superintendent', canSign: true, canUpload: true, verifyLevel: 3 },
+  ],
+  rules: {
+    requireEvidence: true,
+    autoLock: true
+  }
+};
+
+export const getSettings = () => {
+  try {
+    const data = localStorage.getItem(SETTINGS_KEY);
+    // Merge with defaults to ensure all fields exist if schema updates
+    return data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
+  } catch (e) {
+    return DEFAULT_SETTINGS;
+  }
+};
+
+export const saveSettings = (settings: any) => {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  window.dispatchEvent(new Event('storage'));
+};
 
 // --- VESSEL IMPORT MAPPING ---
 export const processVesselImport = (flatData: any[]) => {

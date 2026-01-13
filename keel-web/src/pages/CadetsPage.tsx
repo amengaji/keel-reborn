@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { 
   Users, Plus, Search, Upload, Edit, Trash2, 
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, 
-  ArrowUpDown, Ship, Mail, Phone 
+  ArrowUpDown, Ship, Mail, Phone, Clock 
 } from 'lucide-react';
 import { getCadets, saveCadets } from '../services/dataService';
 import ImportCadetModal from '../components/trainees/ImportCadetModal';
@@ -35,6 +35,29 @@ const CadetsPage: React.FC = () => {
   const refreshData = () => {
     const data = getCadets();
     setCadets(Array.isArray(data) ? data : []);
+  };
+
+  // HELPER: Calculate Duration
+  const calculateOnboardTime = (dateStr: string) => {
+    if (!dateStr) return null;
+    const start = new Date(dateStr);
+    const now = new Date();
+    
+    // Calculate difference in milliseconds
+    const diffTime = Math.max(0, now.getTime() - start.getTime());
+    const totalDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Maritime convention approximation: 30 days = 1 month
+    const months = Math.floor(totalDays / 30);
+    const days = totalDays % 30;
+    
+    if (months === 0 && days === 0) return 'Joined Today';
+    
+    const parts = [];
+    if (months > 0) parts.push(`${months}m`);
+    if (days > 0) parts.push(`${days}d`);
+    
+    return parts.join(' ');
   };
 
   const handleImport = (newCadets: any[]) => {
@@ -121,7 +144,7 @@ const CadetsPage: React.FC = () => {
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Crew Management</h1>
+          <h1 className="text-2xl font-bold text-foreground">Trainee Management</h1>
           <p className="text-muted-foreground text-sm">Manage trainee profiles, ranks, and details.</p>
         </div>
         <div className="flex gap-2">
@@ -129,7 +152,7 @@ const CadetsPage: React.FC = () => {
              onClick={() => setIsImportOpen(true)}
              className="bg-card hover:bg-muted text-foreground border border-input px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95"
            >
-             <Upload size={18} /><span>Import Crew</span>
+             <Upload size={18} /><span>Import Trainees</span>
            </button>
            <button 
              onClick={() => { setEditingCadet(null); setIsAddOpen(true); }}
@@ -231,9 +254,17 @@ const CadetsPage: React.FC = () => {
                           {/* STATUS/VESSEL */}
                           <td className="p-4">
                              {trainee.status === 'Onboard' ? (
-                                <div className="flex items-center gap-2 text-teal-600">
-                                   <Ship size={14} />
-                                   <span className="font-medium">{trainee.vessel}</span>
+                                <div className="flex flex-col">
+                                   <div className="flex items-center gap-2 text-teal-600">
+                                      <Ship size={14} />
+                                      <span className="font-medium">{trainee.vessel}</span>
+                                   </div>
+                                   {trainee.signOnDate && (
+                                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground/80 mt-1 pl-[2.75px]">
+                                        <Clock size={10} />
+                                        <span>{calculateOnboardTime(trainee.signOnDate)}</span>
+                                     </div>
+                                   )}
                                 </div>
                              ) : (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-600">
