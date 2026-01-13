@@ -1,205 +1,301 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Circle, Clock, ChevronRight, FileText, Camera, AlertTriangle } from 'lucide-react';
-import { getSyllabus } from '../services/dataService'; // We use the service now
+import { 
+  BookOpen, ChevronRight, CheckCircle2, Circle, Clock, 
+  AlertTriangle, ArrowLeft, Filter, Search, Ship 
+} from 'lucide-react';
+import { getSyllabus, getCadets, getCadetProgress } from '../services/dataService';
+import { toast } from 'sonner';
+
+// STANDARD STCW MAPPING (Matches TasksPage)
+const STCW_MAP: Record<string, string> = {
+  '1': 'Navigation',
+  '2': 'Cargo Handling & Stowage',
+  '3': 'Ship Operations & Care',
+  '4': 'Marine Engineering',
+  '5': 'Electrical & Control',
+  '6': 'Maintenance & Repair',
+  '7': 'Radio Communications'
+};
 
 const TRBViewerPage: React.FC = () => {
-  const { id } = useParams(); 
+  const { cadetName } = useParams();
   const navigate = useNavigate();
-  
-  // STATE MANAGEMENT
+
+  // DATA STATE
+  const [cadet, setCadet] = useState<any>(null);
   const [syllabus, setSyllabus] = useState<any[]>([]);
+  const [progress, setProgress] = useState<any>({});
+  
+  // UI STATE
   const [activeFunction, setActiveFunction] = useState<string | null>(null);
+  const [searchTask, setSearchTask] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, COMPLETED, PENDING, OPEN
 
-  // LOAD DATA ON MOUNT
   useEffect(() => {
-    const data = getSyllabus();
-    setSyllabus(data);
+    // 1. Find the Cadet
+    const allCadets = getCadets();
+    const foundCadet = allCadets.find((c: any) => c.name === decodeURIComponent(cadetName || ''));
     
-    // Auto-select the first function (Chapter) if available
-    if (data.length > 0) {
-      setActiveFunction(data[0].id);
+    if (!foundCadet) {
+      toast.error("Cadet not found.");
+      navigate('/progress'); // Fallback
+      return;
     }
-  }, []);
+    setCadet(foundCadet);
 
-  // MOCK STATUS GENERATOR (Just for visuals until we have real trainee progress)
-  const getTaskStatus = (taskId: string) => {
-    // Generate a consistent pseudo-random status based on task ID length
-    const hash = taskId.length + Math.floor(Math.random() * 10);
-    if (hash % 5 === 0) return 'completed';
-    if (hash % 5 === 1) return 'pending';
-    return 'locked'; // Most tasks start locked
+    // 2. Load Syllabus & Progress
+    const loadedSyllabus = getSyllabus();
+    setSyllabus(loadedSyllabus);
+    setProgress(getCadetProgress(foundCadet.id));
+
+    // 3. Set Default Function
+    if (loadedSyllabus.length > 0) setActiveFunction(loadedSyllabus[0].id);
+
+  }, [cadetName, navigate]);
+
+  if (!cadet) return null;
+
+  // --- HELPER: GET FULL FUNCTION NAME ---
+  const getFunctionLabel = (funcId: string) => {
+    const num = funcId.replace('FUNC-', '');
+    const name = STCW_MAP[num] || 'General';
+    return `Function ${num}: ${name}`;
   };
 
-  // EMPTY STATE HANDLER (If no syllabus imported yet)
-  if (syllabus.length === 0) {
-     return (
-        <div className="flex flex-col items-center justify-center h-[calc(100vh-100px)] space-y-4 animate-in fade-in">
-           <div className="w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-600">
-             <AlertTriangle size={32} />
-           </div>
-           <h2 className="text-xl font-bold text-foreground">TRB Syllabus Not Loaded</h2>
-           <p className="text-muted-foreground max-w-md text-center">
-             The system does not have a Master Task List. Please go to <b>System {'>'} TRB Syllabus</b> to import your Excel file.
-           </p>
-           <button onClick={() => navigate(-1)} className="text-primary hover:underline font-medium">Go Back</button>
-        </div>
-     );
-  }
+  // --- STATS CALCULATION ---
+  const getFunctionStats = (funcId: string) => {
+    const func = syllabus.find(f => f.id === funcId);
+    if (!func) return { total: 0, done: 0 };
+    
+    let total = 0;
+    let done = 0;
+    
+    func.topics.forEach((t: any) => {
+       total += t.tasks.length;
+       t.tasks.forEach((task: any) => {
+         if (progress[task.id]?.status === 'COMPLETED') done++;
+       });
+    });
+    return { total, done };
+  };
+
+  // --- FILTERING LOGIC ---
+  const activeFuncData = syllabus.find(f => f.id === activeFunction);
+  
+  const getFilteredTasks = () => {
+     if (!activeFuncData) return [];
+     
+     const tasks: any[] = [];
+     activeFuncData.topics.forEach((topic: any) => {
+        topic.tasks.forEach((task: any) => {
+           // SEARCH FILTER
+           if (searchTask && !task.title.toLowerCase().includes(searchTask.toLowerCase())) return;
+
+           // STATUS FILTER
+           const taskStatus = progress[task.id]?.status || 'OPEN';
+           if (statusFilter !== 'ALL' && taskStatus !== statusFilter) return;
+
+           tasks.push({ ...task, topicTitle: topic.title, status: taskStatus });
+        });
+     });
+     return tasks;
+  };
+
+  const visibleTasks = getFilteredTasks();
 
   return (
-    <div className="h-[calc(100vh-100px)] flex flex-col animate-in fade-in duration-500">
-      
-      {/* PAGE HEADER */}
-      <div className="flex items-center gap-4 mb-6 pb-4 border-b border-border">
-        <button 
-          onClick={() => navigate(-1)}
-          className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Digital Training Record Book</h1>
-          <p className="text-sm text-muted-foreground">Viewing Record for: <span className="font-semibold text-primary">{decodeURIComponent(id || 'Trainee')}</span></p>
-        </div>
-      </div>
-
-      <div className="flex-1 flex gap-6 overflow-hidden">
-        
-        {/* SIDEBAR: FUNCTIONS (Chapters) */}
-        <div className="w-1/3 max-w-xs bg-card border border-border rounded-xl flex flex-col overflow-hidden shadow-sm">
-          <div className="p-4 bg-muted/30 border-b border-border font-bold text-xs text-muted-foreground uppercase tracking-wider">
-            Functions / Chapters
+    <div className="h-[calc(100vh-80px)] flex flex-col animate-in fade-in duration-500">
+       
+       {/* TOP BAR: CADET PROFILE */}
+       <div className="bg-card border-b border-border p-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-4">
+             {/* BACK BUTTON: Explicitly goes to /progress */}
+             <button 
+                onClick={() => navigate('/progress')} 
+                className="p-2 hover:bg-muted rounded-full transition-colors text-muted-foreground"
+                title="Back to Fleet Progress"
+             >
+                <ArrowLeft size={20} />
+             </button>
+             
+             <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm border border-primary/20">
+                {cadet.name.charAt(0)}
+             </div>
+             <div>
+                <h1 className="font-bold text-foreground text-lg">{cadet.name}</h1>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                   <span className="flex items-center gap-1"><Ship size={12}/> {cadet.vessel || 'Ashore'}</span>
+                   <span className="opacity-50">|</span>
+                   <span className="font-mono">{cadet.rank}</span>
+                </div>
+             </div>
           </div>
-          <div className="overflow-y-auto flex-1 p-2 space-y-1">
-            {syllabus.map((func) => (
-              <button
-                key={func.id}
-                onClick={() => setActiveFunction(func.id)}
-                className={`w-full text-left p-3 rounded-lg text-sm font-medium transition-all flex items-center justify-between ${
-                  activeFunction === func.id 
-                  ? 'bg-primary/10 text-primary border border-primary/20 shadow-sm' 
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                <span className="truncate">{func.title}</span>
-                {activeFunction === func.id && <ChevronRight size={14} />}
-              </button>
-            ))}
+          
+          <div className="flex gap-2">
+             <div className="text-right hidden sm:block">
+                <p className="text-xs font-bold text-foreground uppercase">Global Progress</p>
+                <p className="text-sm text-primary font-mono">{cadet.progress || 0}% Completed</p>
+             </div>
           </div>
-        </div>
+       </div>
 
-        {/* MAIN CONTENT: TASKS */}
-        <div className="flex-1 bg-card border border-border rounded-xl flex flex-col overflow-hidden shadow-sm">
-           {syllabus.filter(f => f.id === activeFunction).map(func => (
-             <div key={func.id} className="flex flex-col h-full">
-               
-               {/* CHAPTER HEADER */}
-               <div className="p-6 border-b border-border bg-muted/10">
-                 <h2 className="text-2xl font-bold text-foreground">{func.title}</h2>
-                 <p className="text-muted-foreground text-sm mt-1">
-                    {func.topics.reduce((acc: number, t: any) => acc + t.tasks.length, 0)} Tasks in this section
-                 </p>
-               </div>
+       {/* MAIN CONTENT AREA */}
+       <div className="flex flex-1 overflow-hidden">
+          
+          {/* SIDEBAR: FUNCTIONS */}
+          <div className="w-72 bg-card border-r border-border flex flex-col overflow-y-auto shrink-0">
+             <div className="p-4 font-bold text-xs text-muted-foreground uppercase tracking-wider bg-muted/30 border-b border-border">
+                STCW Functions
+             </div>
+             <div className="flex-1 space-y-1 p-2">
+                {syllabus.map(func => {
+                  const stats = getFunctionStats(func.id);
+                  const isComplete = stats.total > 0 && stats.done === stats.total;
+                  
+                  return (
+                    <button
+                      key={func.id}
+                      onClick={() => setActiveFunction(func.id)}
+                      className={`w-full text-left p-3 rounded-lg text-sm font-medium flex justify-between items-start transition-all group ${
+                        activeFunction === func.id 
+                        ? 'bg-primary/10 text-primary border border-primary/20 shadow-sm' 
+                        : 'text-muted-foreground hover:bg-muted'
+                      }`}
+                    >
+                      <div className="flex flex-col truncate pr-2">
+                         {/* UPDATED: Uses the Mapping Function */}
+                         <span className="truncate font-semibold">{getFunctionLabel(func.id)}</span>
+                         <span className="text-[10px] opacity-70 font-normal mt-0.5">{stats.done}/{stats.total} Tasks</span>
+                      </div>
+                      {isComplete && <CheckCircle2 size={16} className="text-green-500 shrink-0 mt-0.5" />}
+                    </button>
+                  );
+                })}
+             </div>
+          </div>
 
-               {/* TOPICS & TASKS LIST */}
-               <div className="overflow-y-auto flex-1 p-6 space-y-8">
-                 {func.topics.map((topic: any) => (
-                   <div key={topic.id}>
-                     <h3 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                       <span className="w-1 h-6 bg-primary rounded-full"></span>
-                       {topic.title}
-                     </h3>
-                     
-                     <div className="space-y-3">
-                       {topic.tasks.map((task: any) => {
-                         const status = getTaskStatus(task.id);
-                         
-                         return (
-                           <div 
-                             key={task.id} 
-                             className="group flex items-start gap-4 p-4 rounded-xl border border-border bg-background hover:border-primary/50 hover:shadow-md transition-all duration-200"
-                           >
-                             {/* STATUS ICON */}
-                             <div className="mt-1 shrink-0">
-                               {status === 'completed' && <CheckCircle2 className="text-green-500" size={20} />}
-                               {status === 'pending' && <Clock className="text-amber-500" size={20} />}
-                               {status === 'locked' && <Circle className="text-muted-foreground/30" size={20} />}
-                             </div>
+          {/* TASK LIST AREA */}
+          <div className="flex-1 bg-muted/10 flex flex-col overflow-hidden">
+             
+             {/* FILTERS */}
+             <div className="p-4 border-b border-border bg-card flex justify-between items-center gap-4 shadow-sm">
+                <div className="relative flex-1 max-w-md">
+                   <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
+                   <input 
+                     type="text" 
+                     placeholder="Search tasks..." 
+                     value={searchTask}
+                     onChange={(e) => setSearchTask(e.target.value)}
+                     className="input-field pl-9"
+                   />
+                </div>
+                <div className="flex bg-muted p-1 rounded-lg">
+                   {['ALL', 'OPEN', 'COMPLETED'].map(status => (
+                      <button
+                        key={status}
+                        onClick={() => setStatusFilter(status)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                           statusFilter === status 
+                           ? 'bg-background text-foreground shadow-sm' 
+                           : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                         {status.charAt(0) + status.slice(1).toLowerCase()}
+                      </button>
+                   ))}
+                </div>
+             </div>
 
-                             <div className="flex-1 min-w-0">
-                               <div className="flex justify-between items-start gap-4">
-                                 <div>
-                                   <h4 className={`font-medium text-sm ${status === 'locked' ? 'text-muted-foreground' : 'text-foreground'}`}>
-                                     {task.title}
-                                   </h4>
-                                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
-                                 </div>
-                                 <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground shrink-0 whitespace-nowrap border border-border">
-                                   {task.stcw || 'NO REF'}
-                                 </span>
+             {/* SCROLLABLE TASKS */}
+             <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {activeFuncData && (
+                   <h2 className="font-bold text-xl text-foreground mb-4 flex items-center gap-2">
+                      <BookOpen size={20} className="text-primary"/> 
+                      {getFunctionLabel(activeFuncData.id)}
+                   </h2>
+                )}
+
+                {visibleTasks.length === 0 ? (
+                   <div className="flex flex-col items-center justify-center h-64 opacity-50 border-2 border-dashed border-border rounded-xl">
+                      <BookOpen className="h-12 w-12 mb-3 text-muted-foreground" />
+                      <p className="text-muted-foreground">No tasks found matching your filters.</p>
+                   </div>
+                ) : (
+                   visibleTasks.map((task: any) => (
+                      <div 
+                        key={task.id}
+                        className={`bg-card border p-4 rounded-xl shadow-sm transition-all hover:shadow-md cursor-pointer group relative overflow-hidden ${
+                           task.status === 'COMPLETED' ? 'border-green-500/30 bg-green-500/5' : 'border-border'
+                        }`}
+                        onClick={() => toast.info("Opening Evidence Modal... (Next Step)")}
+                      >
+                         {/* LEFT STRIP INDICATOR */}
+                         <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                            task.status === 'COMPLETED' ? 'bg-green-500' : 
+                            task.status === 'PENDING' ? 'bg-yellow-500' : 'bg-muted-foreground/20'
+                         }`} />
+
+                         <div className="flex justify-between items-start pl-3">
+                            <div className="flex-1">
+                               <div className="flex items-center gap-2 mb-1.5">
+                                  <span className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground border border-border">
+                                     {task.stcw || 'NO REF'}
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide flex items-center gap-1">
+                                     <ChevronRight size={10}/> {task.topicTitle}
+                                  </span>
                                </div>
-
-                               {/* METADATA TAGS (Safety, Frequency, etc.) */}
+                               <h3 className={`font-bold text-base ${task.status === 'COMPLETED' ? 'text-green-700 dark:text-green-400' : 'text-foreground'}`}>
+                                  {task.title}
+                               </h3>
+                               
+                               {/* METADATA TAGS */}
                                <div className="flex flex-wrap gap-2 mt-3">
-                                  {task.frequency && (
-                                    <span className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">
-                                      {task.frequency}
-                                    </span>
-                                  )}
                                   {task.safety && task.safety !== 'NONE' && (
-                                     <span className="text-[10px] bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-0.5 rounded border border-red-500/20 flex items-center gap-1">
+                                     <span className="flex items-center gap-1 text-[10px] text-red-600 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded font-medium border border-red-200 dark:border-red-900">
                                         <AlertTriangle size={10} /> {task.safety}
                                      </span>
                                   )}
-                                  {task.dept && (
-                                     <span className="text-[10px] border border-border px-2 py-0.5 rounded text-muted-foreground">
-                                       {task.dept}
+                                  {task.frequency && (
+                                     <span className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted px-2 py-1 rounded font-medium border border-border">
+                                        <Clock size={10} /> {task.frequency}
+                                     </span>
+                                  )}
+                                  {task.mandatory && (
+                                     <span className="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded font-medium border border-blue-200 dark:border-blue-900">
+                                        Mandatory
                                      </span>
                                   )}
                                </div>
+                            </div>
 
-                               {/* HOVER ACTIONS */}
-                               <div className="mt-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  {status !== 'locked' && (
-                                    <>
-                                      <button className="flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-1 rounded hover:bg-primary hover:text-primary-foreground transition-colors">
-                                        <Camera size={12} /> Add Evidence
-                                      </button>
-                                      <button className="flex items-center gap-1 text-xs bg-muted text-muted-foreground px-2 py-1 rounded hover:bg-muted/80 hover:text-foreground">
-                                        <FileText size={12} /> Notes
-                                      </button>
-                                    </>
-                                  )}
-                               </div>
-                             </div>
-
-                             {/* STATUS BADGE */}
-                             <div className="mt-1 shrink-0">
-                               {status === 'completed' && (
-                                 <span className="text-[10px] font-bold text-green-600 bg-green-500/10 px-2 py-1 rounded-full border border-green-500/20">
-                                   VERIFIED
-                                 </span>
+                            {/* STATUS ICON */}
+                            <div className="pl-6 pt-1">
+                               {task.status === 'COMPLETED' ? (
+                                  <div className="flex flex-col items-center text-green-600">
+                                     <CheckCircle2 size={26} />
+                                     <span className="text-[10px] font-bold mt-1">DONE</span>
+                                  </div>
+                               ) : task.status === 'PENDING' ? (
+                                  <div className="flex flex-col items-center text-yellow-600">
+                                     <Clock size={26} />
+                                     <span className="text-[10px] font-bold mt-1">REVIEW</span>
+                                  </div>
+                               ) : (
+                                  <div className="flex flex-col items-center text-muted-foreground/20 group-hover:text-primary/40 transition-colors">
+                                     <Circle size={26} />
+                                     <span className="text-[10px] font-bold mt-1 opacity-0 group-hover:opacity-100 transition-opacity">DO</span>
+                                  </div>
                                )}
-                               {status === 'pending' && (
-                                 <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-1 rounded-full border border-amber-500/20">
-                                   IN PROGRESS
-                                 </span>
-                               )}
-                             </div>
-
-                           </div>
-                         );
-                       })}
-                     </div>
-                   </div>
-                 ))}
-               </div>
+                            </div>
+                         </div>
+                      </div>
+                   ))
+                )}
              </div>
-           ))}
-        </div>
-
-      </div>
+          </div>
+       </div>
     </div>
   );
 };

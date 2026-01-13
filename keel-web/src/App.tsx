@@ -17,6 +17,7 @@ import LockedTRBPage from "./pages/LockedTRBPage";
 import EvidencePage from "./pages/EvidencePage";
 import UsersPage from "./pages/UsersPage";
 import TasksPage from "./pages/TasksPage";
+import TRBViewerPage from './pages/TRBViewerPage';
 
 export default function App() {
   return (
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/settings" element={<DashboardLayout><SettingsPage /></DashboardLayout>} />
         <Route path="/users" element={<DashboardLayout><UsersPage /></DashboardLayout>} />
         <Route path="/tasks" element={<DashboardLayout><TasksPage /></DashboardLayout>} />
+        <Route path="/trb/:cadetName" element={<TRBViewerPage />} />
 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

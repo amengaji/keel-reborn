@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Ship, ArrowRight, UserCheck, Hand, Search, UserMinus } from 'lucide-react'; // Added UserMinus
-import { getCadets, getVessels, assignCadetToVessel, undoAssignment } from '../services/dataService'; // Added undoAssignment
+import { Ship, ArrowRight, UserCheck, Hand, Search, UserMinus } from 'lucide-react'; 
+import { getCadets, getVessels, assignCadetToVessel, undoAssignment } from '../services/dataService'; 
 import { toast } from 'sonner';
 
 const AssignmentsPage: React.FC = () => {
@@ -13,7 +13,7 @@ const AssignmentsPage: React.FC = () => {
   const [selectedVessel, setSelectedVessel] = useState('');
 
   // DRAG STATE
-  const [dragOverVesselId, setDragOverVesselId] = useState<number | null>(null);
+  const [dragOverVesselId, setDragOverVesselId] = useState<string | null>(null); // Changed to string for ID compatibility
 
   // SEARCH STATES
   const [searchReady, setSearchReady] = useState('');
@@ -36,7 +36,7 @@ const AssignmentsPage: React.FC = () => {
     setSelectedCadet(null); setSelectedVessel(''); setAssignDate(''); refreshData(); 
   };
 
-  // NEW: HANDLE UNASSIGN (UNDO)
+  // HANDLE UNASSIGN (UNDO)
   const handleUnassign = (cadet: any) => {
     if (window.confirm(`Are you sure you want to unassign ${cadet.name} from ${cadet.vessel}?`)) {
       undoAssignment(cadet.id);
@@ -49,18 +49,26 @@ const AssignmentsPage: React.FC = () => {
   const handleDragStart = (e: React.DragEvent, cadet: any) => {
     e.dataTransfer.setData("cadet", JSON.stringify(cadet));
   };
-  const handleDragOver = (e: React.DragEvent, vesselId: number) => {
-    e.preventDefault(); setDragOverVesselId(vesselId);
+  
+  const handleDragOver = (e: React.DragEvent, vesselId: string) => {
+    e.preventDefault(); 
+    setDragOverVesselId(vesselId);
   };
+  
   const handleDrop = (e: React.DragEvent, vessel: any) => {
-    e.preventDefault(); setDragOverVesselId(null);
-    const cadet = JSON.parse(e.dataTransfer.getData("cadet"));
-    setSelectedCadet(cadet); setSelectedVessel(vessel.name);
+    e.preventDefault(); 
+    setDragOverVesselId(null);
+    const cadetData = e.dataTransfer.getData("cadet");
+    if (cadetData) {
+       const cadet = JSON.parse(cadetData);
+       setSelectedCadet(cadet); 
+       setSelectedVessel(vessel.name);
+    }
   };
 
   // FILTER LOGIC
   const readyCadets = cadets
-    .filter(c => c.status === 'Ready' || c.status === 'Leave')
+    .filter(c => c.status === 'Ready' || c.status === 'Leave' || c.status === 'Ashore')
     .filter(c => c.name.toLowerCase().includes(searchReady.toLowerCase()) || c.rank.toLowerCase().includes(searchReady.toLowerCase()));
 
   const filteredVessels = vessels.filter(v => 
@@ -173,7 +181,6 @@ const AssignmentsPage: React.FC = () => {
                              <span className="truncate">{c.name}</span>
                            </div>
                            
-                           {/* NEW: UNASSIGN BUTTON */}
                            <button 
                              onClick={() => handleUnassign(c)}
                              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 p-1 rounded transition-colors opacity-0 group-hover:opacity-100"

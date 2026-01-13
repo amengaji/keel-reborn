@@ -157,7 +157,7 @@ const Sidebar: React.FC = () => {
         >
           <div className="flex items-center space-x-3">
             <Settings size={18} />
-            <span>Bridge Setup</span>
+            <span>Settings</span>
           </div>
           {isConfigOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>

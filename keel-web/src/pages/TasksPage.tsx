@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Upload, ChevronRight, ChevronDown, AlertTriangle, Trash2, Plus, Edit, Copy, MoreVertical } from 'lucide-react';
+import { BookOpen, Upload, ChevronRight, ChevronDown, AlertTriangle, Trash2, Plus, Edit, Copy, Search, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import ImportTaskModal from '../components/trb/ImportTaskModal';
 import TaskFormModal from '../components/trb/TaskFormModal';
 import { getSyllabus, saveSyllabus, processTRBImport, clearSyllabus } from '../services/dataService';
 
-// STCW FUNCTION MAPPING (For Sidebar Display)
 const STCW_MAP: Record<string, string> = {
   '1': 'Navigation',
   '2': 'Cargo Handling & Stowage',
@@ -19,9 +18,11 @@ const STCW_MAP: Record<string, string> = {
 const TasksPage: React.FC = () => {
   const [syllabus, setSyllabus] = useState<any[]>([]);
   const [activeFunction, setActiveFunction] = useState<string | null>(null);
-  
-  // ACCORDION STATE: Keeps track of which Topics are open
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
+
+  // SEARCH & FILTER STATES
+  const [taskSearch, setTaskSearch] = useState('');
+  const [sectionFilter, setSectionFilter] = useState('');
 
   // MODAL STATES
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -37,24 +38,27 @@ const TasksPage: React.FC = () => {
     setSyllabus(data);
     if (data.length > 0 && !activeFunction) {
       setActiveFunction(data[0].id);
-      // Auto-expand all topics in the first function for better UX
+      // Auto-expand first function's topics
       const initialTopics = new Set(data[0].topics.map((t: any) => t.id));
       setExpandedTopics(initialTopics as Set<string>);
     }
   };
 
-  // --- TOGGLE ACCORDION ---
   const toggleTopic = (topicId: string) => {
     const newSet = new Set(expandedTopics);
-    if (newSet.has(topicId)) {
-      newSet.delete(topicId);
-    } else {
-      newSet.add(topicId);
-    }
+    newSet.has(topicId) ? newSet.delete(topicId) : newSet.add(topicId);
     setExpandedTopics(newSet);
   };
 
-  // --- IMPORT HANDLER ---
+  const pruneSyllabus = (data: any[]) => {
+    return data
+      .map(func => ({
+        ...func,
+        topics: func.topics.filter((t: any) => t.tasks.length > 0)
+      }))
+      .filter(func => func.topics.length > 0);
+  };
+
   const handleImport = (flatData: any[]) => {
     const tree = processTRBImport(flatData);
     saveSyllabus(tree);
@@ -72,10 +76,9 @@ const TasksPage: React.FC = () => {
     }
   };
 
-  // --- DELETE SINGLE TASK ---
   const deleteTask = (funcId: string, topicId: string, taskId: string) => {
     if (!window.confirm("Delete this task?")) return;
-    const newSyllabus = syllabus.map(func => {
+    let newSyllabus = syllabus.map(func => {
       if (func.id !== funcId) return func;
       return {
         ...func,
@@ -85,41 +88,36 @@ const TasksPage: React.FC = () => {
         })
       };
     });
+    newSyllabus = pruneSyllabus(newSyllabus);
     saveSyllabus(newSyllabus);
     setSyllabus(newSyllabus);
     toast.info("Task removed.");
   };
 
-  // --- CLONE TASK ---
   const cloneTask = (funcId: string, topicId: string, task: any) => {
     const newTask = {
       ...task,
-      id: `TASK-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // New Unique ID
+      id: `TASK-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       title: `${task.title} (Copy)`
     };
-
     const newSyllabus = syllabus.map(func => {
       if (func.id !== funcId) return func;
       return {
         ...func,
         topics: func.topics.map((topic: any) => {
           if (topic.id !== topicId) return topic;
-          return { ...topic, tasks: [...topic.tasks, newTask] }; // Append Copy
+          return { ...topic, tasks: [...topic.tasks, newTask] };
         })
       };
     });
-
     saveSyllabus(newSyllabus);
     setSyllabus(newSyllabus);
     toast.success("Task duplicated.");
   };
 
-  // --- SAVE TASK (CREATE / EDIT) ---
   const handleSaveTask = (formData: any) => {
-    // Logic handles both create and edit (by removing old if editing, then adding new)
     let currentSyllabus = [...syllabus];
     
-    // 1. Remove Old Instance if Editing
     if (formData.id && editingTask) {
        currentSyllabus = currentSyllabus.map(func => ({
          ...func,
@@ -128,9 +126,9 @@ const TasksPage: React.FC = () => {
            tasks: topic.tasks.filter((t: any) => t.id !== formData.id)
          }))
        }));
+       currentSyllabus = pruneSyllabus(currentSyllabus);
     }
 
-    // 2. Create Task Object
     const newTask = {
       id: formData.id || `TASK-${Date.now()}`,
       title: formData.title,
@@ -146,16 +144,15 @@ const TasksPage: React.FC = () => {
       mandatory: formData.mandatory
     };
 
-    // 3. Find/Create Function
     const funcId = `FUNC-${formData.partNum}`;
     let funcIndex = currentSyllabus.findIndex(f => f.id === funcId);
+    
     if (funcIndex === -1) {
       currentSyllabus.push({ id: funcId, title: `Function ${formData.partNum}`, topics: [] });
-      currentSyllabus.sort((a, b) => a.id.localeCompare(b.id)); // Keep functions sorted
+      currentSyllabus.sort((a, b) => a.id.localeCompare(b.id)); 
       funcIndex = currentSyllabus.findIndex(f => f.id === funcId);
     }
 
-    // 4. Find/Create Topic
     const topicTitle = formData.section.trim();
     const topicId = `TOPIC-${topicTitle.replace(/\s+/g, '-')}`; 
     let topicIndex = currentSyllabus[funcIndex].topics.findIndex((t: any) => t.title === topicTitle);
@@ -165,14 +162,12 @@ const TasksPage: React.FC = () => {
       topicIndex = currentSyllabus[funcIndex].topics.length - 1;
     }
 
-    // 5. Insert & Save
     currentSyllabus[funcIndex].topics[topicIndex].tasks.push(newTask);
     saveSyllabus(currentSyllabus);
     setSyllabus(currentSyllabus);
     
-    // 6. UI Updates
     setActiveFunction(funcId);
-    setExpandedTopics(prev => new Set(prev).add(topicId)); // Auto-open the accordion
+    setExpandedTopics(prev => new Set(prev).add(topicId));
     toast.success(editingTask ? "Task updated." : "New task created.");
     setEditingTask(null);
   };
@@ -186,7 +181,6 @@ const TasksPage: React.FC = () => {
     setIsTaskFormOpen(true);
   };
 
-  // HELPER: Get Function Name
   const getFunctionLabel = (funcId: string) => {
     const num = funcId.replace('FUNC-', '');
     const name = STCW_MAP[num] || 'General';
@@ -230,7 +224,9 @@ const TasksPage: React.FC = () => {
           
           {/* LEFT: SIDEBAR (STCW FUNCTIONS) */}
           <div className="w-1/3 max-w-xs bg-card border border-border rounded-xl flex flex-col overflow-hidden">
-             <div className="p-4 bg-muted/30 border-b border-border font-bold text-xs text-muted-foreground uppercase">STCW Functions</div>
+             <div className="p-4 bg-muted/30 border-b border-border font-bold text-xs text-muted-foreground uppercase flex items-center gap-2">
+                <BookOpen size={14} /> STCW Functions
+             </div>
              <div className="overflow-y-auto flex-1 p-2 space-y-1">
                 {syllabus.map(func => (
                   <button
@@ -247,97 +243,146 @@ const TasksPage: React.FC = () => {
              </div>
           </div>
 
-          {/* RIGHT: TOPICS (ACCORDION) */}
-          <div className="flex-1 bg-card border border-border rounded-xl flex flex-col overflow-hidden">
+          {/* RIGHT: CONTENT (COMPETENCIES & TASKS) */}
+          <div className="flex-1 bg-card border border-border rounded-xl flex flex-col overflow-hidden shadow-sm">
+             
+             {/* NEW: RIGHT COLUMN HEADER WITH SEARCH & FILTER */}
+             <div className="p-3 border-b border-border bg-muted/30 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                <div className="font-bold text-xs text-muted-foreground uppercase flex items-center gap-2">
+                   <Filter size={14} /> Competencies & Tasks
+                </div>
+                
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                   {/* SECTION FILTER */}
+                   <div className="relative w-full sm:w-48">
+                      <input 
+                        type="text" 
+                        placeholder="Filter Sections..." 
+                        value={sectionFilter}
+                        onChange={(e) => setSectionFilter(e.target.value)}
+                        className="w-full bg-background pl-3 pr-3 py-1.5 rounded-md border border-input text-xs focus:ring-1 focus:ring-primary outline-none transition-all"
+                      />
+                   </div>
+
+                   {/* TASK SEARCH */}
+                   <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-2.5 top-1.5 text-muted-foreground" size={14} />
+                      <input 
+                        type="text" 
+                        placeholder="Search Tasks..." 
+                        value={taskSearch}
+                        onChange={(e) => setTaskSearch(e.target.value)}
+                        className="w-full bg-background pl-8 pr-3 py-1.5 rounded-md border border-input text-xs focus:ring-1 focus:ring-primary outline-none transition-all"
+                      />
+                   </div>
+                </div>
+             </div>
+
              <div className="overflow-y-auto flex-1 p-6 space-y-4">
-               {syllabus.filter(f => f.id === activeFunction).map(func => (
+               {syllabus
+                 .filter(f => f.id === activeFunction)
+                 .map(func => (
                  <div key={func.id}>
-                    {func.topics.map((topic: any) => {
-                      const isExpanded = expandedTopics.has(topic.id);
-                      return (
-                        <div key={topic.id} className="border border-border rounded-lg overflow-hidden bg-background mb-4 shadow-sm">
-                           
-                           {/* ACCORDION HEADER */}
-                           <button 
-                             onClick={() => toggleTopic(topic.id)}
-                             className="w-full flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 transition-colors"
-                           >
-                             <div className="flex items-center gap-3">
-                               <div className={`p-1 rounded-full transition-transform duration-200 ${isExpanded ? 'rotate-90 bg-primary/20 text-primary' : 'text-muted-foreground'}`}>
-                                  <ChevronRight size={16} />
+                    {func.topics
+                      // 1. FILTER SECTIONS
+                      .filter((topic: any) => topic.title.toLowerCase().includes(sectionFilter.toLowerCase()))
+                      .map((topic: any) => {
+                        // 2. FILTER TASKS
+                        const filteredTasks = topic.tasks.filter((t: any) => 
+                          t.title.toLowerCase().includes(taskSearch.toLowerCase()) || 
+                          t.description?.toLowerCase().includes(taskSearch.toLowerCase())
+                        );
+
+                        // If searching tasks, only show topics containing matches
+                        if (taskSearch && filteredTasks.length === 0) return null;
+
+                        const isExpanded = expandedTopics.has(topic.id) || taskSearch.length > 0; // Auto-expand on search
+
+                        return (
+                          <div key={topic.id} className="border border-border rounded-lg overflow-hidden bg-background mb-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                             
+                             {/* ACCORDION HEADER */}
+                             <button 
+                               onClick={() => toggleTopic(topic.id)}
+                               className="w-full flex items-center justify-between p-4 bg-muted/30 hover:bg-muted/50 transition-colors"
+                             >
+                               <div className="flex items-center gap-3">
+                                 <div className={`p-1 rounded-full transition-transform duration-200 ${isExpanded ? 'rotate-90 bg-primary/20 text-primary' : 'text-muted-foreground'}`}>
+                                    <ChevronRight size={16} />
+                                 </div>
+                                 <h3 className="font-bold text-foreground text-sm">{topic.title}</h3>
+                                 <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded border border-border">
+                                   {filteredTasks.length} Tasks
+                                 </span>
                                </div>
-                               <h3 className="font-bold text-foreground text-sm">{topic.title}</h3>
-                               <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded border border-border">
-                                 {topic.tasks.length} Tasks
-                               </span>
-                             </div>
-                           </button>
+                             </button>
 
-                           {/* ACCORDION CONTENT (TASKS) */}
-                           {isExpanded && (
-                             <div className="p-4 space-y-3 animate-in slide-in-from-top-2 duration-200">
-                                {topic.tasks.map((task: any) => (
-                                  <div key={task.id} className="group bg-background border border-border p-4 rounded-lg hover:border-primary/40 transition-all relative">
-                                     
-                                     <div className="flex justify-between items-start pr-20">
-                                        <h4 className="font-medium text-sm text-foreground">{task.title}</h4>
-                                     </div>
-                                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
-                                     
-                                     <div className="flex flex-wrap gap-2 mt-3 items-center">
-                                        <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground border border-border">
-                                           {task.stcw || 'NO REF'}
-                                        </span>
-                                        {task.dept && <span className="text-[10px] border border-border px-2 py-0.5 rounded text-muted-foreground">{task.dept}</span>}
-                                        {task.safety && task.safety !== 'NONE' && (
-                                           <span className="text-[10px] bg-red-500/10 text-red-600 px-2 py-0.5 rounded border border-red-500/20 flex items-center gap-1">
-                                              <AlertTriangle size={10} /> {task.safety}
-                                           </span>
-                                        )}
-                                     </div>
+                             {/* ACCORDION CONTENT */}
+                             {isExpanded && (
+                               <div className="p-4 space-y-3">
+                                  {filteredTasks.length === 0 ? (
+                                     <p className="text-xs text-muted-foreground italic text-center py-2">No matching tasks found.</p>
+                                  ) : (
+                                     filteredTasks.map((task: any) => (
+                                      <div key={task.id} className="group bg-background border border-border p-4 rounded-lg hover:border-primary/40 transition-all relative">
+                                         
+                                         <div className="flex justify-between items-start pr-20">
+                                            <h4 className="font-medium text-sm text-foreground">{task.title}</h4>
+                                         </div>
+                                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
+                                         
+                                         <div className="flex flex-wrap gap-2 mt-3 items-center">
+                                            <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground border border-border">
+                                               {task.stcw || 'NO REF'}
+                                            </span>
+                                            {task.dept && <span className="text-[10px] border border-border px-2 py-0.5 rounded text-muted-foreground">{task.dept}</span>}
+                                            {task.safety && task.safety !== 'NONE' && (
+                                               <span className="text-[10px] bg-red-500/10 text-red-600 px-2 py-0.5 rounded border border-red-500/20 flex items-center gap-1">
+                                                  <AlertTriangle size={10} /> {task.safety}
+                                               </span>
+                                            )}
+                                         </div>
 
-                                     {/* ACTION BUTTONS */}
-                                     <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border rounded-md shadow-sm p-1">
-                                        <button 
-                                          onClick={() => cloneTask(func.id, topic.id, task)}
-                                          className="p-1.5 text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-                                          title="Duplicate Task"
-                                        >
-                                          <Copy size={14} />
-                                        </button>
-                                        <div className="w-px h-3 bg-border mx-0.5"></div>
-                                        <button 
-                                          onClick={() => openEdit(task, func.id, topic.title)}
-                                          className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded"
-                                          title="Edit Task"
-                                        >
-                                          <Edit size={14} />
-                                        </button>
-                                        <div className="w-px h-3 bg-border mx-0.5"></div>
-                                        <button 
-                                          onClick={() => deleteTask(func.id, topic.id, task.id)}
-                                          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
-                                          title="Delete Task"
-                                        >
-                                          <Trash2 size={14} />
-                                        </button>
-                                     </div>
-
-                                  </div>
-                                ))}
-                             </div>
-                           )}
-                        </div>
-                      );
-                    })}
+                                         {/* ACTION BUTTONS */}
+                                         <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border rounded-md shadow-sm p-1">
+                                            <button 
+                                              onClick={() => cloneTask(func.id, topic.id, task)}
+                                              className="p-1.5 text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                                              title="Duplicate"
+                                            >
+                                              <Copy size={14} />
+                                            </button>
+                                            <div className="w-px h-3 bg-border mx-0.5"></div>
+                                            <button 
+                                              onClick={() => openEdit(task, func.id, topic.title)}
+                                              className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded"
+                                              title="Edit"
+                                            >
+                                              <Edit size={14} />
+                                            </button>
+                                            <div className="w-px h-3 bg-border mx-0.5"></div>
+                                            <button 
+                                              onClick={() => deleteTask(func.id, topic.id, task.id)}
+                                              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
+                                              title="Delete"
+                                            >
+                                              <Trash2 size={14} />
+                                            </button>
+                                         </div>
+                                      </div>
+                                    ))
+                                  )}
+                               </div>
+                             )}
+                          </div>
+                        );
+                      })}
                  </div>
                ))}
              </div>
           </div>
         </div>
       )}
-
-      {/* MODALS */}
       <ImportTaskModal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} onImport={handleImport} />
       <TaskFormModal 
         isOpen={isTaskFormOpen} 

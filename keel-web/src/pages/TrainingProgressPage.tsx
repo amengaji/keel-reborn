@@ -1,25 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart2, Search, Filter, Ship, Clock, AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
-import { getCadets } from '../services/dataService'; // We read the Trainees from here
+import { getCadets, getSyllabus, calculateProgressStats } from '../services/dataService'; 
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
 const TrainingProgressPage: React.FC = () => {
   const [trainees, setTrainees] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [fleetAverage, setFleetAverage] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Load Trainees and inject MOCK Progress data for visualization
-    const data = getCadets().map((t: any) => ({
-      ...t,
-      // MOCK: If onboard, give random progress between 10-90%. If ready, 0%.
-      progress: t.status === 'Onboard' ? Math.floor(Math.random() * 80) + 10 : 0,
-      lastActive: t.status === 'Onboard' ? '2 days ago' : 'N/A',
-      tasksCompleted: t.status === 'Onboard' ? Math.floor(Math.random() * 50) : 0,
-      totalTasks: 120
-    }));
-    setTrainees(data);
+    // 1. Load Real Data
+    const loadedCadets = getCadets();
+    const loadedSyllabus = getSyllabus();
+
+    // 2. Calculate Real Stats for each Trainee
+    const processedData = loadedCadets.map((t: any) => {
+      // Use the service helper to get actual task counts
+      const stats = calculateProgressStats(t.id, loadedSyllabus);
+      
+      return {
+        ...t,
+        progress: stats.globalPercent, // Real %
+        tasksCompleted: stats.completed, // Real Count
+        totalTasks: stats.total,         // Real Syllabus Size
+        // We don't track logins yet, so we keep a placeholder or check status
+        lastActive: t.status === 'Onboard' ? 'Recently' : 'N/A', 
+      };
+    });
+
+    setTrainees(processedData);
+
+    // 3. Calculate Fleet Average
+    if (processedData.length > 0) {
+      const totalProgress = processedData.reduce((acc: number, curr: any) => acc + curr.progress, 0);
+      setFleetAverage(Math.round(totalProgress / processedData.length));
+    }
   }, []);
 
   // HELPER: Calculate Days Sea Time
@@ -34,13 +51,22 @@ const TrainingProgressPage: React.FC = () => {
   // FILTER LOGIC
   const filteredTrainees = trainees.filter(t => 
     t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.vessel.toLowerCase().includes(searchQuery.toLowerCase())
+    (t.vessel && t.vessel.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const handleViewTRB = (name: string) => {
+    // Navigate to a placeholder for now, or the specific ID if we had the route
     navigate(`/trb/${encodeURIComponent(name)}`);
     toast.info(`Opening Digital TRB for ${name}...`);
-    // Future: Navigate to /trb/:id
+  };
+
+  // HELPER: Dynamic Progress Color
+  const getProgressColor = (percent: number) => {
+    if (percent >= 100) return 'bg-green-500';
+    if (percent >= 75) return 'bg-teal-500';
+    if (percent >= 50) return 'bg-blue-500';
+    if (percent >= 25) return 'bg-yellow-500';
+    return 'bg-primary';
   };
 
   return (
@@ -57,7 +83,7 @@ const TrainingProgressPage: React.FC = () => {
         <div className="flex gap-4">
            <div className="bg-card border border-border px-4 py-2 rounded-lg shadow-sm">
               <p className="text-xs text-muted-foreground uppercase font-bold">Avg. Completion</p>
-              <p className="text-xl font-bold text-primary">32%</p>
+              <p className="text-xl font-bold text-primary">{fleetAverage}%</p>
            </div>
            <div className="bg-card border border-border px-4 py-2 rounded-lg shadow-sm">
               <p className="text-xs text-muted-foreground uppercase font-bold">Active Users</p>
@@ -142,7 +168,7 @@ const TrainingProgressPage: React.FC = () => {
                     <div className="flex items-center gap-3">
                         <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                             <div 
-                                className="h-full bg-primary transition-all duration-1000 ease-out" 
+                                className={`h-full transition-all duration-1000 ease-out ${getProgressColor(trainee.progress)}`} 
                                 style={{ width: `${trainee.progress}%` }}
                             />
                         </div>

@@ -8,7 +8,6 @@ interface TaskFormModalProps {
   editData?: any;
 }
 
-// STANDARD STCW FUNCTIONS
 const STCW_FUNCTIONS = [
   { value: '1', label: 'Function 1: Navigation' },
   { value: '2', label: 'Function 2: Cargo Handling and Stowage' },
@@ -19,7 +18,6 @@ const STCW_FUNCTIONS = [
   { value: '7', label: 'Function 7: Radio Communications' },
 ];
 
-// NEW: STANDARD STCW REFERENCES
 const STCW_REFERENCES = [
   { value: 'A-II/1', label: 'A-II/1 - Deck (Operational Level)' },
   { value: 'A-II/2', label: 'A-II/2 - Deck (Management Level)' },
@@ -41,7 +39,8 @@ const STCW_REFERENCES = [
 ];
 
 const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, editData }) => {
-  const [activeTab, setActiveTab] = useState('details');
+  // SET DEFAULT TAB TO HIERARCHY
+  const [activeTab, setActiveTab] = useState('hierarchy');
   const [formData, setFormData] = useState<any>({});
 
   useEffect(() => {
@@ -53,7 +52,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
         frequency: 'ONCE',
         mandatory: true
       });
-      setActiveTab('details');
+      // RESET TAB TO HIERARCHY ON OPEN
+      setActiveTab('hierarchy');
     }
   }, [isOpen, editData]);
 
@@ -71,9 +71,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
     onClose();
   };
 
+  // UPDATED TAB ORDER
   const tabs = [
+    { id: 'hierarchy', label: 'Hierarchy', icon: <Layers size={16} /> }, // Moved First
     { id: 'details', label: 'Task Details', icon: <BookOpen size={16} /> },
-    { id: 'hierarchy', label: 'Hierarchy', icon: <Layers size={16} /> },
     { id: 'requirements', label: 'Requirements', icon: <ShieldAlert size={16} /> },
     { id: 'verification', label: 'Verification', icon: <FileCheck size={16} /> },
   ];
@@ -113,38 +114,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
         <div className="flex-1 overflow-y-auto p-6">
           <form id="taskForm" onSubmit={handleSubmit} className="space-y-6">
 
-            {/* TAB 1: CORE DETAILS */}
-            {activeTab === 'details' && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-muted-foreground uppercase">Task Title</label>
-                  <input name="title" required value={formData.title || ''} onChange={handleChange} className="input-field" placeholder="e.g. Steer the ship and comply with helm orders" />
-                </div>
-                
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-muted-foreground uppercase">Description / Competence</label>
-                  <input name="description" value={formData.description || ''} onChange={handleChange} className="input-field" placeholder="e.g. Navigation at the Operational Level" />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-muted-foreground uppercase">Detailed Instructions</label>
-                  <textarea 
-                    name="instruction" 
-                    rows={4} 
-                    value={formData.instruction || ''} 
-                    onChange={handleChange} 
-                    className="input-field min-h-25" 
-                    placeholder="Step-by-step instructions for the trainee..."
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: HIERARCHY & CODES */}
+            {/* TAB 1: HIERARCHY & CODES (NOW FIRST) */}
             {activeTab === 'hierarchy' && (
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                  <div className="grid grid-cols-2 gap-4">
-                    {/* STCW FUNCTION DROPDOWN */}
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-muted-foreground uppercase">Function / Part Number</label>
                       <select name="partNum" required value={formData.partNum || ''} onChange={handleChange} className="input-field">
@@ -155,7 +128,6 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                       </select>
                     </div>
 
-                    {/* NEW: STCW REFERENCE DROPDOWN */}
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-muted-foreground uppercase">STCW Reference</label>
                       <select name="stcw" value={formData.stcw || ''} onChange={handleChange} className="input-field">
@@ -179,6 +151,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                       <select name="dept" value={formData.dept || ''} onChange={handleChange} className="input-field">
                         <option value="Deck">Deck</option>
                         <option value="Engine">Engine</option>
+                        <option value="Electrical">Electrical</option>
                         <option value="Galley">Galley</option>
                       </select>
                     </div>
@@ -187,10 +160,38 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                       <select name="traineeType" value={formData.traineeType || ''} onChange={handleChange} className="input-field">
                         <option value="DECK_CADET">Deck Cadet</option>
                         <option value="ENGINE_CADET">Engine Cadet</option>
+                        <option value="ETO_CADET">ETO Cadet</option>
                         <option value="RATING">Rating / Crew</option>
                       </select>
                     </div>
                  </div>
+              </div>
+            )}
+
+            {/* TAB 2: CORE DETAILS */}
+            {activeTab === 'details' && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground uppercase">Task Title</label>
+                  <input name="title" required value={formData.title || ''} onChange={handleChange} className="input-field" placeholder="e.g. Steer the ship and comply with helm orders" />
+                </div>
+                
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground uppercase">Description / Competence</label>
+                  <input name="description" value={formData.description || ''} onChange={handleChange} className="input-field" placeholder="e.g. Navigation at the Operational Level" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground uppercase">Detailed Instructions</label>
+                  <textarea 
+                    name="instruction" 
+                    rows={4} 
+                    value={formData.instruction || ''} 
+                    onChange={handleChange} 
+                    className="input-field min-h-[100px]" 
+                    placeholder="Step-by-step instructions for the trainee..."
+                  />
+                </div>
               </div>
             )}
 
@@ -207,9 +208,12 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                       <label className="text-xs font-bold text-muted-foreground uppercase">Frequency</label>
                       <select name="frequency" value={formData.frequency || 'ONCE'} onChange={handleChange} className="input-field">
                         <option value="ONCE">Once</option>
+                        <option value="TWICE">Twice</option>
                         <option value="DAILY">Daily</option>
                         <option value="WEEKLY">Weekly</option>
                         <option value="MONTHLY">Monthly</option>
+                        <option value="EVERY_VOYAGE">Every Voyage</option>
+                        <option value="EVERY_VESSEL">Every Vessel</option>
                       </select>
                     </div>
                     <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-lg border border-border mt-6">
@@ -235,7 +239,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-muted-foreground uppercase">Evidence Type</label>
-                      <select name="evidence" value={formData.evidence || 'DOCUMENT'} onChange={handleChange} className="input-field">
+                      <select name="evidence" value={formData.evidence || 'DOCUMENT/PHOTO'} onChange={handleChange} className="input-field">
                         <option value="DOCUMENT/PHOTO">Document / Photo</option>
                         <option value="NONE">No Evidence Required</option>
                       </select>

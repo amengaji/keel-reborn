@@ -28,9 +28,9 @@ const STCW_REFS = [
   'A-VI/1', 'A-VI/2', 'A-VI/3', 'A-VI/4', 'A-VI/5', 'A-VI/6'
 ];
 
-const DEPARTMENTS = ['Deck', 'Engine', 'Galley'];
-const RANKS = ['DECK_CADET', 'ENGINE_CADET', 'RATING'];
-const FREQUENCIES = ['ONCE', 'DAILY', 'WEEKLY', 'MONTHLY'];
+const DEPARTMENTS = ['Deck', 'Engine', 'Galley', 'Electrical'];
+const RANKS = ['DECK_CADET', 'ENGINE_CADET', 'ETO_CADET','RATING'];
+const FREQUENCIES = ['ONCE', 'TWICE', 'DAILY', 'WEEKLY', 'MONTHLY', 'EVERY_VOYAGE', 'EVERY_VESSEL'];
 // UPDATED: Evidence Option
 const EVIDENCE = ['DOCUMENT/PHOTO', 'NONE'];
 const VERIFICATION = ['OBSERVATION', 'Q&A', 'WRITTEN'];
