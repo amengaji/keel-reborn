@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Save, User, Phone, Globe, Book, Briefcase, Calendar } from 'lucide-react';
 import { Country, State, City }  from 'country-state-city';
 import { BLOOD_GROUPS, RELATIONSHIPS, TRAINEE_TYPES, toProperCase, toSentenceCase } from '../../constants/cadetData';
@@ -7,9 +7,10 @@ interface AddCadetModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: any) => void;
+  initialData?: any; // Added to fix the error
 }
 
-const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }) => {
+const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, initialData }) => {
   const [activeTab, setActiveTab] = useState('personal');
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedState, setSelectedState] = useState('');
@@ -19,6 +20,28 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
     country: '', state: '', city: '',
     trbApplicable: true
   });
+
+  // Effect to populate data on open
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        // Edit Mode: Populate form
+        setFormData(initialData);
+        // Sync the location dropdown states
+        setSelectedCountry(initialData.country || '');
+        setSelectedState(initialData.state || '');
+      } else {
+        // Add Mode: Reset form
+        setFormData({
+          country: '', state: '', city: '',
+          trbApplicable: true
+        });
+        setSelectedCountry('');
+        setSelectedState('');
+        setActiveTab('personal');
+      }
+    }
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
@@ -73,7 +96,9 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
         
         {/* HEADER */}
         <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="font-bold text-lg text-foreground">Register New Cadet</h2>
+          <h2 className="font-bold text-lg text-foreground">
+            {initialData ? 'Edit Cadet Profile' : 'Register New Cadet'}
+          </h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X size={20} />
           </button>
@@ -110,11 +135,11 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Date of Birth</label>
-                  <input name="dob" type="date" required onChange={handleChange} className="input-field" />
+                  <input name="dob" type="date" required value={formData.dob || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="space-y-1.5">
                     <label className="text-xs font-bold text-muted-foreground">Gender</label>
-                    <select name="gender" required onChange={handleChange} className="input-field">
+                    <select name="gender" required value={formData.gender || ''} onChange={handleChange} className="input-field">
                         <option value="">Select...</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
@@ -147,7 +172,7 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">City</label>
-                  <select name="city" required onChange={handleChange} disabled={!selectedState} className="input-field disabled:opacity-50">
+                  <select name="city" required value={formData.city || ''} onChange={handleChange} disabled={!selectedState} className="input-field disabled:opacity-50">
                     <option value="">Select City</option>
                     {City.getCitiesOfState(selectedCountry, selectedState).map((c) => (
                       <option key={c.name} value={c.name}>{c.name}</option>
@@ -157,19 +182,19 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Pin Code</label>
-                  <input name="pincode" required onChange={handleChange} className="input-field" />
+                  <input name="pincode" required value={formData.pincode || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Email ID</label>
-                  <input name="email" type="email" required onChange={handleChange} className="input-field" />
+                  <input name="email" type="email" required value={formData.email || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Mobile Number</label>
-                  <input name="mobile" type="tel" required onChange={handleChange} className="input-field" />
+                  <input name="mobile" type="tel" required value={formData.mobile || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Blood Group</label>
-                  <select name="bloodGroup" required onChange={handleChange} className="input-field">
+                  <select name="bloodGroup" required value={formData.bloodGroup || ''} onChange={handleChange} className="input-field">
                     <option value="">Select...</option>
                     {BLOOD_GROUPS.map(bg => <option key={bg} value={bg}>{bg}</option>)}
                   </select>
@@ -182,22 +207,22 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Name of Contact</label>
-                  <input name="kinName" required onChange={handleChange} className="input-field" />
+                  <input name="kinName" required value={formData.kinName || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Relation</label>
-                  <select name="kinRelation" required onChange={handleChange} className="input-field">
+                  <select name="kinRelation" required value={formData.kinRelation || ''} onChange={handleChange} className="input-field">
                     <option value="">Select...</option>
                     {RELATIONSHIPS.map(rel => <option key={rel} value={rel}>{rel}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Contact Number</label>
-                  <input name="kinMobile" type="tel" required onChange={handleChange} className="input-field" />
+                  <input name="kinMobile" type="tel" required value={formData.kinMobile || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Email ID (Optional)</label>
-                  <input name="kinEmail" type="email" onChange={handleChange} className="input-field" />
+                  <input name="kinEmail" type="email" value={formData.kinEmail || ''} onChange={handleChange} className="input-field" />
                 </div>
               </div>
             )}
@@ -207,11 +232,11 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                  <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Passport Number</label>
-                  <input name="passportNo" required onChange={handleChange} className="input-field uppercase" />
+                  <input name="passportNo" required value={formData.passportNo || ''} onChange={handleChange} className="input-field uppercase" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Nationality</label>
-                  <select name="nationality" required onChange={handleChange} className="input-field">
+                  <select name="nationality" required value={formData.nationality || ''} onChange={handleChange} className="input-field">
                     <option value="">Select...</option>
                     {Country.getAllCountries().map((c) => (
                       <option key={c.isoCode} value={c.name}>{c.name}</option>
@@ -220,15 +245,15 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Date of Issue</label>
-                  <input name="passportIssueDate" type="date" required onChange={handleChange} className="input-field" />
+                  <input name="passportIssueDate" type="date" required value={formData.passportIssueDate || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Date of Expiry</label>
-                  <input name="passportExpiryDate" type="date" required onChange={handleChange} className="input-field" />
+                  <input name="passportExpiryDate" type="date" required value={formData.passportExpiryDate || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Place of Issue</label>
-                  <input name="passportPlace" required onChange={handleChange} className="input-field" />
+                  <input name="passportPlace" required value={formData.passportPlace || ''} onChange={handleChange} className="input-field" />
                 </div>
               </div>
             )}
@@ -238,11 +263,11 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Seaman Book (CDC) No.</label>
-                  <input name="cdcNo" required onChange={handleChange} className="input-field uppercase" />
+                  <input name="cdcNo" required value={formData.cdcNo || ''} onChange={handleChange} className="input-field uppercase" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Country of Issue</label>
-                  <select name="cdcCountry" required onChange={handleChange} className="input-field">
+                  <select name="cdcCountry" required value={formData.cdcCountry || ''} onChange={handleChange} className="input-field">
                     <option value="">Select...</option>
                     {Country.getAllCountries().map((c) => (
                       <option key={c.isoCode} value={c.name}>{c.name}</option>
@@ -251,22 +276,22 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Date of Issue</label>
-                  <input name="cdcIssueDate" type="date" required onChange={handleChange} className="input-field" />
+                  <input name="cdcIssueDate" type="date" required value={formData.cdcIssueDate || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Date of Expiry</label>
-                  <input name="cdcExpiryDate" type="date" required onChange={handleChange} className="input-field" />
+                  <input name="cdcExpiryDate" type="date" required value={formData.cdcExpiryDate || ''} onChange={handleChange} className="input-field" />
                 </div>
                 
                 <div className="col-span-2 border-t border-border my-2"></div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">INDoS Number (Indian Nationals)</label>
-                  <input name="indosNo" onChange={handleChange} className="input-field uppercase" placeholder="Mandatory for Indian Flag" />
+                  <input name="indosNo" value={formData.indosNo || ''} onChange={handleChange} className="input-field uppercase" placeholder="Mandatory for Indian Flag" />
                 </div>
                  <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Seaman ID / SID (Optional)</label>
-                  <input name="sidNo" onChange={handleChange} className="input-field" />
+                  <input name="sidNo" value={formData.sidNo || ''} onChange={handleChange} className="input-field" />
                 </div>
               </div>
             )}
@@ -276,21 +301,21 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Type of Trainee</label>
-                  <select name="traineeType" required onChange={handleChange} className="input-field">
+                  <select name="traineeType" required value={formData.traineeType || ''} onChange={handleChange} className="input-field">
                     <option value="">Select...</option>
                     {TRAINEE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                  <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Date of Joining Company</label>
-                  <input name="doj" type="date" required onChange={handleChange} className="input-field" />
+                  <input name="doj" type="date" required value={formData.doj || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="col-span-2 pt-4">
                   <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-lg border border-border">
                     <input 
                       type="checkbox" 
                       name="trbApplicable" 
-                      checked={formData.trbApplicable} 
+                      checked={formData.trbApplicable || false} 
                       onChange={handleChange} 
                       className="w-5 h-5 accent-primary" 
                     />
@@ -313,7 +338,7 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave }
           </button>
           <button form="cadetForm" type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 shadow-sm">
             <Save size={16} />
-            <span>Create Cadet Profile</span>
+            <span>{initialData ? 'Update Profile' : 'Create Cadet Profile'}</span>
           </button>
         </div>
       </div>
