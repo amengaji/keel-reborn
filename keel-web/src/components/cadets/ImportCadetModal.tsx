@@ -16,10 +16,10 @@ interface ImportCadetModalProps {
 const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, onImport }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   if (!isOpen) return null;
 
-  // 1. GENERATE SMART TEMPLATE
   const downloadTemplate = async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Cadets');
@@ -51,7 +51,6 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
     // Populate Reference Lists
     const countries = Country.getAllCountries().map(c => c.name);
     
-    // Fill Columns in Reference Sheet
     countries.forEach((c, i) => refSheet.getCell(`A${i+1}`).value = c);
     BLOOD_GROUPS.forEach((b, i) => refSheet.getCell(`B${i+1}`).value = b);
     RELATIONSHIPS.forEach((r, i) => refSheet.getCell(`C${i+1}`).value = r);
@@ -82,19 +81,27 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
     toast.success("Template downloaded.");
   };
 
-  // 2. PARSE FILE
   const handleFile = async (file: File) => {
     setIsProcessing(true);
     try {
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data);
       const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-      onImport(json); // Parent handles the data mapping
+      onImport(json); 
       onClose();
     } catch (e) {
       toast.error("Import failed");
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // DRAG HANDLERS
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -105,29 +112,44 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
              <h2 className="font-bold text-lg text-foreground flex items-center gap-2">
                 <FileSpreadsheet className="text-green-600"/> Import Cadets
              </h2>
-             <button onClick={onClose}><X size={20} className="text-muted-foreground"/></button>
+             <button onClick={onClose}><X size={20} className="text-muted-foreground hover:text-foreground"/></button>
           </div>
           
-          <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg flex gap-3">
-             <AlertTriangle className="text-blue-500 shrink-0" size={18}/>
+          {/* NEW: INSTRUCTIONS BLOCK */}
+          <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg flex items-start space-x-3">
+             <AlertTriangle className="text-blue-500 shrink-0 mt-0.5" size={18} />
              <div className="text-sm">
-                <p className="font-bold text-foreground">Smart Template</p>
-                <p className="text-muted-foreground">Use the dropdowns in the Excel file for Nationality, Rank, and Blood Group to ensure data consistency.</p>
+                <p className="font-bold text-foreground">Smart Template Enabled</p>
+                <div className="text-muted-foreground mt-1 space-y-1">
+                  <p>1. Download the template below.</p>
+                  <p>2. Use the <b>Excel Dropdowns</b> in columns D, E, G & K.</p>
+                  <p>3. If you copy-paste data, ensure it matches the valid lists exactly.</p>
+                </div>
              </div>
           </div>
 
+          {/* DRAG AND DROP ZONE */}
           <div 
+            className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center transition-all cursor-pointer ${
+              dragActive 
+              ? 'border-primary bg-primary/5' 
+              : 'border-border bg-muted/20 hover:border-primary/50 hover:bg-muted/40'
+            }`}
+            onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/30 transition-colors"
           >
              <input ref={fileInputRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => e.target.files && handleFile(e.target.files[0])} />
              {isProcessing ? <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"/> : <Upload size={32} className="text-primary mb-2"/>}
-             <p className="font-medium text-foreground">Click to Upload Excel</p>
+             <p className="font-medium text-foreground">Click to upload or drag and drop</p>
+             <p className="text-xs text-muted-foreground mt-1">XLSX files only</p>
           </div>
 
           <div className="flex justify-start">
              <button onClick={downloadTemplate} className="text-primary text-sm font-medium hover:underline flex items-center gap-1">
-                <Download size={14}/> Download Template
+                <Download size={14}/> Download Smart Template
              </button>
           </div>
        </div>
