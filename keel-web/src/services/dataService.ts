@@ -71,3 +71,22 @@ export const signOffCadet = (cadetId: number, signOffDate: string, nextStatus: s
   saveAllCadets(updatedCadets);
   return updatedCadets;
 };
+// ... existing imports and code ...
+
+// NEW: Revert an assignment (Fixing a mistake)
+export const undoAssignment = (cadetId: number) => {
+  const cadets = getCadets();
+  const updatedCadets = cadets.map((c: any) => {
+    if (c.id === cadetId) {
+      return { 
+        ...c, 
+        vessel: 'Unassigned', 
+        status: 'Ready',
+        signOnDate: undefined // Remove the date
+      };
+    }
+    return c;
+  });
+  saveAllCadets(updatedCadets);
+  return updatedCadets;
+};

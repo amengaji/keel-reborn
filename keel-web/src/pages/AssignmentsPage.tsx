@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Ship, ArrowRight, UserCheck, Hand, Search } from 'lucide-react';
-import { getCadets, getVessels, assignCadetToVessel } from '../services/dataService';
+import { Ship, ArrowRight, UserCheck, Hand, Search, UserMinus } from 'lucide-react'; // Added UserMinus
+import { getCadets, getVessels, assignCadetToVessel, undoAssignment } from '../services/dataService'; // Added undoAssignment
 import { toast } from 'sonner';
 
 const AssignmentsPage: React.FC = () => {
@@ -15,7 +15,7 @@ const AssignmentsPage: React.FC = () => {
   // DRAG STATE
   const [dragOverVesselId, setDragOverVesselId] = useState<number | null>(null);
 
-  // SEARCH STATES (NEW)
+  // SEARCH STATES
   const [searchReady, setSearchReady] = useState('');
   const [searchFleet, setSearchFleet] = useState('');
 
@@ -34,6 +34,15 @@ const AssignmentsPage: React.FC = () => {
     assignCadetToVessel(selectedCadet.id, selectedVessel, assignDate);
     toast.success(`${selectedCadet.name} assigned to ${selectedVessel}`);
     setSelectedCadet(null); setSelectedVessel(''); setAssignDate(''); refreshData(); 
+  };
+
+  // NEW: HANDLE UNASSIGN (UNDO)
+  const handleUnassign = (cadet: any) => {
+    if (window.confirm(`Are you sure you want to unassign ${cadet.name} from ${cadet.vessel}?`)) {
+      undoAssignment(cadet.id);
+      toast.info(`${cadet.name} returned to Ready Pool.`);
+      refreshData();
+    }
   };
 
   // DRAG HANDLERS
@@ -61,7 +70,7 @@ const AssignmentsPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-140px)] flex flex-col">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Trainee Assignments</h1> {/* RENAMED */}
+        <h1 className="text-2xl font-bold text-foreground">Trainee Assignments</h1>
         <p className="text-muted-foreground text-sm">Drag 'Ready' trainees to vessels to assign them.</p>
       </div>
 
@@ -76,7 +85,6 @@ const AssignmentsPage: React.FC = () => {
                </h3>
                <span className="bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold px-2 py-1 rounded-full">{readyCadets.length}</span>
             </div>
-            {/* SEARCH BAR READY POOL */}
             <div className="relative">
               <Search className="absolute left-2.5 top-2 text-muted-foreground" size={14} />
               <input 
@@ -120,7 +128,6 @@ const AssignmentsPage: React.FC = () => {
                   <Ship size={18} className="text-teal-500"/> Fleet Status
                 </h3>
              </div>
-             {/* SEARCH BAR FLEET */}
              <div className="relative">
               <Search className="absolute left-2.5 top-2 text-muted-foreground" size={14} />
               <input 
@@ -137,7 +144,6 @@ const AssignmentsPage: React.FC = () => {
             {filteredVessels.map(vessel => {
               const crew = cadets.filter(c => c.vessel === vessel.name && c.status === 'Onboard');
               const isDragOver = dragOverVesselId === vessel.id;
-              // LOGIC: 0 Trainee, 1 Trainee, 2 Trainees
               const label = crew.length === 1 ? '1 Trainee' : `${crew.length} Trainees`;
               
               return (
@@ -155,15 +161,26 @@ const AssignmentsPage: React.FC = () => {
                         <h4 className={`font-bold ${isDragOver ? 'text-primary' : 'text-foreground'}`}>{vessel.name}</h4>
                         <p className="text-xs text-muted-foreground">{vessel.type}</p>
                       </div>
-                      <span className="text-xs font-mono bg-muted px-2 py-1 rounded text-muted-foreground">{label}</span> {/* UPDATED LABEL */}
+                      <span className="text-xs font-mono bg-muted px-2 py-1 rounded text-muted-foreground">{label}</span>
                    </div>
                    
                    <div className="space-y-2 pt-2 border-t border-border">
                       {crew.length === 0 && !isDragOver && <p className="text-xs text-muted-foreground italic">No trainees onboard.</p>}
                       {crew.map(c => (
-                        <div key={c.id} className="flex items-center gap-2 text-sm text-foreground bg-muted/20 p-2 rounded">
-                           <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">{c.name.charAt(0)}</div>
-                           <span className="truncate flex-1">{c.name}</span>
+                        <div key={c.id} className="flex items-center justify-between gap-2 text-sm text-foreground bg-muted/20 p-2 rounded group">
+                           <div className="flex items-center gap-2 overflow-hidden">
+                             <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">{c.name.charAt(0)}</div>
+                             <span className="truncate">{c.name}</span>
+                           </div>
+                           
+                           {/* NEW: UNASSIGN BUTTON */}
+                           <button 
+                             onClick={() => handleUnassign(c)}
+                             className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 p-1 rounded transition-colors opacity-0 group-hover:opacity-100"
+                             title="Unassign / Undo"
+                           >
+                             <UserMinus size={14} />
+                           </button>
                         </div>
                       ))}
                    </div>

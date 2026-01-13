@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, Search, Filter, MoreVertical, Anchor, Upload, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import AddCadetModal from '../components/cadets/AddCadetModal';
-import ImportCadetModal from '../components/cadets/ImportCadetModal';
+import AddCadetModal from '../components/trainees/AddCadetModal';
+import ImportCadetModal from '../components/trainees/ImportCadetModal';
 import { getCadets, saveCadet, saveAllCadets } from '../services/dataService';
 
 interface Cadet {
@@ -75,7 +75,7 @@ const CadetsPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Cadet Profiles</h1>
+          <h1 className="text-2xl font-bold text-foreground">Trainee Profiles</h1>
           <p className="text-muted-foreground text-sm">Manage trainee personnel, documents, and assignments.</p>
         </div>
         <div className="flex items-center space-x-3">
@@ -83,7 +83,7 @@ const CadetsPage: React.FC = () => {
             <Upload size={18} /><span>Import Excel</span>
           </button>
           <button onClick={() => setIsAddOpen(true)} className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95">
-            <Plus size={18} /><span>New Cadet</span>
+            <Plus size={18} /><span>New Trainee</span>
           </button>
         </div>
       </div>
@@ -102,7 +102,7 @@ const CadetsPage: React.FC = () => {
         {cadets.length === 0 && (
           <div className="flex flex-col items-center justify-center h-64 text-center">
             <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4"><Users className="h-8 w-8 text-muted-foreground" /></div>
-            <h3 className="text-lg font-medium text-foreground">No Cadets Found</h3>
+            <h3 className="text-lg font-medium text-foreground">No Trainees Found</h3>
             <p className="mt-1 text-sm text-muted-foreground max-w-xs">Your crew roster is empty. Import from Excel or add a new trainee manually.</p>
           </div>
         )}
@@ -111,7 +111,7 @@ const CadetsPage: React.FC = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-muted/50 text-muted-foreground text-[11px] uppercase tracking-wider font-semibold border-b border-border">
-                <th className="px-6 py-4">Cadet Name</th>
+                <th className="px-6 py-4">trainee Name</th>
                 <th className="px-6 py-4">Rank / Batch</th>
                 <th className="px-6 py-4">Current Vessel</th>
                 <th className="px-6 py-4">Status</th>

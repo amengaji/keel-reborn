@@ -62,7 +62,7 @@ export default function App() {
         
         <Route path="/dashboard" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
         <Route path="/vessels" element={<DashboardLayout><VesselsPage /></DashboardLayout>} />
-        <Route path="/cadets" element={<DashboardLayout><CadetsPage /></DashboardLayout>} />
+        <Route path="/trainees" element={<DashboardLayout><CadetsPage /></DashboardLayout>} />
         
         <Route path="/assignments" element={<DashboardLayout><AssignmentsPage /></DashboardLayout>} />
         <Route path="/training-progress" element={<DashboardLayout><TrainingProgressPage /></DashboardLayout>} />

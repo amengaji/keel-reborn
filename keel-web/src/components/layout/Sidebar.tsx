@@ -17,7 +17,7 @@ const Sidebar: React.FC = () => {
   const commandItems = [
     { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={18} /> },
     { name: 'Fleet', path: '/vessels', icon: <Ship size={18} /> },
-    { name: 'Cadets', path: '/cadets', icon: <Users size={18} /> },
+    { name: 'Trainees', path: '/trainees', icon: <Users size={18} /> },
   ];
 
   // SECT 2: OPERATIONS

@@ -110,7 +110,7 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
        <div className="bg-card w-full max-w-lg rounded-xl border border-border shadow-2xl p-6 space-y-6">
           <div className="flex justify-between items-center border-b border-border pb-4">
              <h2 className="font-bold text-lg text-foreground flex items-center gap-2">
-                <FileSpreadsheet className="text-green-600"/> Import Cadets
+                <FileSpreadsheet className="text-green-600"/> Import Trainees
              </h2>
              <button onClick={onClose}><X size={20} className="text-muted-foreground hover:text-foreground"/></button>
           </div>
