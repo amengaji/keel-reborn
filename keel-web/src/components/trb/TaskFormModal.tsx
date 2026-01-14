@@ -188,7 +188,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                     rows={4} 
                     value={formData.instruction || ''} 
                     onChange={handleChange} 
-                    className="input-field min-h-[100px]" 
+                    className="input-field min-h-25" 
                     placeholder="Step-by-step instructions for the trainee..."
                   />
                 </div>

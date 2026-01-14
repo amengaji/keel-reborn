@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { getVessels, saveVessels, getCadets } from '../services/dataService';
 import ImportVesselModal from '../components/vessels/ImportVesselModal';
+import AddVesselModal from '../components/vessels/AddVesselModal';
 import { toast } from 'sonner';
 
 type SortDirection = 'asc' | 'desc';
@@ -21,16 +22,16 @@ const VesselsPage: React.FC = () => {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingVessel, setEditingVessel] = useState<any>(null);
   
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'name', direction: 'asc' });
 
-  // REFRESH DATA FUNCTION
   const refreshData = () => {
     const fleet = getVessels();
     const crew = getCadets();
-    // Ensure we always have arrays
     setVessels(Array.isArray(fleet) ? fleet : []);
     setTrainees(Array.isArray(crew) ? crew : []);
   };
@@ -39,30 +40,49 @@ const VesselsPage: React.FC = () => {
     refreshData();
   }, []);
 
+  // FIX: Explicitly typed 't' as any
   const getCadetCount = (vesselName: string) => {
-    return trainees.filter(t => t.vessel === vesselName && t.status === 'Onboard').length;
+    return trainees.filter((t: any) => t.vessel === vesselName && t.status === 'Onboard').length;
   };
 
-  // --- THE FIX: SAFE IMPORT ---
   const handleImport = (cleanData: any[]) => {
-    // 1. Read directly from DB to ensure we have the latest
     const currentFleet = getVessels(); 
-    
-    // 2. Merge (New Data + Existing Data)
     const updatedFleet = [...currentFleet, ...cleanData];
-    
-    // 3. Save & Refresh
     saveVessels(updatedFleet);
     setVessels(updatedFleet);
-    toast.success(`${cleanData.length} vessels added. Total fleet: ${updatedFleet.length}`);
+    toast.success(`${cleanData.length} vessels added.`);
   };
 
+  const handleSaveVessel = (data: any) => {
+    const currentFleet = getVessels();
+    let updatedFleet;
+
+    if (data.id) {
+      updatedFleet = currentFleet.map((v: any) => v.id === data.id ? { ...v, ...data } : v);
+      toast.success('Vessel details updated.');
+    } else {
+      const newVessel = { ...data, id: `VSL-${Date.now()}`, status: 'Active' };
+      updatedFleet = [...currentFleet, newVessel];
+      toast.success('New vessel added to fleet.');
+    }
+
+    saveVessels(updatedFleet);
+    setVessels(updatedFleet);
+    setEditingVessel(null);
+  };
+
+  const handleEditClick = (vessel: any) => {
+    setEditingVessel(vessel);
+    setIsAddOpen(true);
+  };
+
+  // FIX: Explicitly typed 'v' as any
   const handleDelete = (id: string) => {
     if (window.confirm('Are you sure you want to remove this vessel?')) {
-      const currentFleet = getVessels(); // Read from DB
+      const currentFleet = getVessels();
       const updated = currentFleet.filter((v: any) => v.id !== id);
       saveVessels(updated);
-      setVessels(updated); // Update UI
+      setVessels(updated);
       toast.success('Vessel removed.');
     }
   };
@@ -76,12 +96,14 @@ const VesselsPage: React.FC = () => {
   };
 
   const processData = () => {
-    let filtered = vessels.filter(v => 
-      v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.imo.includes(searchQuery)
+    // FIX: Explicitly typed 'v' as any and added null checks
+    let filtered = vessels.filter((v: any) => 
+      (v.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (v.imo || v.imoNumber || '').includes(searchQuery)
     );
 
-    filtered.sort((a, b) => {
+    // FIX: Explicitly typed 'a' and 'b' as any
+    filtered.sort((a: any, b: any) => {
       let valA = a[sortConfig.key];
       let valB = b[sortConfig.key];
 
@@ -124,7 +146,10 @@ const VesselsPage: React.FC = () => {
            >
              <Upload size={18} /><span>Import Fleet</span>
            </button>
-           <button className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95">
+           <button 
+             onClick={() => { setEditingVessel(null); setIsAddOpen(true); }}
+             className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95"
+           >
              <Plus size={18} /><span>Add Vessel</span>
            </button>
         </div>
@@ -194,7 +219,7 @@ const VesselsPage: React.FC = () => {
                        </td>
                     </tr>
                  ) : (
-                    paginatedData.map((vessel) => {
+                    paginatedData.map((vessel: any) => {
                        const cadetCount = getCadetCount(vessel.name);
                        return (
                           <tr key={vessel.id} className="hover:bg-muted/30 transition-colors group">
@@ -211,9 +236,9 @@ const VesselsPage: React.FC = () => {
                                    </div>
                                 </div>
                              </td>
-                             <td className="p-4 font-mono text-muted-foreground">{vessel.imo}</td>
+                             <td className="p-4 font-mono text-muted-foreground">{vessel.imo || vessel.imoNumber}</td>
                              <td className="p-4 text-foreground">{vessel.type}</td>
-                             <td className="p-4 text-muted-foreground truncate max-w-[150px]" title={vessel.classSociety}>
+                             <td className="p-4 text-muted-foreground truncate max-w-37.5" title={vessel.classSociety}>
                                 {vessel.classSociety}
                              </td>
                              <td className="p-4">
@@ -233,7 +258,10 @@ const VesselsPage: React.FC = () => {
                              </td>
                              <td className="p-4 text-right">
                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                   <button className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-primary transition-colors">
+                                   <button 
+                                     onClick={() => handleEditClick(vessel)}
+                                     className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-primary transition-colors"
+                                   >
                                       <Edit size={16} />
                                    </button>
                                    <button 
@@ -271,6 +299,13 @@ const VesselsPage: React.FC = () => {
         isOpen={isImportOpen} 
         onClose={() => setIsImportOpen(false)} 
         onImport={handleImport} 
+      />
+
+      <AddVesselModal
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        onSave={handleSaveVessel}
+        editData={editingVessel}
       />
     </div>
   );

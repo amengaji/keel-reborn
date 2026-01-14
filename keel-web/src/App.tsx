@@ -33,8 +33,8 @@ export default function App() {
             // ERROR: Red Glass (85% Opacity), Red Border, WHITE Text
             error: "!bg-[rgba(220,38,38,0.5)] !border-[rgba(220,38,38,0.5)] !text-white",
             
-            // SUCCESS: Light Green Glass (25% Opacity), Green Border, BLACK Text
-            success: "!bg-[rgba(74,222,128,0.25)] !border-[rgba(22,163,74,0.15)] !text-green-800 dark:!text-green-200",
+            // SUCCESS: Light Green Glass (25% Opacity), Green Border, WHITE Text
+            success: "!bg-[rgba(74,222,128,0.25)] !border-[rgba(22,163,74,0.15)] !text-black dark:!text-green-200",
             
             // WARNING: Light Orange Glass (25% Opacity), Orange Border, BLACK Text
             warning: "!bg-[rgba(251,146,60,0.25)] !border-[rgba(234,88,12,0.15)] !text-orange-800 dark:!text-orange-200",

@@ -268,7 +268,7 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
              </div>
 
           ) : (
-             <div className="flex flex-col h-[500px]">
+             <div className="flex flex-col h-125">
                 <div className="p-4 bg-muted/30 border-b border-border flex justify-between items-center">
                    <div>
                       <h3 className="font-bold text-foreground">Preview Import</h3>

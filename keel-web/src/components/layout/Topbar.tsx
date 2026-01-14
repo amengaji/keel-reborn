@@ -71,7 +71,7 @@ const Topbar: React.FC = () => {
             <p className="text-sm font-bold text-foreground leading-none">{user?.firstName || 'Admin'} {user?.lastName}</p>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">{user?.role || 'Officer'}</p>
           </div>
-          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary to-blue-600 flex items-center justify-center text-primary-foreground font-bold shadow-md">
+          <div className="w-9 h-9 rounded-full bg-linear-to-tr from-primary to-blue-600 flex items-center justify-center text-primary-foreground font-bold shadow-md">
             {user?.firstName?.[0] || 'A'}
           </div>
         </div>

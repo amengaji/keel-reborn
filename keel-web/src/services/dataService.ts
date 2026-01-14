@@ -1,50 +1,35 @@
+// amengaji/keel-reborn/keel-web/src/services/dataService.ts
+
 // KEY NAMES for LocalStorage
 const VESSELS_KEY = 'keel_vessels';
 const CADETS_KEY = 'keel_cadets';
 const TRB_KEY = 'keel_trb_syllabus';
 const PROGRESS_KEY = 'keel_trainee_progress';
 const SETTINGS_KEY = 'keel_settings';
+const SHORE_USERS_KEY = 'keel_shore_users'; 
+const SHORE_ROLES_KEY = 'keel_shore_roles'; 
 
-// --- CONSTANTS (Restored to prevent import crashes) ---
+// --- CONSTANTS ---
 export const CLASSIFICATION_SOCIETIES = [
-  "ABS (American Bureau of Shipping)",
-  "BV (Bureau Veritas)",
-  "CCS (China Classification Society)",
-  "CRS (Croatian Register of Shipping)",
-  "DNV (Det Norske Veritas)",
-  "IRS (Indian Register of Shipping)",
-  "KR (Korean Register)",
-  "LR (Lloyd's Register)",
-  "NK (Nippon Kaiji Kyokai)",
-  "PRS (Polski Rejestr Statków)",
-  "RINA (Registro Italiano Navale)",
-  "RS (Russian Maritime Register)",
-  "Other"
+  "ABS (American Bureau of Shipping)", "BV (Bureau Veritas)", "CCS (China Classification Society)",
+  "CRS (Croatian Register of Shipping)", "DNV (Det Norske Veritas)", "IRS (Indian Register of Shipping)",
+  "KR (Korean Register)", "LR (Lloyd's Register)", "NK (Nippon Kaiji Kyokai)", "PRS (Polski Rejestr Statków)",
+  "RINA (Registro Italiano Navale)", "RS (Russian Maritime Register)", "Other"
 ];
 
 export const VESSEL_TYPES = [
-  "Bulk Carrier",
-  "Oil Tanker",
-  "Product Tanker",
-  "Chemical Tanker",
-  "Gas Carrier (LNG/LPG)",
-  "Container Ship",
-  "General Cargo",
-  "Ro-Ro / Car Carrier",
-  "Offshore Support Vessel",
-  "Passenger / Cruise",
-  "Anchor Handling Tug",
-  "Platform Support Vessel",
-  "Other"
+  "Bulk Carrier", "Oil Tanker", "Product Tanker", "Chemical Tanker", "Gas Carrier (LNG/LPG)",
+  "Container Ship", "General Cargo", "Ro-Ro / Car Carrier", "Offshore Support Vessel",
+  "Passenger / Cruise", "Anchor Handling Tug", "Platform Support Vessel", "Other"
 ];
 
 // --- SETTINGS DEFAULTS & OPERATIONS ---
 export const DEFAULT_SETTINGS = {
   general: {
     orgName: "Keel Maritime Training",
-    logo: null,       // Base64 string for the image
-    logoWidth: 150,   // Display width in pixels
-    sessionTimeout: 30, // In minutes
+    logo: null,
+    logoWidth: 150,
+    sessionTimeout: 30,
     address: "",
     country: "",
     state: "",
@@ -52,10 +37,10 @@ export const DEFAULT_SETTINGS = {
     pincode: ""
   },
   roles: [
-    { id: 1, name: 'CADET', description: 'Trainee Officer', canSign: false, canUpload: true, verifyLevel: 0 },
-    { id: 2, name: 'CTO', description: 'Cadet Training Officer', canSign: true, canUpload: false, verifyLevel: 1 },
-    { id: 3, name: 'MASTER', description: 'Ship Captain', canSign: true, canUpload: false, verifyLevel: 2 },
-    { id: 4, name: 'SHORE_ADMIN', description: 'Office Superintendent', canSign: true, canUpload: true, verifyLevel: 3 },
+    { id: 1, name: 'CADET', description: 'Trainee Officer', canSign: false, canUpload: true, canReview: false, canManageUsers: false, verifyLevel: 0 },
+    { id: 2, name: 'CTO', description: 'Cadet Training Officer', canSign: true, canUpload: false, canReview: true, canManageUsers: false, verifyLevel: 1 },
+    { id: 3, name: 'MASTER', description: 'Ship Captain', canSign: true, canUpload: false, canReview: true, canManageUsers: false, verifyLevel: 2 },
+    { id: 4, name: 'SHORE_ADMIN', description: 'Office Superintendent', canSign: true, canUpload: true, canReview: true, canManageUsers: true, verifyLevel: 3 },
   ],
   rules: {
     requireEvidence: true,
@@ -66,8 +51,16 @@ export const DEFAULT_SETTINGS = {
 export const getSettings = () => {
   try {
     const data = localStorage.getItem(SETTINGS_KEY);
-    // Merge with defaults to ensure all fields exist if schema updates
-    return data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
+    if (!data) return DEFAULT_SETTINGS;
+    
+    const parsed = JSON.parse(data);
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      general: { ...DEFAULT_SETTINGS.general, ...parsed.general },
+      roles: parsed.roles || DEFAULT_SETTINGS.roles,
+      rules: parsed.rules || DEFAULT_SETTINGS.rules
+    };
   } catch (e) {
     return DEFAULT_SETTINGS;
   }
@@ -76,6 +69,106 @@ export const getSettings = () => {
 export const saveSettings = (settings: any) => {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   window.dispatchEvent(new Event('storage'));
+};
+
+// --- ROLE HELPERS (Bridge to Settings) ---
+export const getRoles = () => {
+  return getSettings().roles;
+};
+
+export const saveRoles = (roles: any[]) => {
+  const settings = getSettings();
+  settings.roles = roles;
+  saveSettings(settings);
+};
+
+// --- SHORE OFFICE ROLES (ADMINISTRATION) ---
+export const DEFAULT_SHORE_ROLES = [
+  { 
+    id: 'admin', 
+    name: 'ADMIN', 
+    description: 'Full System Access',
+    permissions: {
+      trainees: { view: true, create: true, edit: true, delete: true },
+      vessels: { view: true, create: true, edit: true, delete: true },
+      tasks: { view: true, create: true, edit: true, delete: true },
+      users: { view: true, create: true, edit: true, delete: true },
+    }
+  },
+  { 
+    id: 'manager', 
+    name: 'TRAINING MANAGER', 
+    description: 'Can manage trainees and tasks, but cannot delete vessels.',
+    permissions: {
+      trainees: { view: true, create: true, edit: true, delete: false },
+      vessels: { view: true, create: false, edit: true, delete: false },
+      tasks: { view: true, create: true, edit: true, delete: false },
+      users: { view: true, create: true, edit: false, delete: false },
+    }
+  },
+  { 
+    id: 'viewer', 
+    name: 'EXECUTIVE / VIEWER', 
+    description: 'Read-only access to data.',
+    permissions: {
+      trainees: { view: true, create: false, edit: false, delete: false },
+      vessels: { view: true, create: false, edit: false, delete: false },
+      tasks: { view: true, create: false, edit: false, delete: false },
+      users: { view: false, create: false, edit: false, delete: false },
+    }
+  }
+];
+
+// --- SHORE ROLE OPERATIONS ---
+export const getShoreRoles = () => {
+  try {
+    const data = localStorage.getItem(SHORE_ROLES_KEY);
+    return data ? JSON.parse(data) : DEFAULT_SHORE_ROLES;
+  } catch (e) {
+    return DEFAULT_SHORE_ROLES;
+  }
+};
+
+export const saveShoreRoles = (roles: any[]) => {
+  localStorage.setItem(SHORE_ROLES_KEY, JSON.stringify(roles));
+  window.dispatchEvent(new Event('storage'));
+};
+
+// --- SHORE USER OPERATIONS ---
+const DEFAULT_SHORE_USERS = [
+  { id: 101, firstName: 'Admin', lastName: 'User', email: 'admin@keel.com', roleId: 'admin', status: 'Active', phone: '+1 234 567 890' },
+  { id: 102, firstName: 'Training', lastName: 'Manager', email: 'manager@keel.com', roleId: 'manager', status: 'Active', phone: '+1 987 654 321' }
+];
+
+export const getShoreUsers = () => {
+  try {
+    const data = localStorage.getItem(SHORE_USERS_KEY);
+    return data ? JSON.parse(data) : DEFAULT_SHORE_USERS;
+  } catch (e) {
+    return DEFAULT_SHORE_USERS;
+  }
+};
+
+export const saveShoreUser = (user: any) => {
+  const users = getShoreUsers();
+  const existingIndex = users.findIndex((u: any) => u.id === user.id);
+  
+  if (existingIndex >= 0) {
+    users[existingIndex] = user;
+  } else {
+    users.push({ ...user, id: Date.now() });
+  }
+  
+  localStorage.setItem(SHORE_USERS_KEY, JSON.stringify(users));
+  window.dispatchEvent(new Event('storage'));
+  return users;
+};
+
+export const deleteShoreUser = (id: number) => {
+  const users = getShoreUsers().filter((u: any) => u.id !== id);
+  localStorage.setItem(SHORE_USERS_KEY, JSON.stringify(users));
+  window.dispatchEvent(new Event('storage'));
+  return users;
 };
 
 // --- VESSEL IMPORT MAPPING ---
@@ -97,23 +190,15 @@ export const getVessels = () => {
   try {
     const data = localStorage.getItem(VESSELS_KEY);
     if (!data) return [];
-    
     let parsed = JSON.parse(data);
-    
-    // Safety check: Ensure it's an array
     if (!Array.isArray(parsed)) return [];
-
-    // SELF-HEALING: Flatten nested arrays if corruption occurred
     if (parsed.length > 0 && Array.isArray(parsed[0])) {
-      console.warn("Keel: Repaired corrupted vessel data.");
       parsed = parsed.flat();
       saveVessels(parsed);
     }
-    
     return parsed;
   } catch (error) {
-    console.error("Keel: Failed to load vessels", error);
-    return []; // Always return array to prevent crash
+    return [];
   }
 };
 
@@ -121,8 +206,6 @@ export const saveVessels = (vessels: any[]) => {
   localStorage.setItem(VESSELS_KEY, JSON.stringify(vessels));
   window.dispatchEvent(new Event('storage'));
 };
-
-// ALIAS: For compatibility with older pages
 export const saveAllVessels = saveVessels;
 
 export const saveVessel = (vessel: any) => {
@@ -137,20 +220,14 @@ export const getCadets = () => {
   try {
     const data = localStorage.getItem(CADETS_KEY);
     if (!data) return [];
-
     let parsed = JSON.parse(data);
-    
     if (!Array.isArray(parsed)) return [];
-
     if (parsed.length > 0 && Array.isArray(parsed[0])) {
-      console.warn("Keel: Repaired corrupted cadet data.");
       parsed = parsed.flat();
       saveCadets(parsed);
     }
-
     return parsed;
   } catch (error) {
-    console.error("Keel: Failed to load cadets", error);
     return [];
   }
 };
@@ -159,8 +236,6 @@ export const saveCadets = (cadets: any[]) => {
   localStorage.setItem(CADETS_KEY, JSON.stringify(cadets));
   window.dispatchEvent(new Event('storage'));
 };
-
-// ALIAS: For compatibility
 export const saveAllCadets = saveCadets;
 
 export const saveCadet = (cadet: any) => {
@@ -170,17 +245,104 @@ export const saveCadet = (cadet: any) => {
   return cadets;
 };
 
+// --- APPROVAL WORKFLOW OPERATIONS ---
+
+/**
+ * Scans all cadet progress to find tasks that are 'SUBMITTED' 
+ * and waiting for Shore Verification.
+ */
+export const getApprovalQueue = () => {
+  const allProgress = getAllProgress();
+  const cadets = getCadets();
+  const syllabus = getSyllabus();
+  
+  const queue: any[] = [];
+
+  Object.keys(allProgress).forEach(cadetId => {
+    // Handle both string/number ID mismatch safely
+    const cadetProfile = cadets.find((c: any) => String(c.id) === String(cadetId));
+    if (!cadetProfile) return;
+
+    const userTasks = allProgress[cadetId];
+    Object.keys(userTasks).forEach(taskId => {
+      const taskEntry = userTasks[taskId];
+      
+      if (taskEntry.status === 'SUBMITTED' || taskEntry.status === 'PENDING_VERIFICATION') {
+        let taskDetails: any = null;
+        let funcTitle = '';
+        
+        syllabus.forEach((func: any) => {
+            func.topics.forEach((topic: any) => {
+                const t = topic.tasks.find((k: any) => k.id === taskId);
+                if (t) {
+                    taskDetails = t;
+                    funcTitle = func.title;
+                }
+            });
+        });
+
+        if (taskDetails) {
+            queue.push({
+                uniqueId: `${cadetId}_${taskId}`,
+                cadetId: String(cadetId),
+                cadetName: cadetProfile.name,
+                vessel: cadetProfile.vessel,
+                taskId: taskId,
+                taskRef: taskDetails.id.split('-')[1] || 'TASK',
+                taskTitle: taskDetails.title,
+                function: funcTitle,
+                submittedDate: taskEntry.timestamp,
+                evidence: taskEntry.evidence || null,
+                description: taskDetails.description,
+                status: taskEntry.status
+            });
+        }
+      }
+    });
+  });
+
+  return queue.sort((a, b) => new Date(b.submittedDate).getTime() - new Date(a.submittedDate).getTime());
+};
+
+export const processApproval = (cadetId: string, taskId: string, decision: 'APPROVED' | 'REJECTED', comments: string) => {
+  const all = getAllProgress();
+  if (!all[cadetId] || !all[cadetId][taskId]) return;
+
+  const entry = all[cadetId][taskId];
+  entry.status = decision === 'APPROVED' ? 'COMPLETED' : 'RETURNED';
+  entry.verifiedBy = "Shore Admin";
+  entry.verifiedDate = new Date().toISOString();
+  entry.shoreComments = comments;
+
+  localStorage.setItem(PROGRESS_KEY, JSON.stringify(all));
+  window.dispatchEvent(new Event('storage'));
+};
+
+// NEW: Batch Processing
+export const processBatchApproval = (cadetId: string, taskIds: string[], decision: 'APPROVED' | 'REJECTED', comments: string) => {
+  const all = getAllProgress();
+  if (!all[cadetId]) return;
+
+  taskIds.forEach(taskId => {
+    if (all[cadetId][taskId]) {
+      const entry = all[cadetId][taskId];
+      entry.status = decision === 'APPROVED' ? 'COMPLETED' : 'RETURNED';
+      entry.verifiedBy = "Shore Admin";
+      entry.verifiedDate = new Date().toISOString();
+      entry.shoreComments = comments;
+    }
+  });
+
+  localStorage.setItem(PROGRESS_KEY, JSON.stringify(all));
+  window.dispatchEvent(new Event('storage'));
+};
+
 // --- ASSIGNMENT LOGIC ---
 export const assignCadetToVessel = (cadetId: any, vesselName: string, signOnDate: string) => {
   const cadets = getCadets();
   const updatedCadets = cadets.map((c: any) => {
     if (c.id === cadetId) {
-      return { 
-        ...c, 
-        vessel: vesselName, 
-        status: 'Onboard',
-        signOnDate: signOnDate 
-      };
+      return { ...c, vessel: vesselName, status: 'Onboard', signOnDate: signOnDate };
     }
     return c;
   });
@@ -192,12 +354,7 @@ export const undoAssignment = (cadetId: any) => {
   const cadets = getCadets();
   const updatedCadets = cadets.map((c: any) => {
     if (c.id === cadetId) {
-      return { 
-        ...c, 
-        vessel: '', 
-        status: 'Ready',
-        signOnDate: undefined
-      };
+      return { ...c, vessel: '', status: 'Ready', signOnDate: undefined };
     }
     return c;
   });
@@ -210,11 +367,8 @@ export const signOffCadet = (cadetId: any, signOffDate: string, nextStatus: stri
   const updatedCadets = cadets.map((c: any) => {
     if (c.id === cadetId) {
       return { 
-        ...c, 
-        vessel: 'Unassigned', 
-        status: nextStatus,
-        lastVessel: c.vessel,
-        signOffDate: signOffDate
+        ...c, vessel: 'Unassigned', status: nextStatus, 
+        lastVessel: c.vessel, signOffDate: signOffDate
       };
     }
     return c;
@@ -241,14 +395,12 @@ export const clearSyllabus = () => {
   localStorage.removeItem(TRB_KEY);
 };
 
-// CUSTOM PARSER FOR SMART TEMPLATE EXCEL FILE
 export const processTRBImport = (flatData: any[]) => {
   const tree: any[] = [];
   const getPartNum = (raw: any) => {
     const str = String(raw).trim();
     return str.split(/[\s-]+/)[0]; 
   };
-
   const parts = [...new Set(flatData.map(item => getPartNum(item['part_number'])))].sort();
   
   parts.forEach((partNum) => {
@@ -257,7 +409,7 @@ export const processTRBImport = (flatData: any[]) => {
     
     const topics = sections.map((sectionName: any) => {
        const taskRows = partRows.filter(r => r['section_name'] === sectionName);
-       const tasks = taskRows.map((row: any, idx: number) => ({
+       const tasks = taskRows.map((row: any) => ({
          id: `TASK-${partNum}-${Date.now()}-${Math.floor(Math.random()*10000)}`,
          title: row['title'],
          description: row['description'],
@@ -271,27 +423,18 @@ export const processTRBImport = (flatData: any[]) => {
          frequency: row['frequency'] || 'ONCE',
          mandatory: row['mandatory_for_all'] === true || row['mandatory_for_all'] === 'TRUE'
        }));
-
        return {
          id: `TOPIC-${String(sectionName).replace(/\s+/g, '-')}-${Math.floor(Math.random()*1000)}`,
          title: sectionName,
          tasks: tasks
        };
     });
-
-    tree.push({
-      id: `FUNC-${partNum}`,
-      title: `Function ${partNum}`, 
-      topics: topics
-    });
+    tree.push({ id: `FUNC-${partNum}`, title: `Function ${partNum}`, topics: topics });
   });
-
   return tree;
 };
 
 // --- PROGRESS OPERATIONS ---
-// Structure: { cadetId: { taskId: { status: 'COMPLETED', date: '...', verifiedBy: '...' } } }
-
 export const getAllProgress = () => {
   try {
     const data = localStorage.getItem(PROGRESS_KEY);
@@ -306,7 +449,6 @@ export const getCadetProgress = (cadetId: string) => {
   return all[cadetId] || {};
 };
 
-// Helper to calculate percentages
 export const calculateProgressStats = (cadetId: string, syllabus: any[]) => {
   const userProgress = getCadetProgress(cadetId);
   const stats: any = { total: 0, completed: 0, functions: {} };
@@ -314,7 +456,6 @@ export const calculateProgressStats = (cadetId: string, syllabus: any[]) => {
   syllabus.forEach(func => {
     let funcTotal = 0;
     let funcCompleted = 0;
-
     func.topics.forEach((topic: any) => {
       topic.tasks.forEach((task: any) => {
         funcTotal++;
@@ -325,7 +466,6 @@ export const calculateProgressStats = (cadetId: string, syllabus: any[]) => {
         }
       });
     });
-
     stats.functions[func.id] = {
       title: func.title,
       total: funcTotal,
@@ -333,22 +473,15 @@ export const calculateProgressStats = (cadetId: string, syllabus: any[]) => {
       percent: funcTotal === 0 ? 0 : Math.round((funcCompleted / funcTotal) * 100)
     };
   });
-
   stats.globalPercent = stats.total === 0 ? 0 : Math.round((stats.completed / stats.total) * 100);
   return stats;
 };
 
-// We will use this later when building the Trainee Side
 export const updateTaskStatus = (cadetId: string, taskId: string, status: string, details: any = {}) => {
   const all = getAllProgress();
   if (!all[cadetId]) all[cadetId] = {};
   
-  all[cadetId][taskId] = {
-    status,
-    timestamp: new Date().toISOString(),
-    ...details
-  };
-
+  all[cadetId][taskId] = { status, timestamp: new Date().toISOString(), ...details };
   localStorage.setItem(PROGRESS_KEY, JSON.stringify(all));
   window.dispatchEvent(new Event('storage'));
 };

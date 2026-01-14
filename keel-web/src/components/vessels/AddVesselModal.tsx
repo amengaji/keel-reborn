@@ -6,11 +6,10 @@ interface AddVesselModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (vesselData: any) => void;
-  editData?: any; // NEW: Optional data for editing
+  editData?: any; 
 }
 
 const AddVesselModal: React.FC<AddVesselModalProps> = ({ isOpen, onClose, onSave, editData }) => {
-  // Reset form when modal opens or editData changes
   useEffect(() => {
     if (isOpen) {
       const form = document.getElementById('vesselForm') as HTMLFormElement;
@@ -24,7 +23,7 @@ const AddVesselModal: React.FC<AddVesselModalProps> = ({ isOpen, onClose, onSave
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const data = Object.fromEntries(formData.entries());
-    onSave({ ...data, id: editData?.id }); // Preserve ID if editing
+    onSave({ ...data, id: editData?.id }); 
     onClose();
   };
 
@@ -47,7 +46,8 @@ const AddVesselModal: React.FC<AddVesselModalProps> = ({ isOpen, onClose, onSave
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-muted-foreground uppercase">IMO Number</label>
-              <input name="imoNumber" required defaultValue={editData?.imoNumber} type="text" className="input-field" placeholder="e.g. 9876543" />
+              {/* FIX: Changed name to 'imo' to match VesselsPage expectation */}
+              <input name="imo" required defaultValue={editData?.imo} type="text" className="input-field" placeholder="e.g. 9876543" />
             </div>
           </div>
 

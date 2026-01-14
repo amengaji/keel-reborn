@@ -23,7 +23,7 @@ const DashboardLayout: React.FC = () => {
 
         {/* MAIN SCROLL AREA: Only this part scrolls. */}
         <main className="flex-1 overflow-y-auto scroll-smooth">
-          <div className="p-4 md:p-8 max-w-[1600px] mx-auto animate-in fade-in duration-300">
+          <div className="p-4 md:p-8 max-w-400 mx-auto animate-in fade-in duration-300">
             {/* Outlet renders the current page (Dashboard, Vessels, etc.) */}
             <Outlet />
           </div>

@@ -162,9 +162,9 @@ const SettingsPage: React.FC = () => {
                        src={settings.general.logo} 
                        alt="Company Logo" 
                        style={{ width: `${settings.general.logoWidth}px` }}
-                       className="object-contain max-h-[100px] mb-4 border border-border rounded"
+                       className="object-contain max-h-25 mb-4 border border-border rounded"
                      />
-                     <div className="w-full max-w-[200px] space-y-2">
+                     <div className="w-full max-w-50 space-y-2">
                         <label className="text-[10px] text-muted-foreground uppercase font-bold">Resize Logo</label>
                         <input 
                           type="range" 
@@ -280,7 +280,7 @@ const SettingsPage: React.FC = () => {
                </div>
             </div>
 
-            <table className="w-full text-left text-sm min-w-[600px]">
+            <table className="w-full text-left text-sm min-w-150">
               <thead className="bg-muted/50 text-muted-foreground font-medium border-b border-border">
                 <tr>
                   <th className="p-4 font-semibold w-1/3">Role Name & Desc</th>
