@@ -1,125 +1,109 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  Users, Plus, Search, Upload, Edit, Trash2, 
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, 
-  ArrowUpDown, Ship, Mail, Phone, Clock 
+  Users, Plus, Search, Upload, Filter, MoreVertical, 
+  Trash2, Mail, Phone, Calendar, MapPin, Anchor,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  ArrowUpDown
 } from 'lucide-react';
-import { getCadets, saveCadets } from '../services/dataService';
+import { cadetService } from '../services/cadetService'; // <--- NEW SERVICE
 import ImportCadetModal from '../components/trainees/ImportCadetModal';
 import AddCadetModal from '../components/trainees/AddCadetModal';
 import { toast } from 'sonner';
 
-type SortDirection = 'asc' | 'desc';
-
-interface SortConfig {
-  key: string;
-  direction: SortDirection;
-}
-
 const CadetsPage: React.FC = () => {
   const [cadets, setCadets] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editingCadet, setEditingCadet] = useState<any>(null);
-
-  // PAGINATION STATE
+  
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'name', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+
+  // --- 1. LOAD DATA FROM API ---
+  const refreshData = async () => {
+    try {
+      // FIX: Use cadetService instead of getCadets()
+      const data = await cadetService.getAll();
+      setCadets(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to load trainees", error);
+      toast.error("Could not load trainee roster from server.");
+    }
+  };
 
   useEffect(() => {
     refreshData();
   }, []);
 
-  const refreshData = () => {
-    const data = getCadets();
-    setCadets(Array.isArray(data) ? data : []);
-  };
-
-  // HELPER: Calculate Duration
-  const calculateOnboardTime = (dateStr: string) => {
-    if (!dateStr) return null;
-    const start = new Date(dateStr);
-    const now = new Date();
-    
-    // Calculate difference in milliseconds
-    const diffTime = Math.max(0, now.getTime() - start.getTime());
-    const totalDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
-    // Maritime convention approximation: 30 days = 1 month
-    const months = Math.floor(totalDays / 30);
-    const days = totalDays % 30;
-    
-    if (months === 0 && days === 0) return 'Joined Today';
-    
-    const parts = [];
-    if (months > 0) parts.push(`${months}m`);
-    if (days > 0) parts.push(`${days}d`);
-    
-    return parts.join(' ');
-  };
-
-  const handleImport = (newCadets: any[]) => {
-    const current = getCadets();
-    const updated = [...current, ...newCadets];
-    saveCadets(updated);
-    setCadets(updated);
-    toast.success(`${newCadets.length} trainees imported successfully.`);
-  };
-
-  const handleAdd = (cadet: any) => {
-    const current = getCadets();
-    if (editingCadet) {
-      // FIX: Explicitly typed callback for TypeScript
-      const updated = current.map((c: any) => c.id === cadet.id ? cadet : c);
-      saveCadets(updated);
-      setCadets(updated);
-      toast.success('Trainee updated.');
-    } else {
-      const updated = [...current, cadet];
-      saveCadets(updated);
-      setCadets(updated);
-      toast.success('Trainee added.');
-    }
-    setEditingCadet(null);
-  };
-
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this trainee?')) {
-      const current = getCadets();
-      // FIX: Explicitly typed callback
-      const updated = current.filter((c: any) => c.id !== id);
-      saveCadets(updated);
-      setCadets(updated);
-      toast.success('Trainee deleted.');
+  // --- 2. HANDLE ADD (CREATE) ---
+  const handleAddCadet = async (newCadet: any) => {
+    try {
+      // FIX: Use cadetService.create instead of saveCadets()
+      await cadetService.create(newCadet);
+      toast.success(`Cadet ${newCadet.firstName} ${newCadet.lastName} added successfully.`);
+      setIsAddOpen(false);
+      refreshData(); // Reload from DB
+    } catch (error: any) {
+      toast.error(error.message || "Failed to add cadet.");
     }
   };
 
-  const handleEdit = (cadet: any) => {
-    setEditingCadet(cadet);
-    setIsAddOpen(true);
+  // --- 3. HANDLE IMPORT (BULK CREATE) ---
+  const handleImport = async (importedData: any[]) => {
+    try {
+      let successCount = 0;
+      // Loop through and create each cadet via API
+      for (const cadet of importedData) {
+        // Ensure data maps to what backend expects (firstName, lastName, etc.)
+        await cadetService.create(cadet);
+        successCount++;
+      }
+      toast.success(`${successCount} trainees imported successfully.`);
+      setIsImportOpen(false);
+      refreshData();
+    } catch (error) {
+      console.error(error);
+      toast.error("Import failed. Please check the file format.");
+    }
   };
 
+  // --- 4. HANDLE DELETE ---
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to remove this profile? This action cannot be undone.')) {
+      try {
+        await cadetService.delete(id);
+        toast.success("Trainee profile removed.");
+        refreshData();
+      } catch (error) {
+        toast.error("Could not delete trainee.");
+      }
+    }
+  };
+
+  // --- SORTING & FILTERING ---
   const handleSort = (key: string) => {
-    let direction: SortDirection = 'asc';
+    let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
   };
 
-  // PROCESSING PIPELINE
   const processData = () => {
-    let filtered = cadets.filter(c => 
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.rank.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.vessel && c.vessel.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+    let filtered = cadets.filter((c: any) => {
+      const matchesSearch = (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            (c.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'All' || c.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
 
-    filtered.sort((a, b) => {
-      let valA = a[sortConfig.key] || '';
-      let valB = b[sortConfig.key] || '';
+    filtered.sort((a: any, b: any) => {
+      let valA = a[sortConfig.key];
+      let valB = b[sortConfig.key];
+
       if (typeof valA === 'string') valA = valA.toLowerCase();
       if (typeof valB === 'string') valB = valB.toLowerCase();
 
@@ -145,17 +129,17 @@ const CadetsPage: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Trainee Management</h1>
-          <p className="text-muted-foreground text-sm">Manage trainee profiles, ranks, and details.</p>
+          <p className="text-muted-foreground text-sm">Manage deck and engine cadets, assignments, and status.</p>
         </div>
         <div className="flex gap-2">
            <button 
              onClick={() => setIsImportOpen(true)}
              className="bg-card hover:bg-muted text-foreground border border-input px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95"
            >
-             <Upload size={18} /><span>Import Trainees</span>
+             <Upload size={18} /><span>Import Roster</span>
            </button>
            <button 
-             onClick={() => { setEditingCadet(null); setIsAddOpen(true); }}
+             onClick={() => setIsAddOpen(true)}
              className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95"
            >
              <Plus size={18} /><span>Add Trainee</span>
@@ -164,46 +148,65 @@ const CadetsPage: React.FC = () => {
       </div>
 
       {/* TOOLBAR */}
-      <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border shrink-0 shadow-sm">
-        <div className="relative w-72">
+      <div className="flex flex-col md:flex-row justify-between items-center bg-card p-4 rounded-xl border border-border shrink-0 shadow-sm gap-4">
+        <div className="relative w-full md:w-72">
            <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
            <input 
              type="text" 
-             placeholder="Search Name, Rank, Vessel..." 
+             placeholder="Search by Name or Email..." 
              value={searchQuery}
              onChange={(e) => setSearchQuery(e.target.value)}
-             className="input-field pl-9 h-9"
+             className="input-field pl-9 h-9 w-full"
            />
         </div>
         
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-           <span>Rows per page:</span>
-           <select 
-             value={itemsPerPage}
-             onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-             className="bg-background border border-border rounded px-2 py-1 focus:ring-1 focus:ring-primary outline-none"
-           >
-             <option value={10}>10</option>
-             <option value={25}>25</option>
-             <option value={50}>50</option>
-             <option value={100}>100</option>
-           </select>
+        <div className="flex items-center gap-4 w-full md:w-auto overflow-x-auto">
+           <div className="flex items-center gap-2">
+              <Filter size={16} className="text-muted-foreground" />
+              <select 
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-background border border-border rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-primary outline-none"
+              >
+                <option value="All">All Status</option>
+                <option value="Ready">Ready</option>
+                <option value="Onboard">Onboard</option>
+                <option value="Leave">Leave</option>
+                <option value="Training">Training</option>
+              </select>
+           </div>
+
+           <div className="h-4 w-px bg-border hidden md:block"></div>
+
+           <div className="flex items-center gap-2 text-sm text-muted-foreground">
+             <span className="whitespace-nowrap">Rows:</span>
+             <select 
+               value={itemsPerPage}
+               onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+               className="bg-background border border-border rounded px-2 py-1 focus:ring-1 focus:ring-primary outline-none"
+             >
+               <option value={10}>10</option>
+               <option value={25}>25</option>
+               <option value={50}>50</option>
+               <option value={100}>100</option>
+             </select>
+           </div>
         </div>
       </div>
 
-      {/* TABLE */}
+      {/* TABLE CONTAINER */}
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col">
         <div className="overflow-auto flex-1">
            <table className="w-full text-left border-collapse text-sm">
               <thead className="bg-muted/50 sticky top-0 z-10">
                  <tr className="border-b border-border">
                     {[
-                      { label: 'Name', key: 'name', width: 'w-1/4' },
-                      { label: 'Rank', key: 'rank', width: 'w-1/6' },
-                      { label: 'Nationality', key: 'nationality', width: 'w-1/6' },
-                      { label: 'Status / Vessel', key: 'vessel', width: 'w-1/5' },
+                      { label: 'Trainee Name', key: 'name', width: 'w-1/4' },
+                      { label: 'Rank / Identity', key: 'rank', width: 'w-1/6' },
+                      { label: 'Status', key: 'status', width: 'w-1/12' },
+                      { label: 'Current Vessel', key: 'vessel', width: 'w-1/6' },
                       { label: 'Contact', key: 'email', width: 'w-1/5' },
-                      { label: 'Actions', key: 'actions', width: 'w-20' }
+                      { label: '', key: 'actions', width: 'w-12' }
                     ].map((col) => (
                        <th 
                          key={col.key}
@@ -222,83 +225,69 @@ const CadetsPage: React.FC = () => {
                  {paginatedData.length === 0 ? (
                     <tr>
                        <td colSpan={6} className="p-10 text-center text-muted-foreground">
-                          No trainees found matching your criteria.
+                          {cadets.length === 0 ? "Loading trainees..." : "No trainees found matching your criteria."}
                        </td>
                     </tr>
                  ) : (
-                    paginatedData.map((trainee) => (
-                       <tr key={trainee.id} className="hover:bg-muted/30 transition-colors group">
-                          {/* NAME */}
+                    paginatedData.map((cadet: any) => (
+                       <tr key={cadet.id} className="hover:bg-muted/30 transition-colors group">
                           <td className="p-4">
                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-                                   {trainee.name.charAt(0)}
+                                <div className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold text-xs">
+                                   {cadet.name.charAt(0)}
                                 </div>
                                 <div>
-                                   <div className="font-bold text-foreground">{trainee.name}</div>
-                                   <div className="text-xs text-muted-foreground font-mono">{trainee.indos || 'No INDoS'}</div>
+                                   <div className="font-bold text-foreground">{cadet.name}</div>
+                                   <div className="text-xs text-muted-foreground">{cadet.nationality}</div>
                                 </div>
                              </div>
                           </td>
-
-                          {/* RANK */}
-                          <td className="p-4 text-muted-foreground">
-                             <span className="bg-muted px-2 py-1 rounded text-xs font-medium border border-border">
-                               {trainee.rank.replace('_', ' ')}
+                          <td className="p-4">
+                             <div className="font-medium text-foreground">{cadet.rank}</div>
+                             <div className="text-xs text-muted-foreground font-mono">{cadet.indos}</div>
+                          </td>
+                          <td className="p-4">
+                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border ${
+                                cadet.status === 'Onboard' ? 'bg-teal-50 text-teal-700 border-teal-200' :
+                                cadet.status === 'Ready' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                'bg-orange-50 text-orange-700 border-orange-200'
+                             }`}>
+                                {cadet.status}
                              </span>
                           </td>
-
-                          {/* NATIONALITY */}
-                          <td className="p-4 text-muted-foreground">{trainee.nationality}</td>
-
-                          {/* STATUS/VESSEL */}
                           <td className="p-4">
-                             {trainee.status === 'Onboard' ? (
-                                <div className="flex flex-col">
-                                   <div className="flex items-center gap-2 text-teal-600">
-                                      <Ship size={14} />
-                                      <span className="font-medium">{trainee.vessel}</span>
-                                   </div>
-                                   {trainee.signOnDate && (
-                                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground/80 mt-1 pl-[2.75px]">
-                                        <Clock size={10} />
-                                        <span>{calculateOnboardTime(trainee.signOnDate)}</span>
-                                     </div>
-                                   )}
-                                </div>
-                             ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-600">
-                                   {trainee.status}
+                             <div className="flex items-center gap-2">
+                                <Anchor size={14} className="text-muted-foreground" />
+                                <span className={cadet.vessel === 'Unassigned' ? 'text-muted-foreground italic' : 'text-foreground font-medium'}>
+                                   {cadet.vessel}
                                 </span>
+                             </div>
+                             {cadet.signOnDate && (
+                                <div className="text-[10px] text-muted-foreground mt-0.5 ml-5">
+                                   Since: {new Date(cadet.signOnDate).toLocaleDateString()}
+                                </div>
                              )}
                           </td>
-
-                          {/* CONTACT */}
-                          <td className="p-4 text-muted-foreground text-xs space-y-1">
-                             <div className="flex items-center gap-2">
-                                <Mail size={12} /> {trainee.email}
-                             </div>
-                             <div className="flex items-center gap-2">
-                                <Phone size={12} /> {trainee.mobile}
+                          <td className="p-4">
+                             <div className="flex flex-col gap-1 text-xs">
+                                <div className="flex items-center gap-2 text-foreground">
+                                   <Mail size={12} className="text-muted-foreground" /> {cadet.email}
+                                </div>
+                                {cadet.mobile && (
+                                   <div className="flex items-center gap-2 text-muted-foreground">
+                                      <Phone size={12} /> {cadet.mobile}
+                                   </div>
+                                )}
                              </div>
                           </td>
-
-                          {/* ACTIONS */}
                           <td className="p-4 text-right">
-                             <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button 
-                                  onClick={() => handleEdit(trainee)}
-                                  className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-primary transition-colors"
-                                >
-                                   <Edit size={16} />
-                                </button>
-                                <button 
-                                  onClick={() => handleDelete(trainee.id)}
-                                  className="p-1.5 hover:bg-red-500/10 rounded text-muted-foreground hover:text-red-600 transition-colors"
-                                >
-                                   <Trash2 size={16} />
-                                </button>
-                             </div>
+                             <button 
+                                onClick={() => handleDelete(cadet.id)}
+                                className="p-2 hover:bg-red-50 text-muted-foreground hover:text-red-600 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                title="Delete Profile"
+                             >
+                                <Trash2 size={16} />
+                             </button>
                           </td>
                        </tr>
                     ))
@@ -328,13 +317,11 @@ const CadetsPage: React.FC = () => {
         onClose={() => setIsImportOpen(false)} 
         onImport={handleImport} 
       />
-      
-      {/* Updated to pass initialData */}
+
       <AddCadetModal
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}
-        onSave={handleAdd}
-        initialData={editingCadet}
+        onSave={handleAddCadet}
       />
     </div>
   );

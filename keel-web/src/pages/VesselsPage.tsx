@@ -4,7 +4,8 @@ import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, 
   ArrowUpDown, Users 
 } from 'lucide-react';
-import { getVessels, saveVessels, getCadets } from '../services/dataService';
+import { getCadets } from '../services/dataService'; // We still keep cadets from local/mock for now
+import { vesselService } from '../services/vesselService'; // <--- NEW SERVICE
 import ImportVesselModal from '../components/vessels/ImportVesselModal';
 import AddVesselModal from '../components/vessels/AddVesselModal';
 import { toast } from 'sonner';
@@ -29,46 +30,48 @@ const VesselsPage: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'name', direction: 'asc' });
 
-  const refreshData = () => {
-    const fleet = getVessels();
-    const crew = getCadets();
-    setVessels(Array.isArray(fleet) ? fleet : []);
-    setTrainees(Array.isArray(crew) ? crew : []);
+  // --- 1. LOAD DATA FROM API ---
+  const refreshData = async () => {
+    try {
+      // FIX: Use vesselService instead of getVessels()
+      const fleet = await vesselService.getAll();
+      setVessels(Array.isArray(fleet) ? fleet : []);
+      
+      const crew = getCadets(); // Still local for now
+      setTrainees(Array.isArray(crew) ? crew : []);
+    } catch (error) {
+      console.error("Failed to load data", error);
+      toast.error("Could not connect to fleet database.");
+    }
   };
 
   useEffect(() => {
     refreshData();
   }, []);
 
-  // FIX: Explicitly typed 't' as any
   const getCadetCount = (vesselName: string) => {
     return trainees.filter((t: any) => t.vessel === vesselName && t.status === 'Onboard').length;
   };
 
-  const handleImport = (cleanData: any[]) => {
-    const currentFleet = getVessels(); 
-    const updatedFleet = [...currentFleet, ...cleanData];
-    saveVessels(updatedFleet);
-    setVessels(updatedFleet);
-    toast.success(`${cleanData.length} vessels added.`);
-  };
-
-  const handleSaveVessel = (data: any) => {
-    const currentFleet = getVessels();
-    let updatedFleet;
-
-    if (data.id) {
-      updatedFleet = currentFleet.map((v: any) => v.id === data.id ? { ...v, ...data } : v);
-      toast.success('Vessel details updated.');
-    } else {
-      const newVessel = { ...data, id: `VSL-${Date.now()}`, status: 'Active' };
-      updatedFleet = [...currentFleet, newVessel];
-      toast.success('New vessel added to fleet.');
+  // --- 2. HANDLE SAVE (CREATE / UPDATE) ---
+  const handleSaveVessel = async (data: any) => {
+    try {
+      if (data.id) {
+        // Edit Mode
+        await vesselService.update(data.id, data);
+        toast.success('Vessel details updated.');
+      } else {
+        // Add Mode
+        await vesselService.create(data);
+        toast.success('New vessel added to fleet.');
+      }
+      refreshData(); // Reload from DB
+      setIsAddOpen(false);
+      setEditingVessel(null);
+    } catch (error) {
+      console.error(error);
+      toast.error("Operation failed. Check server connection.");
     }
-
-    saveVessels(updatedFleet);
-    setVessels(updatedFleet);
-    setEditingVessel(null);
   };
 
   const handleEditClick = (vessel: any) => {
@@ -76,14 +79,33 @@ const VesselsPage: React.FC = () => {
     setIsAddOpen(true);
   };
 
-  // FIX: Explicitly typed 'v' as any
-  const handleDelete = (id: string) => {
+  // --- 3. HANDLE DELETE ---
+  const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to remove this vessel?')) {
-      const currentFleet = getVessels();
-      const updated = currentFleet.filter((v: any) => v.id !== id);
-      saveVessels(updated);
-      setVessels(updated);
-      toast.success('Vessel removed.');
+      try {
+        await vesselService.delete(id);
+        toast.success('Vessel removed.');
+        refreshData();
+      } catch (error) {
+        toast.error("Could not delete vessel.");
+      }
+    }
+  };
+
+  // --- 4. IMPORT HANDLER (Bulk Create) ---
+  const handleImport = async (cleanData: any[]) => {
+    try {
+      // Loop through and create each vessel via API
+      // In a real app, you'd want a bulkCreate endpoint, but this works for now
+      let successCount = 0;
+      for (const vessel of cleanData) {
+        await vesselService.create(vessel);
+        successCount++;
+      }
+      toast.success(`${successCount} vessels imported successfully.`);
+      refreshData();
+    } catch (error) {
+      toast.error("Import failed partially or completely.");
     }
   };
 
@@ -96,13 +118,11 @@ const VesselsPage: React.FC = () => {
   };
 
   const processData = () => {
-    // FIX: Explicitly typed 'v' as any and added null checks
     let filtered = vessels.filter((v: any) => 
       (v.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (v.imo || v.imoNumber || '').includes(searchQuery)
     );
 
-    // FIX: Explicitly typed 'a' and 'b' as any
     filtered.sort((a: any, b: any) => {
       let valA = a[sortConfig.key];
       let valB = b[sortConfig.key];
@@ -215,7 +235,7 @@ const VesselsPage: React.FC = () => {
                  {paginatedData.length === 0 ? (
                     <tr>
                        <td colSpan={7} className="p-10 text-center text-muted-foreground">
-                          No vessels found matching your criteria.
+                          {vessels.length === 0 ? "Loading fleet data..." : "No vessels found matching your criteria."}
                        </td>
                     </tr>
                  ) : (
@@ -280,6 +300,7 @@ const VesselsPage: React.FC = () => {
            </table>
         </div>
 
+        {/* PAGINATION FOOTER */}
         <div className="p-4 border-t border-border bg-muted/20 flex items-center justify-between shrink-0">
            <div className="text-xs text-muted-foreground">
               Showing <span className="font-medium">{Math.min(processedData.length, (currentPage - 1) * itemsPerPage + 1)}</span> to <span className="font-medium">{Math.min(processedData.length, currentPage * itemsPerPage)}</span> of <span className="font-medium">{processedData.length}</span> results

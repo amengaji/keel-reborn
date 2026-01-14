@@ -6,6 +6,8 @@ import cors from 'cors'; // Added for cross-origin communication
 import { connectDB } from './config/database';
 import { setupAssociations } from './models/associations';
 import authRoutes from './routes/auth.routes';
+import vesselRoutes from './routes/vessel.routes'; 
+import cadetRoutes from './routes/cadet.routes'; // Import
 
 dotenv.config();
 
@@ -23,6 +25,8 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/vessels', vesselRoutes);
+app.use('/api/trainees', cadetRoutes);
 
 const startServer = async () => {
   try {

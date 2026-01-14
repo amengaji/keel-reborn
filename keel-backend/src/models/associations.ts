@@ -2,6 +2,7 @@
 
 import User from './User';
 import Role from './Role';
+import Vessel from './Vessel';
 
 /**
  * MARITIME EXPERT NOTE:
@@ -23,6 +24,10 @@ export const setupAssociations = () => {
     foreignKey: 'role_id',
     as: 'role',
   });
+
+  // Vessel <-> User (Crew)
+  Vessel.hasMany(User, { foreignKey: 'vessel_id', as: 'crew' });
+  User.belongsTo(Vessel, { foreignKey: 'vessel_id', as: 'vessel' });
 
   console.log('✅ MODELS: Associations (User <-> Role) have been synchronized.');
 };

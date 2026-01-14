@@ -1,15 +1,8 @@
-// keel-reborn/keel-backend/src/models/User.ts
-
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database';
-import Role from './Role'; // Import Role to define the relationship type
+import Role from './Role';
+import Vessel from './Vessel'; // Import Vessel model
 
-/**
- * MARITIME EXPERT NOTE:
- * The User model is the foundation of the TRB. 
- * We have added the 'role' property explicitly so the Auth Controller
- * can identify the Officer's rank during login.
- */
 class User extends Model {
   public id!: number;
   public email!: string;
@@ -19,8 +12,16 @@ class User extends Model {
   public role_id!: number;
   public phone?: string;
   
-  // UX Note: This allows TypeScript to "see" the joined role data
+  // --- Maritime Fields ---
+  public indos_number?: string;
+  public rank?: string;
+  public nationality?: string;
+  public status?: 'Ready' | 'Onboard' | 'Leave' | 'Training';
+  public vessel_id?: string; // Links to Vessel table
+  public sign_on_date?: Date;
+  
   public role?: Role; 
+  public vessel?: Vessel; // For including vessel details
 
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
@@ -61,6 +62,35 @@ User.init(
     },
     phone: {
       type: DataTypes.STRING(20),
+      allowNull: true,
+    },
+    // --- New Maritime Columns ---
+    indos_number: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    rank: {
+      type: DataTypes.STRING(50),
+      allowNull: true, // e.g. "Deck Cadet", "Engine Cadet"
+    },
+    nationality: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    status: {
+      type: DataTypes.ENUM('Ready', 'Onboard', 'Leave', 'Training'),
+      defaultValue: 'Ready',
+    },
+    vessel_id: {
+      type: DataTypes.INTEGER, 
+      allowNull: true,
+      references: {
+        model: 'vessels',
+        key: 'id',
+      },
+    },
+    sign_on_date: {
+      type: DataTypes.DATE,
       allowNull: true,
     },
   },
