@@ -34,9 +34,12 @@ const VesselsPage: React.FC = () => {
   const refreshData = async () => {
     try {
       // FIX: Use vesselService instead of getVessels()
+    
       const fleet = await vesselService.getAll();
       setVessels(Array.isArray(fleet) ? fleet : []);
-      
+
+      console.log("fleet",fleet)
+
       const crew = getCadets(); // Still local for now
       setTrainees(Array.isArray(crew) ? crew : []);
     } catch (error) {
@@ -58,7 +61,16 @@ const VesselsPage: React.FC = () => {
     try {
       if (data.id) {
         // Edit Mode
-        await vesselService.update(data.id, data);
+        const payload={
+          id:data.id,
+          name:data.name,
+          imo_number:data.imo_number,
+          vessel_type: data.vessel_type,
+          flag:data.flag,
+          classSociety: data.classSociety,
+          is_active:data.is_active
+        }
+        await vesselService.update(data.id, payload);
         toast.success('Vessel details updated.');
       } else {
         // Add Mode
@@ -93,21 +105,36 @@ const VesselsPage: React.FC = () => {
   };
 
   // --- 4. IMPORT HANDLER (Bulk Create) ---
-  const handleImport = async (cleanData: any[]) => {
+const handleImport = async (data: any[]) => {
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const item of data) {
     try {
-      // Loop through and create each vessel via API
-      // In a real app, you'd want a bulkCreate endpoint, but this works for now
-      let successCount = 0;
-      for (const vessel of cleanData) {
-        await vesselService.create(vessel);
-        successCount++;
-      }
-      toast.success(`${successCount} vessels imported successfully.`);
-      refreshData();
-    } catch (error) {
-      toast.error("Import failed partially or completely.");
+      console.log(item)
+      // Map your Excel/CSV headers to what the Backend needs
+      const vesselPayload = {
+        name: item.Name || item.name,
+        imo_number: item.imo,
+        vessel_type: item.type || item.vesselType || item.vessel_type || "Other",
+        flag: item.Flag || item.flag || "Unknown",
+        };
+
+      await vesselService.create(vesselPayload);
+      successCount++;
+    } catch (err) {
+      console.error("Row failed:", item, err);
+      failCount++;
     }
-  };
+  }
+
+  if (failCount === 0) {
+    toast.success(`Successfully imported ${successCount} vessels.`);
+  } else {
+    toast.error(`Import finished: ${successCount} success, ${failCount} failed.`);
+  }
+  refreshData();
+};
 
   const handleSort = (key: string) => {
     let direction: SortDirection = 'asc';
@@ -256,18 +283,19 @@ const VesselsPage: React.FC = () => {
                                    </div>
                                 </div>
                              </td>
-                             <td className="p-4 font-mono text-muted-foreground">{vessel.imo || vessel.imoNumber}</td>
-                             <td className="p-4 text-foreground">{vessel.type}</td>
+                             <td className="p-4 font-mono text-muted-foreground">{vessel.imo || vessel.imo_number}</td>
+                             <td className="p-4 text-foreground">{vessel.vessel_type}</td>
                              <td className="p-4 text-muted-foreground truncate max-w-37.5" title={vessel.classSociety}>
                                 {vessel.classSociety}
                              </td>
+
                              <td className="p-4">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                   vessel.status === 'Active' 
+                                   vessel.is_active 
                                    ? 'bg-green-500/10 text-green-700 dark:text-green-400' 
                                    : 'bg-gray-500/10 text-gray-600'
                                 }`}>
-                                   {vessel.status}
+                                   {vessel.is_active?"Active":"Inactive"}
                                 </span>
                              </td>
                              <td className="p-4">

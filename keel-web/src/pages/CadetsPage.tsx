@@ -83,6 +83,29 @@ const CadetsPage: React.FC = () => {
     }
   };
 
+  const handleInitializeTRB = async (userId: number, department: string) => {
+  if (!window.confirm(`Initialize ${department} TRB for this cadet?`)) return;
+  
+  try {
+    const response = await fetch('http://localhost:5000/api/assignments/initialize', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('keel_token')}`
+      },
+      body: JSON.stringify({ userId, department })
+    });
+    
+    if (response.ok) {
+      toast.success("TRB Initialized successfully!");
+    } else {
+      toast.error("Failed to initialize TRB.");
+    }
+  } catch (error) {
+    toast.error("Network error.");
+  }
+};
+
   // --- SORTING & FILTERING ---
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';

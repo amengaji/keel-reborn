@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Upload, ChevronRight, ChevronDown, AlertTriangle, Trash2, Plus, Edit, Copy, Search, Filter } from 'lucide-react';
+import { BookOpen, Upload, ChevronRight, AlertTriangle, Trash2, Plus, Edit, Copy, Search, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import ImportTaskModal from '../components/trb/ImportTaskModal';
 import TaskFormModal from '../components/trb/TaskFormModal';
-import { getSyllabus, saveSyllabus, processTRBImport, clearSyllabus } from '../services/dataService';
+import { taskService } from '../services/taskService'; // <--- CONNECTED TO DB
 
 const STCW_MAP: Record<string, string> = {
   '1': 'Navigation',
@@ -33,14 +33,23 @@ const TasksPage: React.FC = () => {
     loadData();
   }, []);
 
-  const loadData = () => {
-    const data = getSyllabus();
-    setSyllabus(data);
-    if (data.length > 0 && !activeFunction) {
-      setActiveFunction(data[0].id);
-      // Auto-expand first function's topics
-      const initialTopics = new Set(data[0].topics.map((t: any) => t.id));
-      setExpandedTopics(initialTopics as Set<string>);
+  // --- 1. LOAD DATA (FROM DATABASE) ---
+  const loadData = async () => {
+    try {
+      const data = await taskService.getAll(); // Fetch Tree from Backend
+      setSyllabus(data);
+
+      if (data.length > 0 && !activeFunction) {
+        setActiveFunction(data[0].id);
+        // Auto-expand first function's topics
+        if (data[0].topics) {
+          const initialTopics = new Set(data[0].topics.map((t: any) => t.id));
+          setExpandedTopics(initialTopics as Set<string>);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load syllabus", error);
+      toast.error("Could not load Master Task List.");
     }
   };
 
@@ -50,138 +59,113 @@ const TasksPage: React.FC = () => {
     setExpandedTopics(newSet);
   };
 
-  const pruneSyllabus = (data: any[]) => {
-    return data
-      .map(func => ({
-        ...func,
-        topics: func.topics.filter((t: any) => t.tasks.length > 0)
-      }))
-      .filter(func => func.topics.length > 0);
-  };
-
-  const handleImport = (flatData: any[]) => {
-    const tree = processTRBImport(flatData);
-    saveSyllabus(tree);
-    setSyllabus(tree);
-    if (tree.length > 0) setActiveFunction(tree[0].id);
-    toast.success(`Imported ${flatData.length} tasks successfully.`);
-  };
-
-  const handleDeleteAll = () => {
-    if (window.confirm("WARNING: This will delete the entire Master Task List. Are you sure?")) {
-      clearSyllabus();
-      setSyllabus([]);
-      setActiveFunction(null);
-      toast.error("Syllabus deleted.");
+  // --- 2. IMPORT (TO DATABASE) ---
+  const handleImport = async (flatData: any[]) => {
+    try {
+      let count = 0;
+      for (const item of flatData) {
+        // Map CSV fields to DB fields
+        await taskService.create({
+          code: item.code || item.stcw,
+          title: item.title,
+          department: item.dept || 'Deck',
+          section: item.section || 'General',
+          partNum: item.function || '1',
+          safety_level: item.safety || 'Green'
+        });
+        count++;
+      }
+      toast.success(`Imported ${count} tasks successfully.`);
+      loadData(); // Refresh Tree
+      setIsImportOpen(false);
+    } catch (error) {
+      toast.error("Import failed.");
     }
   };
 
-  const deleteTask = (funcId: string, topicId: string, taskId: string) => {
+  // --- 3. DELETE (FROM DATABASE) ---
+  const handleDeleteAll = async () => {
+    // Note: This API endpoint might need to be created if you want "Delete All"
+    // For now, we can warn that it's disabled or implement bulk delete later.
+    toast.error("Bulk delete is disabled for safety in Database mode.");
+  };
+
+  const deleteTask = async (funcId: string, topicId: string, taskId: number) => {
     if (!window.confirm("Delete this task?")) return;
-    let newSyllabus = syllabus.map(func => {
-      if (func.id !== funcId) return func;
-      return {
-        ...func,
-        topics: func.topics.map((topic: any) => {
-          if (topic.id !== topicId) return topic;
-          return { ...topic, tasks: topic.tasks.filter((t: any) => t.id !== taskId) };
-        })
-      };
-    });
-    newSyllabus = pruneSyllabus(newSyllabus);
-    saveSyllabus(newSyllabus);
-    setSyllabus(newSyllabus);
-    toast.info("Task removed.");
+    try {
+      await taskService.delete(taskId);
+      toast.info("Task removed.");
+      loadData(); // Refresh Tree
+    } catch (error) {
+      toast.error("Failed to delete task.");
+    }
   };
 
-  const cloneTask = (funcId: string, topicId: string, task: any) => {
-    const newTask = {
-      ...task,
-      id: `TASK-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      title: `${task.title} (Copy)`
-    };
-    const newSyllabus = syllabus.map(func => {
-      if (func.id !== funcId) return func;
-      return {
-        ...func,
-        topics: func.topics.map((topic: any) => {
-          if (topic.id !== topicId) return topic;
-          return { ...topic, tasks: [...topic.tasks, newTask] };
-        })
-      };
-    });
-    saveSyllabus(newSyllabus);
-    setSyllabus(newSyllabus);
-    toast.success("Task duplicated.");
+  // --- 4. CLONE (IN DATABASE) ---
+  const cloneTask = async (funcId: string, topicId: string, task: any) => {
+    try {
+      await taskService.create({
+        code: `${task.code}-COPY-${Math.floor(Math.random() * 1000)}`,
+        title: `${task.title} (Copy)`,
+        department: task.dept,
+        safety_level: task.safety,
+        partNum: funcId.replace('FUNC-', ''),
+        section: task.section // You might need to pass section name here
+      });
+      toast.success("Task duplicated.");
+      loadData(); // Refresh Tree
+    } catch (error) {
+      toast.error("Failed to duplicate task.");
+    }
   };
 
-  const handleSaveTask = (formData: any) => {
-    let currentSyllabus = [...syllabus];
-    
-    if (formData.id && editingTask) {
-       currentSyllabus = currentSyllabus.map(func => ({
-         ...func,
-         topics: func.topics.map((topic: any) => ({
-           ...topic,
-           tasks: topic.tasks.filter((t: any) => t.id !== formData.id)
-         }))
-       }));
-       currentSyllabus = pruneSyllabus(currentSyllabus);
+  // --- 5. SAVE/UPDATE (TO DATABASE) ---
+  const handleSaveTask = async (formData: any) => {
+    try {
+      if (formData.code && editingTask) {
+         // Update Existing
+         // Note: We use editingTask.id because formData might not have the DB ID if form logic differs
+         await taskService.update(editingTask.id, formData);
+         toast.success("Task updated.");
+      } else {
+         // Create New
+         await taskService.create(formData);
+         toast.success("New task created.");
+      }
+      
+      setIsTaskFormOpen(false);
+      setEditingTask(null);
+      loadData(); // Refresh Tree
+      
+      // Auto-focus logic (Optional, based on your original UX desires)
+      const funcId = `FUNC-${formData.partNum}`;
+      setActiveFunction(funcId);
+      
+    } catch (error: any) {
+      toast.error(error.message || "Operation failed.");
     }
-
-    const newTask = {
-      id: formData.id || `TASK-${Date.now()}`,
-      title: formData.title,
-      description: formData.description,
-      stcw: formData.stcw,
-      dept: formData.dept,
-      traineeType: formData.traineeType,
-      instruction: formData.instruction,
-      safety: formData.safety,
-      evidence: formData.evidence,
-      verification: formData.verification,
-      frequency: formData.frequency,
-      mandatory: formData.mandatory
-    };
-
-    const funcId = `FUNC-${formData.partNum}`;
-    let funcIndex = currentSyllabus.findIndex(f => f.id === funcId);
-    
-    if (funcIndex === -1) {
-      currentSyllabus.push({ id: funcId, title: `Function ${formData.partNum}`, topics: [] });
-      currentSyllabus.sort((a, b) => a.id.localeCompare(b.id)); 
-      funcIndex = currentSyllabus.findIndex(f => f.id === funcId);
-    }
-
-    const topicTitle = formData.section.trim();
-    const topicId = `TOPIC-${topicTitle.replace(/\s+/g, '-')}`; 
-    let topicIndex = currentSyllabus[funcIndex].topics.findIndex((t: any) => t.title === topicTitle);
-    
-    if (topicIndex === -1) {
-      currentSyllabus[funcIndex].topics.push({ id: topicId, title: topicTitle, tasks: [] });
-      topicIndex = currentSyllabus[funcIndex].topics.length - 1;
-    }
-
-    currentSyllabus[funcIndex].topics[topicIndex].tasks.push(newTask);
-    saveSyllabus(currentSyllabus);
-    setSyllabus(currentSyllabus);
-    
-    setActiveFunction(funcId);
-    setExpandedTopics(prev => new Set(prev).add(topicId));
-    toast.success(editingTask ? "Task updated." : "New task created.");
-    setEditingTask(null);
   };
 
-  const openEdit = (task: any, partNum: string, sectionTitle: string) => {
+  const openEdit = (task: any, funcId: string, sectionTitle: string) => {
     setEditingTask({
-      ...task,
-      partNum: partNum.replace('FUNC-', ''),
+      id: task.id, // Ensure ID is passed
+      code: task.code || task.stcw,
+      title: task.title,
+      department: task.dept,
+      safety_level: task.safety,
+      partNum: funcId.replace('FUNC-', ''),
       section: sectionTitle
     });
     setIsTaskFormOpen(true);
   };
 
   const getFunctionLabel = (funcId: string) => {
+    // If Backend sends full title, use it. If not, map it.
+    // The backend we built sends titles like "Function 1: Navigation", 
+    // but strict STCW mapping handles fallback.
+    const func = syllabus.find(f => f.id === funcId);
+    if (func && func.title) return func.title;
+
     const num = funcId.replace('FUNC-', '');
     const name = STCW_MAP[num] || 'General';
     return `Function ${num}: ${name}`;
@@ -246,7 +230,7 @@ const TasksPage: React.FC = () => {
           {/* RIGHT: CONTENT (COMPETENCIES & TASKS) */}
           <div className="flex-1 bg-card border border-border rounded-xl flex flex-col overflow-hidden shadow-sm">
              
-             {/* NEW: RIGHT COLUMN HEADER WITH SEARCH & FILTER */}
+             {/* RIGHT COLUMN HEADER WITH SEARCH & FILTER */}
              <div className="p-3 border-b border-border bg-muted/30 flex flex-col sm:flex-row gap-3 items-center justify-between">
                 <div className="font-bold text-xs text-muted-foreground uppercase flex items-center gap-2">
                    <Filter size={14} /> Competencies & Tasks
@@ -290,7 +274,7 @@ const TasksPage: React.FC = () => {
                         // 2. FILTER TASKS
                         const filteredTasks = topic.tasks.filter((t: any) => 
                           t.title.toLowerCase().includes(taskSearch.toLowerCase()) || 
-                          t.description?.toLowerCase().includes(taskSearch.toLowerCase())
+                          (t.description || '').toLowerCase().includes(taskSearch.toLowerCase())
                         );
 
                         // If searching tasks, only show topics containing matches
@@ -333,11 +317,11 @@ const TasksPage: React.FC = () => {
                                          
                                          <div className="flex flex-wrap gap-2 mt-3 items-center">
                                             <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground border border-border">
-                                               {task.stcw || 'NO REF'}
+                                               {task.stcw || task.code || 'NO REF'}
                                             </span>
                                             {task.dept && <span className="text-[10px] border border-border px-2 py-0.5 rounded text-muted-foreground">{task.dept}</span>}
-                                            {task.safety && task.safety !== 'NONE' && (
-                                               <span className="text-[10px] bg-red-500/10 text-red-600 px-2 py-0.5 rounded border border-red-500/20 flex items-center gap-1">
+                                            {task.safety && task.safety !== 'Green' && (
+                                               <span className={`text-[10px] bg-red-500/10 text-red-600 px-2 py-0.5 rounded border border-red-500/20 flex items-center gap-1`}>
                                                   <AlertTriangle size={10} /> {task.safety}
                                                </span>
                                             )}
@@ -388,7 +372,7 @@ const TasksPage: React.FC = () => {
         isOpen={isTaskFormOpen} 
         onClose={() => setIsTaskFormOpen(false)} 
         onSave={handleSaveTask} 
-        editData={editingTask}
+        initialData={editingTask} // Changed to match TaskFormModal definition
       />
     </div>
   );

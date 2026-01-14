@@ -3,6 +3,8 @@
 import User from './User';
 import Role from './Role';
 import Vessel from './Vessel';
+import Task from './Task';
+import Assignment from './Assignment';
 
 /**
  * MARITIME EXPERT NOTE:
@@ -28,6 +30,18 @@ export const setupAssociations = () => {
   // Vessel <-> User (Crew)
   Vessel.hasMany(User, { foreignKey: 'vessel_id', as: 'crew' });
   User.belongsTo(Vessel, { foreignKey: 'vessel_id', as: 'vessel' });
+
+  // A Cadet has many task assignments
+  User.hasMany(Assignment, { foreignKey: 'user_id' });
+  Assignment.belongsTo(User, { as: 'cadet', foreignKey: 'user_id' });
+
+  // A Task can be assigned to many users
+  Task.hasMany(Assignment, { foreignKey: 'task_id' });
+  Assignment.belongsTo(Task, { foreignKey: 'task_id' });
+
+  // An Officer signs off many assignments
+  User.hasMany(Assignment, { foreignKey: 'officer_id' });
+  Assignment.belongsTo(User, { as: 'officer', foreignKey: 'officer_id' });
 
   console.log('✅ MODELS: Associations (User <-> Role) have been synchronized.');
 };

@@ -14,9 +14,36 @@ export const getVessels = async (req: Request, res: Response) => {
 // CREATE
 export const createVessel = async (req: Request, res: Response) => {
   try {
-    const newVessel = await Vessel.create(req.body);
+    const { 
+      name, 
+      imoNumber, imo_number, 
+      vesselType, vessel_type,
+      flag, 
+      classSociety, 
+      is_active = true
+    } = req.body;
+
+    console.log(req.body)
+
+    const payload = {
+      name: name,
+      // Map whatever name the frontend uses to 'imo_number'
+      imo_number: String(imoNumber || imo_number || ''), 
+      vessel_type: String(vesselType || vessel_type || 'Other'),
+      flag: flag || 'Unknown',
+      classSociety:classSociety,
+      is_active:is_active
+    };
+
+    // Validation
+    if (!payload.name || payload.imo_number === 'undefined' || !payload.imo_number) {
+      return res.status(400).json({ message: "Vessel Name and valid IMO Number are required." });
+    }
+
+    const newVessel = await Vessel.create(payload);
     res.status(201).json(newVessel);
   } catch (error: any) {
+    console.error("Vessel Create Error:", error);
     res.status(500).json({ message: 'Error creating vessel', error: error.message });
   }
 };

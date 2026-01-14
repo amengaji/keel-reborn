@@ -6,6 +6,7 @@ interface TaskFormModalProps {
   onClose: () => void;
   onSave: (taskData: any) => void;
   editData?: any;
+  initialData?: any;
 }
 
 const STCW_FUNCTIONS = [

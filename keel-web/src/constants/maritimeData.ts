@@ -1,3 +1,4 @@
+//keel-web/src/constants/maritimeData.ts
 export const CLASSIFICATION_SOCIETIES = [
   "ABS (American Bureau of Shipping)",
   "BV (Bureau Veritas)",
