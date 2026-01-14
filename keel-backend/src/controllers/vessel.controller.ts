@@ -14,37 +14,27 @@ export const getVessels = async (req: Request, res: Response) => {
 // CREATE
 export const createVessel = async (req: Request, res: Response) => {
   try {
-    const { 
-      name, 
-      imoNumber, imo_number, 
-      vesselType, vessel_type,
-      flag, 
-      classSociety, 
-      is_active = true
-    } = req.body;
+    const data = req.body;
 
-    console.log(req.body)
-
+    // Mapping Frontend Keys -> Database Columns
     const payload = {
-      name: name,
-      // Map whatever name the frontend uses to 'imo_number'
-      imo_number: String(imoNumber || imo_number || ''), 
-      vessel_type: String(vesselType || vessel_type || 'Other'),
-      flag: flag || 'Unknown',
-      classSociety:classSociety,
-      is_active:is_active
+      name: data.name,
+      imo_number: data.imo || data.imoNumber || data.imo_number,
+      vessel_type: data.type || data.vesselType || data.vessel_type,
+      flag: data.flag || 'Unknown',
+      class_society: data.classSociety || data.class_society,
+      status: data.is_active === 'on' || data.is_active === true ? 'Active' : 'Inactive',
+      is_active: data.is_active === 'on' || data.is_active === true
     };
 
-    // Validation
-    if (!payload.name || payload.imo_number === 'undefined' || !payload.imo_number) {
-      return res.status(400).json({ message: "Vessel Name and valid IMO Number are required." });
+    if (!payload.name || !payload.imo_number) {
+      return res.status(400).json({ message: "Name and IMO Number are required." });
     }
 
     const newVessel = await Vessel.create(payload);
     res.status(201).json(newVessel);
   } catch (error: any) {
-    console.error("Vessel Create Error:", error);
-    res.status(500).json({ message: 'Error creating vessel', error: error.message });
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -69,12 +59,12 @@ export const deleteVessel = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const deleted = await Vessel.destroy({ where: { id } });
+    
     if (deleted) {
-      res.json({ message: 'Vessel deleted' });
-    } else {
-      res.status(404).json({ message: 'Vessel not found' });
+      return res.status(200).json({ message: "Vessel removed successfully" });
     }
+    throw new Error("Vessel not found");
   } catch (error: any) {
-    res.status(500).json({ message: 'Error deleting vessel', error: error.message });
+    res.status(500).json({ message: error.message });
   }
 };

@@ -72,6 +72,18 @@ const AddVesselModal: React.FC<AddVesselModalProps> = ({ isOpen, onClose, onSave
               {CLASSIFICATION_SOCIETIES.map(cls => <option key={cls} value={cls}>{cls}</option>)}
             </select>
           </div>
+          <div className="flex items-center space-x-2 py-2">
+            <input 
+              type="checkbox" 
+              id="is_active" 
+              name="is_active" 
+              defaultChecked={editData ? editData.is_active : true}
+              className="w-4 h-4 text-primary border-border rounded focus:ring-primary"
+            />
+            <label htmlFor="is_active" className="text-sm font-medium text-foreground cursor-pointer">
+              Vessel is currently active in fleet
+            </label>
+          </div>
 
           <div className="pt-4 flex justify-end space-x-3">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">Cancel</button>
