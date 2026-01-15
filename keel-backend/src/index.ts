@@ -36,7 +36,7 @@ app.use('/api/assignments', assignmentRoutes);
 
 const startServer = async () => {
   // Inside startServer function in src/index.ts
-  await sequelize.sync({ force: true }); 
+  await sequelize.sync({ alter: true }); 
   console.log('⚓ DATABASE: Tables recreated successfully.');
   try {
     await connectDB();
