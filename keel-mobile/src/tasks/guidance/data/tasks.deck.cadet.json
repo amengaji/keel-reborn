@@ -1,0 +1,72 @@
+{
+  "stream": "DECK_CADET",
+  "version": "1.0",
+  "sections": {
+    "NAV": {
+      "title": "Navigation & Passage Planning",
+      "purpose": "To develop the cadet’s understanding of safe navigation principles, voyage planning, and situational awareness during coastal and ocean passages.",
+      "tasks": {
+        "DC.NAV.01": {
+          "title": "Prepare a berth-to-berth passage plan",
+          "purpose": "To ensure the cadet understands structured voyage planning and the importance of preparing a complete passage plan in accordance with company procedures and applicable regulations.",
+          "whatToDo": [
+            "Review the intended voyage and obtain relevant charts and publications",
+            "Prepare a berth-to-berth passage plan under the supervision of a navigating officer",
+            "Mark courses, distances, wheel-over positions, and reporting points as required"
+          ],
+          "howToDemonstrate": [
+            "Explain the prepared passage plan to the officer in charge of the watch",
+            "Demonstrate understanding of each leg of the voyage",
+            "Answer questions related to the planning process and assumptions made"
+          ],
+          "notes": "This task should normally be demonstrated during an actual voyage where practicable."
+        },
+        "DC.NAV.02": {
+          "title": "Apply chart corrections and verify navigational publications",
+          "purpose": "To ensure the cadet understands the importance of using corrected charts and up-to-date publications for safe navigation.",
+          "whatToDo": [
+            "Identify charts and publications required for the intended voyage",
+            "Apply corrections using notices to mariners or electronic updates under supervision",
+            "Verify that charts and publications are corrected and ready for use"
+          ],
+          "howToDemonstrate": [
+            "Show corrected charts or electronic chart status to the officer",
+            "Explain the correction process and sources of information",
+            "Answer questions on the consequences of using uncorrected charts"
+          ],
+          "notes": "Electronic and paper chart systems may both be used, depending on the vessel."
+        },
+        "DC.NAV.03": {
+          "title": "Identify navigational hazards and contingency measures",
+          "purpose": "To develop the cadet’s ability to recognize navigational hazards and plan appropriate contingency measures to maintain safety of navigation.",
+          "whatToDo": [
+            "Identify hazards along the planned route such as shallow waters, traffic density, or restricted areas",
+            "Discuss potential risks associated with these hazards",
+            "Identify suitable contingency measures or alternative actions"
+          ],
+          "howToDemonstrate": [
+            "Point out hazards on the chart or electronic display",
+            "Explain proposed contingency actions to the officer",
+            "Respond to scenario-based questions related to navigational risks"
+          ],
+          "notes": "Hazards may vary depending on trading area and voyage conditions."
+        },
+        "DC.NAV.04": {
+          "title": "Explain bridge equipment used during navigation",
+          "purpose": "To ensure the cadet understands the function and limitations of bridge equipment used to support safe navigation.",
+          "whatToDo": [
+            "Identify the main navigation equipment fitted on the bridge",
+            "Observe the use of equipment during watchkeeping",
+            "Learn the basic operating principles and limitations of each system"
+          ],
+          "howToDemonstrate": [
+            "Explain the purpose and basic operation of bridge equipment to the officer",
+            "Demonstrate awareness of limitations and common errors",
+            "Answer questions related to the safe use of navigation equipment"
+          ],
+          "notes": "Equipment may include radar, ECDIS, gyrocompass, GPS, and other fitted systems."
+        }
+      }
+    }
+  }
+}

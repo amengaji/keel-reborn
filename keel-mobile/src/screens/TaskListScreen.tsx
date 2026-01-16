@@ -1,122 +1,141 @@
 //keel-mobile/src/screens/TaskListScreen.tsx
 
-import React from "react";
-import { View, StyleSheet, FlatList } from "react-native";
-import { Text, List, useTheme, Searchbar, Surface } from "react-native-paper";
-import { CheckCircle2, Circle, Clock } from "lucide-react-native";
-
 /**
- * TASK LIST SCREEN — Trainee TRB View
- * UI/UX: Modern list with plain text status for maximum readability.
+ * ============================================================
+ * Task List Screen (SQLite-backed)
+ * ============================================================
+ *
+ * PURPOSE:
+ * - Display all training tasks
+ * - Load tasks from local SQLite
+ * - Preserve existing UI & navigation
+ *
+ * IMPORTANT:
+ * - No custom props added to KeelCard
+ * - Status rendered inside card body
+ * - Offline-first
  */
 
-const MOCK_TASKS = [
-  { id: '1', title: 'Maintain a safe navigational watch', code: 'A-II/1.1', status: 'completed' },
-  { id: '2', title: 'Plan and conduct a passage', code: 'A-II/1.2', status: 'in-progress' },
-  { id: '3', title: 'Maintain safe deck watch in port', code: 'A-II/1.3', status: 'pending' },
-  { id: '4', title: 'Use of radar and ARPA', code: 'A-II/1.4', status: 'pending' },
-];
+import React, { useEffect, useState } from "react";
+import { View, StyleSheet, FlatList } from "react-native";
+import { Text, useTheme } from "react-native-paper";
+import { KeelScreen } from "../components/ui/KeelScreen";
+import { KeelCard } from "../components/ui/KeelCard";
+import { KeelButton } from "../components/ui/KeelButton";
+import { useNavigation } from "@react-navigation/native";
+import { useToast } from "../components/toast/useToast";
 
-export const TaskListScreen = () => {
+import {
+  ensureSeedTasksExist,
+  getAllTaskRecords,
+  TaskRecord,
+} from "../db/tasks";
+
+/**
+ * ------------------------------------------------------------
+ * Helper: map taskKey → numeric id
+ * ------------------------------------------------------------
+ */
+function mapTaskKeyToId(taskKey: string): number {
+  const parts = taskKey.split(".");
+  const n = Number(parts[1]);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export default function TaskListScreen() {
   const theme = useTheme();
-  const [searchQuery, setSearchQuery] = React.useState('');
+  const navigation = useNavigation<any>();
+  const toast = useToast();
 
-  const getStatusDetails = (status: string) => {
-    switch (status) {
-      case 'completed': 
-        return { label: 'Completed', color: '#4CAF50', icon: <CheckCircle2 size={18} color="#4CAF50" /> };
-      case 'in-progress': 
-        return { label: 'In Progress', color: '#FF9800', icon: <Clock size={18} color="#FF9800" /> };
-      default: 
-        return { label: 'Not Started', color: '#F44336', icon: <Circle size={18} color="#F44336" /> };
+  // ------------------------------------------------------------
+  // State
+  // ------------------------------------------------------------
+  const [tasks, setTasks] = useState<TaskRecord[]>([]);
+
+  // ------------------------------------------------------------
+  // Load tasks from SQLite
+  // ------------------------------------------------------------
+  useEffect(() => {
+    try {
+      ensureSeedTasksExist();
+      const allTasks = getAllTaskRecords();
+      setTasks(allTasks);
+    } catch (err) {
+      console.error("Failed to load tasks:", err);
+      toast.error("Failed to load tasks.");
     }
-  };
+  }, [toast]);
 
+  // ------------------------------------------------------------
+  // Render
+  // ------------------------------------------------------------
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Searchbar
-        placeholder="Search TRB Tasks..."
-        onChangeText={setSearchQuery}
-        value={searchQuery}
-        style={styles.search}
-        elevation={0}
-      />
-      
+    <KeelScreen>
+      <Text variant="titleLarge" style={styles.title}>
+        Tasks
+      </Text>
+
       <FlatList
-        data={MOCK_TASKS}
+        data={tasks}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={styles.list}
         renderItem={({ item }) => {
-          const status = getStatusDetails(item.status);
+          const numericId = mapTaskKeyToId(item.taskKey);
+
           return (
-            <Surface style={[styles.surface, { backgroundColor: theme.colors.surface }]} elevation={1}>
-              <List.Item
-                title={item.title}
-                titleStyle={styles.taskTitle}
-                description={() => (
-                  <View style={styles.descriptionContainer}>
-                    <Text style={[styles.refText, { color: theme.colors.outline }]}>
-                      STCW Ref: {item.code}
-                    </Text>
-                    <Text style={[styles.statusText, { color: status.color }]}>
-                      {status.label}
-                    </Text>
-                  </View>
-                )}
-                left={() => <View style={styles.iconWrapper}>{status.icon}</View>}
-                style={styles.listItem}
-              />
-            </Surface>
+            <KeelCard title={`Task ${numericId}`} subtitle={item.taskTitle}>
+              {/* Task Status */}
+              <Text
+                variant="labelMedium"
+                style={[
+                  styles.status,
+                  {
+                    color:
+                      item.status === "COMPLETED"
+                        ? theme.colors.primary
+                        : theme.colors.onSurfaceVariant,
+                  },
+                ]}
+              >
+                {item.status === "COMPLETED"
+                  ? "Completed"
+                  : item.status === "IN_PROGRESS"
+                  ? "In Progress"
+                  : "Not Started"}
+              </Text>
+
+              {/* Action */}
+              <View style={styles.cardFooter}>
+                <KeelButton
+                  mode="secondary"
+                  onPress={() =>
+                    navigation.navigate("TaskDetails", { id: numericId })
+                  }
+                >
+                  Open
+                </KeelButton>
+              </View>
+            </KeelCard>
           );
         }}
       />
-    </View>
+    </KeelScreen>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  search: {
-    margin: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 100, // Extra padding to avoid bottom tab overlap
-  },
-  surface: {
-    borderRadius: 16,
+  title: {
+    fontWeight: "700",
     marginBottom: 12,
-    overflow: 'hidden',
   },
-  listItem: {
-    paddingVertical: 8,
+  list: {
+    paddingBottom: 24,
   },
-  iconWrapper: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingLeft: 12,
-  },
-  taskTitle: {
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  descriptionContainer: {
+  status: {
     marginTop: 4,
   },
-  refText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    marginTop: 2,
-    letterSpacing: 0.5,
+  cardFooter: {
+    marginTop: 12,
+    alignItems: "flex-end",
   },
 });
