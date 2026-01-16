@@ -1,0 +1,123 @@
++-- keel-backend
+¦   +-- db
+¦   ¦   +-- init_db.sql
+¦   +-- src
+¦   ¦   +-- admin
+¦   ¦   ¦   +-- controllers
+¦   ¦   ¦   +-- routes
+¦   ¦   ¦   +-- services
+¦   ¦   +-- config
+¦   ¦   ¦   +-- database.ts
+¦   ¦   +-- controllers
+¦   ¦   ¦   +-- assignment.controller.ts
+¦   ¦   ¦   +-- auth.controller.ts
+¦   ¦   ¦   +-- cadet.controller.ts
+¦   ¦   ¦   +-- task.controller.ts
+¦   ¦   ¦   +-- vessel.controller.ts
+¦   ¦   +-- middleware
+¦   ¦   ¦   +-- auth.middleware.ts
+¦   ¦   ¦   +-- role.middleware.ts
+¦   ¦   +-- models
+¦   ¦   ¦   +-- Assignment.ts
+¦   ¦   ¦   +-- associations.ts
+¦   ¦   ¦   +-- Role.ts
+¦   ¦   ¦   +-- ShipType.ts
+¦   ¦   ¦   +-- Task.ts
+¦   ¦   ¦   +-- User.ts
+¦   ¦   ¦   +-- Vessel.ts
+¦   ¦   +-- routes
+¦   ¦   ¦   +-- assignment.routes.ts
+¦   ¦   ¦   +-- auth.routes.ts
+¦   ¦   ¦   +-- cadet.routes.ts
+¦   ¦   ¦   +-- task.routes.ts
+¦   ¦   ¦   +-- vessel.routes.ts
+¦   ¦   +-- scripts
+¦   ¦   ¦   +-- resetAdmin.ts
+¦   ¦   ¦   +-- seed.ts
+¦   ¦   +-- services
+¦   ¦   +-- index.ts
+¦   +-- .env
+¦   +-- .gitignore
+¦   +-- package.json
+¦   +-- tsconfig.json
++-- keel-mobile
+¦   +-- src
+¦       +-- components
+¦       ¦   +-- common
+¦       ¦   ¦   +-- CustomCheckbox.tsx
+¦       ¦   ¦   +-- YesNoCapsule.tsx
+¦       ¦   +-- inputs
+¦       ¦   ¦   +-- DateInputField.tsx
+¦       ¦   ¦   +-- LatLongInput.tsx
+¦       ¦   ¦   +-- TimeInputField.tsx
+¦       ¦   +-- trainee
+¦       +-- constants
+¦       +-- db
+¦       ¦   +-- database.ts
+¦       +-- hooks
+¦       +-- navigation
+¦       +-- screens
+¦       ¦   +-- HomeScreen.tsx
+¦       ¦   +-- TaskListScreen.tsx
+¦       +-- services
+¦       +-- theme
+¦           +-- AppTheme.ts
+¦           +-- colors.ts
++-- keel-web
+¦   +-- src
+¦   ¦   +-- components
+¦   ¦   ¦   +-- auth
+¦   ¦   ¦   ¦   +-- ProtectedRoute.tsx
+¦   ¦   ¦   +-- layout
+¦   ¦   ¦   ¦   +-- DashboardLayout.tsx
+¦   ¦   ¦   ¦   +-- Sidebar.tsx
+¦   ¦   ¦   ¦   +-- Topbar.tsx
+¦   ¦   ¦   +-- trainees
+¦   ¦   ¦   ¦   +-- AddCadetModal.tsx
+¦   ¦   ¦   ¦   +-- ImportCadetModal.tsx
+¦   ¦   ¦   +-- trb
+¦   ¦   ¦   ¦   +-- ImportTaskModal.tsx
+¦   ¦   ¦   ¦   +-- TaskFormModal.tsx
+¦   ¦   ¦   +-- vessels
+¦   ¦   ¦       +-- AddVesselModal.tsx
+¦   ¦   ¦       +-- ImportVesselModal.tsx
+¦   ¦   +-- constants
+¦   ¦   ¦   +-- cadetData.ts
+¦   ¦   ¦   +-- maritimeData.ts
+¦   ¦   +-- layout
+¦   ¦   ¦   +-- AdminLayout.tsx
+¦   ¦   +-- pages
+¦   ¦   ¦   +-- ApprovalsPage.tsx
+¦   ¦   ¦   +-- AssignmentsPage.tsx
+¦   ¦   ¦   +-- AuditLogsPage.tsx
+¦   ¦   ¦   +-- CadetsPage.tsx
+¦   ¦   ¦   +-- Dashboard.tsx
+¦   ¦   ¦   +-- EvidencePage.tsx
+¦   ¦   ¦   +-- LockedTRBPage.tsx
+¦   ¦   ¦   +-- LoginPage.tsx
+¦   ¦   ¦   +-- ReportsPage.tsx
+¦   ¦   ¦   +-- SettingsPage.tsx
+¦   ¦   ¦   +-- TasksPage.tsx
+¦   ¦   ¦   +-- TrainingProgressPage.tsx
+¦   ¦   ¦   +-- TRBViewerPage.tsx
+¦   ¦   ¦   +-- UsersPage.tsx
+¦   ¦   ¦   +-- VesselsPage.tsx
+¦   ¦   +-- services
+¦   ¦   ¦   +-- authService.ts
+¦   ¦   ¦   +-- cadetService.ts
+¦   ¦   ¦   +-- dataService.ts
+¦   ¦   ¦   +-- taskService.ts
+¦   ¦   ¦   +-- vesselService.ts
+¦   ¦   +-- App.tsx
+¦   ¦   +-- index.css
+¦   ¦   +-- main.tsx
+¦   +-- .gitignore
+¦   +-- index.html
+¦   +-- package.json
+¦   +-- tsconfig.json
+¦   +-- vite.config.ts
++-- .gitignore
++-- keel_trb_smart_template.xlsx
++-- keel_vessel_import_template.xlsx
++-- project_structure.txt
++-- tree.ps1
