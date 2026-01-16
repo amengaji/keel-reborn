@@ -159,7 +159,7 @@ const CadetsPage: React.FC = () => {
              onClick={() => setIsImportOpen(true)}
              className="bg-card hover:bg-muted text-foreground border border-input px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95"
            >
-             <Upload size={18} /><span>Import Roster</span>
+             <Upload size={18} /><span>Import Trainees</span>
            </button>
            <button 
              onClick={() => setIsAddOpen(true)}

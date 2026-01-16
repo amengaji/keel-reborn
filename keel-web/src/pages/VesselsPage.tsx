@@ -284,9 +284,9 @@ const handleImport = async (data: any[]) => {
                                 </div>
                              </td>
                              <td className="p-4 font-mono text-muted-foreground">{vessel.imo || vessel.imo_number}</td>
-                             <td className="p-4 text-foreground">{vessel.vessel_type}</td>
+                             <td className="p-4 text-foreground">{vessel.ship_type_id}</td>
                              <td className="p-4 text-muted-foreground truncate max-w-37.5" title={vessel.classSociety}>
-                                {vessel.classSociety}
+                                {vessel.class_society}
                              </td>
 
                              <td className="p-4">
