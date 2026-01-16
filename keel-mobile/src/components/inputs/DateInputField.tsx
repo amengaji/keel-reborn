@@ -200,14 +200,25 @@ const closePicker = () => {
   return (
     <View>
       <TextInput
-        mode="outlined"
+        mode="flat"
         label={required ? `${label} *` : label}
         value={text}
         onChangeText={handleChange}
         keyboardType="number-pad"
         placeholder={placeholderFromPattern(pattern)}
-        outlineColor={theme.colors.outline}
-        activeOutlineColor={theme.colors.primary}
+        style={{ backgroundColor: "transparent" }}
+        textColor="#FFFFFF"
+        placeholderTextColor="rgba(255,255,255,0.4)"
+        underlineColor={theme.colors.outline}
+        activeUnderlineColor={theme.colors.primary}
+        theme={{
+          ...theme,
+          colors: {
+            ...theme.colors,
+            onSurface: "#FFFFFF",
+            onSurfaceVariant: "#FFFFFF",
+          },
+        }}
         right={
           <TextInput.Icon
             icon="calendar"
@@ -215,6 +226,7 @@ const closePicker = () => {
           />
         }
       />
+
 
 {/* iOS DATE PICKER — requires explicit DONE button */}
 {showPicker && Platform.OS === "ios" && (
