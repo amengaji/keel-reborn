@@ -11,7 +11,8 @@ const API_URL = 'http://localhost:5000/api/auth';
 
 export interface LoginResponse {
   message: string;
-  token: string;
+  accessToken: string;
+  refreshToken: string;
   user: {
     id: number;
     email: string;
@@ -40,7 +41,7 @@ export const loginOfficer = async (email: string, password: string): Promise<Log
     }
 
     // UX Note: Store the token securely so the Officer stays logged in during their watch
-    localStorage.setItem('keel_token', data.token);
+    localStorage.setItem('keel_token', data.accessToken);
     localStorage.setItem('keel_user', JSON.stringify(data.user));
 
     return data;

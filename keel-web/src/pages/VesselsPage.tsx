@@ -67,7 +67,7 @@ const VesselsPage: React.FC = () => {
           imo_number:data.imo_number,
           vessel_type: data.vessel_type,
           flag:data.flag,
-          classSociety: data.classSociety,
+          class_society: data.class_society,
           is_active:data.is_active
         }
         await vesselService.update(data.id, payload);
@@ -240,7 +240,7 @@ const handleImport = async (data: any[]) => {
                       { label: 'Vessel Name / Flag', key: 'name', width: 'w-1/4' },
                       { label: 'IMO Number', key: 'imo', width: 'w-1/6' },
                       { label: 'Type', key: 'type', width: 'w-1/6' },
-                      { label: 'Class', key: 'classSociety', width: 'w-1/6' },
+                      { label: 'Class', key: 'class_society', width: 'w-1/6' },
                       { label: 'Status', key: 'status', width: 'w-1/12' },
                       { label: 'Cadets', key: 'cadets', width: 'w-1/12' },
                       { label: 'Actions', key: 'actions', width: 'w-20' }
@@ -284,8 +284,8 @@ const handleImport = async (data: any[]) => {
                                 </div>
                              </td>
                              <td className="p-4 font-mono text-muted-foreground">{vessel.imo || vessel.imo_number}</td>
-                             <td className="p-4 text-foreground">{vessel.ship_type_id}</td>
-                             <td className="p-4 text-muted-foreground truncate max-w-37.5" title={vessel.classSociety}>
+                             <td className="p-4 text-foreground">{vessel.vessel_type}</td>
+                             <td className="p-4 text-muted-foreground truncate max-w-37.5" title={vessel.class_society}>
                                 {vessel.class_society}
                              </td>
 

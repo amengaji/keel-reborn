@@ -1,212 +1,106 @@
-//keel-mobile/src/components/home/ComplianceIndicatorCard.tsx
-
-/**
- * ============================================================
- * ComplianceIndicatorCard (Refactored — Inline Attention UX)
- * ============================================================
- *
- * PURPOSE:
- * - Single source of truth for compliance status on Home
- * - Inline attention handling (no separate Attention panel)
- *
- * UX RULES:
- * - INFO → minimal, no noise
- * - ATTENTION → explanation + recommendation
- * - RISK → explanation + recommendation + toast handled by parent
- *
- * DESIGN:
- * - Inspector-grade
- * - Cadet self-awareness without clutter
- * - Theme-safe
- */
+// keel-mobile/src/components/home/ComplianceIndicatorCard.tsx
 
 import React from "react";
-import { StyleSheet, View } from "react-native";
-import { Card, Text, Divider, useTheme } from "react-native-paper";
+import { View, StyleSheet, TouchableOpacity } from "react-native";
+import { Text, Surface, useTheme } from "react-native-paper";
+import { AlertCircle, CheckCircle2, Info, ChevronRight } from "lucide-react-native";
 
-export type ComplianceStatus =
-  | "INFO"
-  | "ON_TRACK"
-  | "ATTENTION"
-  | "RISK"
-  | "NOT_AVAILABLE";
+export type ComplianceStatus = "ON_TRACK" | "ATTENTION" | "RISK" | "NOT_AVAILABLE";
 
 interface Props {
   title: string;
   status: ComplianceStatus;
   summary: string;
-
-  /** Shown ONLY for ATTENTION / RISK */
-  explanation?: string;
-
-  /** Shown ONLY for ATTENTION / RISK */
-  recommendation?: string;
+  onPress?: () => void; // Added to resolve TS2322
 }
 
-export default function ComplianceIndicatorCard({
-  title,
-  status,
-  summary,
-  explanation,
-  recommendation,
-}: Props) {
+export default function ComplianceIndicatorCard({ title, status, summary, onPress }: Props) {
   const theme = useTheme();
-  const meta = getStatusMeta(status, theme);
 
-  const showAttentionDetails =
-    status === "ATTENTION" || status === "RISK";
+  const getStatusConfig = () => {
+    switch (status) {
+      case "ON_TRACK":
+        return { color: "#4ADE80", icon: <CheckCircle2 size={18} color="#4ADE80" />, label: "ON TRACK" };
+      case "RISK":
+        return { color: "#F87171", icon: <AlertCircle size={18} color="#F87171" />, label: "RISK" };
+      case "ATTENTION":
+        return { color: "#FBBF24", icon: <AlertCircle size={18} color="#FBBF24" />, label: "ATTENTION" };
+      default:
+        return { color: "rgba(0,0,0,0.3)", icon: <Info size={18} color="rgba(0,0,0,0.3)" />, label: "PENDING" };
+    }
+  };
+
+  const config = getStatusConfig();
 
   return (
-    <Card style={[styles.card, { borderLeftColor: meta.color }]}>
-      <Card.Content>
-        {/* --------------------------------------------------
-            Title
-           -------------------------------------------------- */}
-        <Text variant="titleSmall" style={styles.title}>
-          {title}
-        </Text>
-
-        <Divider style={styles.divider} />
-
-        {/* --------------------------------------------------
-            Status line
-           -------------------------------------------------- */}
-        <Text style={[styles.statusText, { color: meta.color }]}>
-          {meta.label}
-        </Text>
-
-        <Text style={styles.summaryText}>{summary}</Text>
-
-        {/* --------------------------------------------------
-            Inline attention (ONLY when needed)
-           -------------------------------------------------- */}
-        {showAttentionDetails && explanation && (
-          <View style={styles.attentionBox}>
-            <Text style={styles.attentionLabel}>
-              What this means
-            </Text>
-            <Text style={styles.attentionText}>
-              {explanation}
-            </Text>
-
-            {recommendation && (
-              <>
-                <Divider style={styles.innerDivider} />
-                <Text style={styles.recommendationLabel}>
-                  Recommended next step
-                </Text>
-                <Text style={styles.recommendationText}>
-                  {recommendation}
-                </Text>
-              </>
-            )}
+    <TouchableOpacity activeOpacity={onPress ? 0.7 : 1} onPress={onPress}>
+      <Surface style={styles.card} elevation={0}>
+        <View style={styles.content}>
+          <View style={[styles.indicator, { backgroundColor: config.color }]} />
+          <View style={styles.textGroup}>
+            <View style={styles.headerRow}>
+              <Text style={styles.title}>{title}</Text>
+              <View style={styles.badge}>
+                {config.icon}
+                <Text style={[styles.statusLabel, { color: config.color }]}>{config.label}</Text>
+              </View>
+            </View>
+            <Text style={styles.summary} numberOfLines={1}>{summary}</Text>
           </View>
-        )}
-      </Card.Content>
-    </Card>
+          {onPress && <ChevronRight size={20} color="rgba(0,0,0,0.2)" />}
+        </View>
+      </Surface>
+    </TouchableOpacity>
   );
 }
 
-/* ============================================================
- * Status metadata
- * ============================================================ */
-function getStatusMeta(status: ComplianceStatus, theme: any) {
-  switch (status) {
-    case "RISK":
-      return {
-        label: "Compliance Risk",
-        color: theme.colors.error,
-      };
-
-    case "ATTENTION":
-      return {
-        label: "Attention Required",
-        color:
-          theme.colors.tertiary ??
-          theme.colors.warning ??
-          "#E6A700",
-      };
-
-    case "ON_TRACK":
-      return {
-        label: "On Track",
-        color: theme.colors.primary,
-      };
-
-    case "NOT_AVAILABLE":
-      return {
-        label: "Data Not Available",
-        color: theme.colors.onSurfaceVariant,
-      };
-
-    case "INFO":
-    default:
-      return {
-        label: "Info",
-        color: theme.colors.primary,
-      };
-  }
-}
-
-/* ============================================================
- * Styles
- * ============================================================ */
 const styles = StyleSheet.create({
   card: {
-    marginBottom: 14,
-    borderLeftWidth: 4,
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(49, 148, 160, 0.15)",
+    overflow: 'hidden'
   },
-
+  content: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingRight: 16
+  },
+  indicator: {
+    width: 6,
+    height: '100%',
+    marginRight: 16
+  },
+  textGroup: {
+    flex: 1,
+    paddingVertical: 16
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4
+  },
   title: {
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#1A2426"
   },
-
-  divider: {
-    marginVertical: 6,
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center'
   },
-
-  statusText: {
-    fontWeight: "700",
-    marginBottom: 2,
+  statusLabel: {
+    fontSize: 10,
+    fontWeight: "900",
+    marginLeft: 6,
+    letterSpacing: 0.5
   },
-
-  summaryText: {
-    opacity: 0.85,
-  },
-
-  attentionBox: {
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 6,
-    backgroundColor: "rgba(0,0,0,0.04)",
-  },
-
-  attentionLabel: {
+  summary: {
     fontSize: 12,
-    fontWeight: "700",
-    marginBottom: 2,
-    opacity: 0.7,
-  },
-
-  attentionText: {
-    fontSize: 12,
-    opacity: 0.85,
-    marginBottom: 6,
-  },
-
-  innerDivider: {
-    marginVertical: 6,
-  },
-
-  recommendationLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    opacity: 0.7,
-    marginBottom: 2,
-  },
-
-  recommendationText: {
-    fontSize: 12,
-    opacity: 0.85,
-  },
+    color: "rgba(0,0,0,0.5)",
+    fontWeight: "600"
+  }
 });

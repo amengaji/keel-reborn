@@ -178,7 +178,7 @@ export const processVesselImport = (flatData: any[]) => {
     name: row['Vessel Name'] || row['name'] || 'Unknown Vessel',
     imo: String(row['IMO Number'] || row['imo'] || 'N/A'),
     flag: row['Flag'] || row['flag'] || 'Unknown',
-    classSociety: row['Classification Society'] || row['classSociety'] || 'Unknown',
+    class_society: row['Classification Society'] || row['classSociety'] || 'Unknown',
     type: row['Vessel Type'] || row['type'] || 'Other',
     status: 'Active',
     program: 'Cadet Training Program'

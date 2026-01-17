@@ -1,4 +1,4 @@
-//keel-mobile/src/auth/AuthContext.tsx
+// keel-mobile/src/auth/AuthContext.tsx
 
 import React, {
   createContext,
@@ -11,10 +11,34 @@ import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 import api from "../services/api";
 
-interface User {
+export interface User {
   id: number;
   name: string;
   email: string;
+  category: string;
+  dob?: string;
+  pob?: string;
+  address?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  pincode?: string;
+  mobileNumbers?: string[];
+  passportNo?: string;
+  passportDoi?: string;
+  passportPoi?: string;
+  passportDoe?: string;
+  sbNo?: string;
+  sbDoi?: string;
+  sbPoi?: string;
+  sbDoe?: string;
+  sidNo?: string;
+  indosNo?: string;
+  nokName?: string;
+  nokRelation?: string;
+  nokContact?: string;
+  nokEmail?: string;
+  profileImage?: string;
 }
 
 type ThemeMode = "light" | "dark";
@@ -22,6 +46,7 @@ type ThemeMode = "light" | "dark";
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  updateUser: (updates: Partial<User>) => Promise<void>; // Added for profile editing
 
   biometricEnabled: boolean;
   biometricPromptSeen: boolean;
@@ -99,6 +124,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   };
 
+  /**
+   * PERSISTENT PROFILE UPDATE
+   * Merges updates into current user and saves to local SecureStore.
+   */
+  const updateUser = async (updates: Partial<User>) => {
+    if (!user) return;
+    try {
+      const updatedUser = { ...user, ...updates };
+      await SecureStore.setItemAsync("user", JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      
+      // OPTIONAL: Sync with backend API if connected
+      // await api.patch("/me/profile", updates);
+    } catch (error) {
+      console.error("FAILED TO UPDATE USER STATE:", error);
+    }
+  };
+
   const markWelcomeSeen = async () => {
     await SecureStore.setItemAsync("hasSeenWelcome", "true");
     setHasSeenWelcome(true);
@@ -106,7 +149,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const markBiometricPromptSeen = async () => {
     await SecureStore.setItemAsync("biometricPromptSeen", "true");
-    setBiometricPromptSeen(true);
+    setHasSeenWelcome(true);
   };
 
   const markOnboardingCompleted = async () => {
@@ -122,14 +165,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string) => {
     try {
-    const res = await api.post("/auth/login", { email, password });
-    console.log("LOGIN SUCCESS:", res.data);
+      const res = await api.post("/auth/login", { email, password });
+      console.log("LOGIN SUCCESS:", res.data);
 
-    await SecureStore.setItemAsync("accessToken", res.data.accessToken);
-    await SecureStore.setItemAsync("refreshToken", res.data.refreshToken);
-    await SecureStore.setItemAsync("user", JSON.stringify(res.data.user));
+      await SecureStore.setItemAsync("accessToken", res.data.accessToken);
+      await SecureStore.setItemAsync("refreshToken", res.data.refreshToken);
+      await SecureStore.setItemAsync("user", JSON.stringify(res.data.user));
 
-    setUser(res.data.user);
+      setUser(res.data.user);
     } catch (error: any) {
       console.log("LOGIN ERROR FULL:", error);
       console.log("LOGIN ERROR RESPONSE:", error?.response?.data);
@@ -151,18 +194,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const refreshToken = await SecureStore.getItemAsync("refreshToken");
     if (!refreshToken) return false;
 
-    const res = await api.post("/auth/refresh", { refreshToken });
-    await SecureStore.setItemAsync("accessToken", res.data.accessToken);
+    try {
+      const res = await api.post("/auth/refresh", { refreshToken });
+      await SecureStore.setItemAsync("accessToken", res.data.accessToken);
 
-    const storedUser = await SecureStore.getItemAsync("user");
-    if (storedUser) setUser(JSON.parse(storedUser));
+      const storedUser = await SecureStore.getItemAsync("user");
+      if (storedUser) setUser(JSON.parse(storedUser));
 
-    return true;
+      return true;
+    } catch (e) {
+      return false;
+    }
   };
 
   const logout = async () => {
     await SecureStore.deleteItemAsync("accessToken");
     await SecureStore.deleteItemAsync("refreshToken");
+    await SecureStore.deleteItemAsync("user");
     setUser(null);
   };
 
@@ -171,6 +219,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       value={{
         user,
         loading,
+        updateUser, // Exposing update method
 
         biometricEnabled,
         biometricPromptSeen,

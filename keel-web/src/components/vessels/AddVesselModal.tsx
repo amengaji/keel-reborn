@@ -67,7 +67,7 @@ const AddVesselModal: React.FC<AddVesselModalProps> = ({ isOpen, onClose, onSave
 
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-muted-foreground uppercase">Classification Society</label>
-            <select name="classSociety" required defaultValue={editData?.classSociety} className="input-field">
+            <select name="class_society" required defaultValue={editData?.class_society} className="input-field">
               <option value="">Select Class</option>
               {CLASSIFICATION_SOCIETIES.map(cls => <option key={cls} value={cls}>{cls}</option>)}
             </select>

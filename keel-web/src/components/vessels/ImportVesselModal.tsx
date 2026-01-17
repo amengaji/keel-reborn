@@ -145,7 +145,7 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
         const name = getValue(row, ['Vessel Name', 'name', 'vessel_name']);
         const imo = getValue(row, ['IMO Number', 'imo', 'imo_number']);
         const flag = getValue(row, ['Flag', 'flag', 'country']);
-        const classSociety = getValue(row, ['Classification Society', 'class', 'classification']);
+        const class_society = getValue(row, ['Classification Society', 'class', 'classification']);
         const type = getValue(row, ['Vessel Type', 'type', 'vessel_type']);
 
         // Build System Object
@@ -154,14 +154,14 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
           name: name || 'Unknown Vessel',
           imo: String(imo || 'N/A'),
           flag: flag || 'Unknown',
-          classSociety: classSociety || 'Unknown',
-          type: type || 'Other',
+          class_society: class_society || 'Unknown',
+          vessel_type: type || 'Other',
           status: 'Active', 
           program: 'Cadet Training Program'
         };
 
         // Validate Class
-        if (mappedRow.classSociety !== 'Unknown' && !validClasses.has(mappedRow.classSociety)) {
+        if (mappedRow.class_society !== 'Unknown' && !validClasses.has(mappedRow.class_society)) {
           // Allow loose matching or just warn
           // errors.push(`Row ${rowNum}: Invalid Class '${mappedRow.classSociety}'`);
         }
@@ -313,10 +313,10 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
                             <td className="p-3 text-muted-foreground">{vessel.flag}</td>
                             <td className="p-3 text-muted-foreground">
                                <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded text-[10px] border border-blue-200 dark:border-blue-800">
-                                  {vessel.type}
+                                  {vessel.vessel_type}
                                </span>
                             </td>
-                            <td className="p-3 text-muted-foreground text-xs">{vessel.classSociety}</td>
+                            <td className="p-3 text-muted-foreground text-xs">{vessel.class_society}</td>
                          </tr>
                       ))}
                    </tbody>
