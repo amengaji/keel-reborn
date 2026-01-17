@@ -121,13 +121,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const login = async (email: string, password: string) => {
+    try {
     const res = await api.post("/auth/login", { email, password });
+    console.log("LOGIN SUCCESS:", res.data);
 
     await SecureStore.setItemAsync("accessToken", res.data.accessToken);
     await SecureStore.setItemAsync("refreshToken", res.data.refreshToken);
     await SecureStore.setItemAsync("user", JSON.stringify(res.data.user));
 
     setUser(res.data.user);
+    } catch (error: any) {
+      console.log("LOGIN ERROR FULL:", error);
+      console.log("LOGIN ERROR RESPONSE:", error?.response?.data);
+      throw error;
+    }
   };
 
   const enableBiometrics = async () => {

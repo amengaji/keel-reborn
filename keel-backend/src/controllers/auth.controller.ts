@@ -1,64 +1,101 @@
 // keel-reborn/keel-backend/src/controllers/auth.controller.ts
 
-import { Request, Response } from 'express';
-import User from '../models/User';
-import Role from '../models/Role';
-import jwt from 'jsonwebtoken';
+import { Request, Response } from "express";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+
+import User from "../models/User";
+import Role from "../models/Role";
 
 /**
- * MARITIME EXPERT NOTE:
- * Authentication is the "Gangway Control" of our application.
- * Only verified personnel are allowed on board the Digital TRB.
+ * Authentication Controller
+ * -------------------------
+ * Responsible for validating credentials and issuing JWT tokens.
+ * Passwords are validated using bcrypt hash comparison.
  */
 
 export const login = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  // const { email, password } = req.body as {
+  //   email?: string;
+  //   password?: string;
+  // };
+const rawEmail = req.body?.email;
+const rawPassword = req.body?.password;
+
+const email = String(rawEmail || "").trim().toLowerCase();
+const password = String(rawPassword || "").trim();
 
   try {
-    // 1. Find the user and include their Role (Rank)
+    // ------------------------------------------------------------------
+    // 1. Validate request payload
+    // ------------------------------------------------------------------
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Email and password are required.",
+      });
+    }
+
+    // ------------------------------------------------------------------
+    // 2. Find user and include role
+    // ------------------------------------------------------------------
     const user = await User.findOne({
       where: { email },
-      include: [{ model: Role, as: 'role' }]
+      include: [{ model: Role, as: "role" }],
     });
 
-    // 2. Security Check (UX Note: We use a generic error for security)
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials. Please check your email and password.' });
+      return res.status(401).json({
+        message: "Invalid credentials. Please check your email and password.",
+      });
     }
 
-    /**
-     * MARITIME TRAINING NOTE:
-     * In a full production environment, we would use bcrypt.compare here.
-     * For this "Clean Slate" initialization, we are checking the hash directly.
-     */
-    const isPasswordValid = user.password_hash === password; // Temporary direct check for setup
-    
-    if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Invalid credentials.' });
-    }
-
-    // 3. Generate the "Digital Key" (JWT)
-    const token = jwt.sign(
-      { id: user.id, role: user.role?.name },
-      process.env.JWT_SECRET || 'maritime_secret_key',
-      { expiresIn: '8h' } // Standard 8-hour watch duration
+    // ------------------------------------------------------------------
+    // 3. Validate password (bcrypt)
+    // ------------------------------------------------------------------
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      user.password_hash
     );
 
-    // 4. Success Response (UX Note: Send user details so UI can say "Welcome, Captain")
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        message: "Invalid credentials.",
+      });
+    }
+
+    // ------------------------------------------------------------------
+    // 4. Generate JWT access token
+    // ------------------------------------------------------------------
+    const accessToken = jwt.sign(
+      {
+        id: user.id,
+        role: user.role?.name,
+      },
+      process.env.JWT_SECRET || "maritime_secret_key",
+      {
+        expiresIn: "8h",
+      }
+    );
+
+    // ------------------------------------------------------------------
+    // 5. Success response (aligned with mobile app expectations)
+    // ------------------------------------------------------------------
     return res.status(200).json({
-      message: 'Logged in successfully',
-      token,
+      accessToken,
+      refreshToken: accessToken, // placeholder until refresh-token flow is implemented
       user: {
         id: user.id,
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        role: user.role?.name
-      }
+        role: user.role?.name,
+      },
     });
-
   } catch (error) {
-    console.error('❌ AUTH ERROR:', error);
-    return res.status(500).json({ message: 'A system error occurred during login. Please try again.' });
+    console.error("❌ AUTH LOGIN ERROR:", error);
+
+    return res.status(500).json({
+      message: "A system error occurred during login. Please try again.",
+    });
   }
 };

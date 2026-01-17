@@ -3,11 +3,9 @@
     "name": "keel-mobile",
     "slug": "keel-mobile",
     "version": "1.0.0",
-
     "updates": {
       "enabled": false
     },
-
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -24,7 +22,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.anonymous.keelmobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"

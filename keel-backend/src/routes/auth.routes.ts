@@ -1,18 +1,24 @@
 // keel-reborn/keel-backend/src/routes/auth.routes.ts
 
-import { Router } from 'express';
-import { login } from '../controllers/auth.controller';
+import { Router, Request, Response } from "express";
+import bcrypt from "bcryptjs";
+
+import { login } from "../controllers/auth.controller";
+import User from "../models/User";
 
 /**
- * MARITIME EXPERT NOTE:
- * Routes act as the communication channels between the Shore Bridge (Web)
- * and the Engine Room (Backend). This channel handles all security-related 
- * transmissions.
+ * Authentication Routes
+ * ---------------------
+ * Handles login and (temporary) admin password reset.
  */
 
 const router = Router();
 
-// URL Path: /api/auth/login
-router.post('/login', login);
+// ---------------------------------------------------------------------
+// Login
+// URL: POST /api/auth/login
+// ---------------------------------------------------------------------
+router.post("/login", login);
+
 
 export default router;

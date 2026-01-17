@@ -15,12 +15,13 @@ import assignmentRoutes from './routes/assignment.routes';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
+
 
 // Middleware
 // UI/UX Note: We enable CORS so the Vite dev server can reach this API
 app.use(cors({
-  origin: 'http://localhost:5173', // Your Frontend URL
+  origin: true, // Your Frontend URL
   credentials: true
 }));
 
@@ -42,9 +43,10 @@ const startServer = async () => {
     await connectDB();
     setupAssociations();
 
-    app.listen(PORT, () => {
-      console.log(`✅ SERVER: Keel Digital TRB active on port ${PORT}`);
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`✅ SERVER: Keel Digital TRB active on 0.0.0.0:${PORT}`);
     });
+
   } catch (error) {
     console.error('❌ SERVER: Startup failure:', error);
     process.exit(1);
