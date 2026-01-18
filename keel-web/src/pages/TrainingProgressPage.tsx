@@ -1,66 +1,85 @@
+// keel-web/src/pages/TrainingProgressPage.tsx
+
 import React, { useEffect, useState } from 'react';
 import { BarChart2, Search, Filter, Ship, Clock, AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
-import { getCadets, getSyllabus, calculateProgressStats } from '../services/dataService'; 
+import { cadetService } from '../services/cadetService'; 
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
+/**
+ * TrainingProgressPage Component
+ * Monitors fleet-wide TRB completion.
+ * FIXED: Mapping vessel assignment from SQL nested data to resolve "Ashore" display error.
+ */
 const TrainingProgressPage: React.FC = () => {
   const [trainees, setTrainees] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [fleetAverage, setFleetAverage] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // 1. Load Real Data
-    const loadedCadets = getCadets();
-    const loadedSyllabus = getSyllabus();
+  const refreshData = async () => {
+    setIsLoading(true);
+    try {
+      const data = await cadetService.getAll();
+      const loadedCadets = Array.isArray(data) ? data : [];
 
-    // 2. Calculate Real Stats for each Trainee
-    const processedData = loadedCadets.map((t: any) => {
-      // Use the service helper to get actual task counts
-      const stats = calculateProgressStats(t.id, loadedSyllabus);
-      
-      return {
-        ...t,
-        progress: stats.globalPercent, // Real %
-        tasksCompleted: stats.completed, // Real Count
-        totalTasks: stats.total,         // Real Syllabus Size
-        // We don't track logins yet, so we keep a placeholder or check status
-        lastActive: t.status === 'Onboard' ? 'Recently' : 'N/A', 
-      };
-    });
+      const processedData = loadedCadets.map((t: any) => {
+        // Handle vessel name from the flattened 'vessel' property or nested assignment
+        // This ensures if the trainee is assigned in SQL, it shows here instead of 'Ashore'
+        const assignedVessel = t.vessel?.name || t.vessel || null;
 
-    setTrainees(processedData);
+        return {
+          ...t,
+          // UI Mapping: Matches the existing table logic
+          name: `${t.first_name || ''} ${t.last_name || ''}`.trim(),
+          vessel: assignedVessel || 'Ashore', 
+          progress: t.progress || 0,
+          tasksCompleted: Number(t.completed_tasks_count || 0),
+          totalTasks: Number(t.total_tasks_count || 0),
+          lastActive: t.status === 'Onboard' ? 'Recently' : 'N/A', 
+          signOnDate: t.sign_on_date || null
+        };
+      });
 
-    // 3. Calculate Fleet Average
-    if (processedData.length > 0) {
-      const totalProgress = processedData.reduce((acc: number, curr: any) => acc + curr.progress, 0);
-      setFleetAverage(Math.round(totalProgress / processedData.length));
+      setTrainees(processedData);
+
+      if (processedData.length > 0) {
+        const totalProgress = processedData.reduce((acc: number, curr: any) => acc + (curr.progress || 0), 0);
+        setFleetAverage(Math.round(totalProgress / processedData.length));
+      }
+    } catch (error) {
+      console.error("DATA FETCH ERROR:", error);
+      toast.error("Could not sync training records from database.");
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
-
-  // HELPER: Calculate Days Sea Time
-  const getDaysOnboard = (dateString: string) => {
-    if (!dateString) return 0;
-    const start = new Date(dateString);
-    const now = new Date();
-    const diff = now.getTime() - start.getTime();
-    return Math.floor(diff / (1000 * 3600 * 24));
   };
 
-  // FILTER LOGIC
+  useEffect(() => {
+    refreshData();
+  }, []);
+
+  const getDaysOnboard = (dateString: string | null) => {
+    if (!dateString) return 0;
+    const start = new Date(dateString);
+    if (isNaN(start.getTime())) return 0;
+    const now = new Date();
+    const diff = now.getTime() - start.getTime();
+    const days = Math.floor(diff / (1000 * 3600 * 24));
+    return days < 0 ? 0 : days;
+  };
+
   const filteredTrainees = trainees.filter(t => 
     t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (t.vessel && t.vessel.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const handleViewTRB = (name: string) => {
-    // Navigate to a placeholder for now, or the specific ID if we had the route
-    navigate(`/trb/${encodeURIComponent(name)}`);
-    toast.info(`Opening Digital TRB for ${name}...`);
+  const handleViewTRB = (trainee: any) => {
+    navigate(`/trainee-trb/${trainee.id}`);
+    toast.info(`Opening Digital TRB for ${trainee.name}...`);
   };
 
-  // HELPER: Dynamic Progress Color
   const getProgressColor = (percent: number) => {
     if (percent >= 100) return 'bg-green-500';
     if (percent >= 75) return 'bg-teal-500';
@@ -70,7 +89,7 @@ const TrainingProgressPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 bg-background transition-colors">
       
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
@@ -79,7 +98,6 @@ const TrainingProgressPage: React.FC = () => {
           <p className="text-muted-foreground text-sm">Real-time monitoring of fleet-wide TRB completion.</p>
         </div>
         
-        {/* STATS CARDS (Mini Dashboard) */}
         <div className="flex gap-4">
            <div className="bg-card border border-border px-4 py-2 rounded-lg shadow-sm">
               <p className="text-xs text-muted-foreground uppercase font-bold">Avg. Completion</p>
@@ -87,14 +105,16 @@ const TrainingProgressPage: React.FC = () => {
            </div>
            <div className="bg-card border border-border px-4 py-2 rounded-lg shadow-sm">
               <p className="text-xs text-muted-foreground uppercase font-bold">Active Users</p>
-              <p className="text-xl font-bold text-green-600">{trainees.filter(t => t.status === 'Onboard').length}</p>
+              <p className="text-xl font-bold text-green-600">
+                {trainees.filter(t => t.status === 'Onboard').length}
+              </p>
            </div>
         </div>
       </div>
 
       {/* MAIN CARD */}
       <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden min-h-100">
-        {/* TOOLBAR */}
+        
         <div className="p-4 border-b border-border bg-muted/30 flex justify-between items-center">
           <div className="relative w-72">
             <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
@@ -106,12 +126,11 @@ const TrainingProgressPage: React.FC = () => {
               className="input-field pl-9"
             />
           </div>
-          <button className="flex items-center space-x-2 px-3 py-2 text-muted-foreground hover:bg-muted rounded-md transition-colors text-sm border border-transparent hover:border-border">
+          <button className="flex items-center space-x-2 px-3 py-2 text-muted-foreground hover:bg-muted rounded-md transition-colors text-sm border border-transparent hover:border-border font-bold">
             <Filter size={16} /><span>Filter Status</span>
           </button>
         </div>
 
-        {/* TABLE */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -125,14 +144,19 @@ const TrainingProgressPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-sm">
-              {filteredTrainees.map((trainee) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-20 text-muted-foreground font-medium animate-pulse">
+                    Loading records from database...
+                  </td>
+                </tr>
+              ) : filteredTrainees.map((trainee) => (
                 <tr key={trainee.id} className="hover:bg-muted/30 transition-colors group">
                   
-                  {/* TRAINEE INFO */}
                   <td className="px-6 py-4 font-medium text-foreground">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
-                            {trainee.name.charAt(0)}
+                            {trainee.name?.charAt(0) || 'U'}
                         </div>
                         <div>
                             <p>{trainee.name}</p>
@@ -141,9 +165,8 @@ const TrainingProgressPage: React.FC = () => {
                     </div>
                   </td>
 
-                  {/* VESSEL INFO */}
                   <td className="px-6 py-4 text-muted-foreground">
-                    {trainee.status === 'Onboard' ? (
+                    {trainee.vessel !== 'Ashore' ? (
                         <div className="flex items-center gap-2 text-foreground">
                             <Ship size={14} className="text-teal-500" />
                             <span>{trainee.vessel}</span>
@@ -153,7 +176,6 @@ const TrainingProgressPage: React.FC = () => {
                     )}
                   </td>
 
-                  {/* SEA TIME CALCULATION */}
                   <td className="px-6 py-4 text-muted-foreground font-mono">
                     {trainee.status === 'Onboard' ? (
                         <div className="flex items-center gap-2">
@@ -163,7 +185,6 @@ const TrainingProgressPage: React.FC = () => {
                     ) : '-'}
                   </td>
 
-                  {/* PROGRESS BAR */}
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                         <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
@@ -179,15 +200,13 @@ const TrainingProgressPage: React.FC = () => {
                     </p>
                   </td>
 
-                  {/* LAST ACTIVE */}
                   <td className="px-6 py-4 text-muted-foreground">
                     {trainee.lastActive}
                   </td>
 
-                  {/* ACTION BUTTON */}
                   <td className="px-6 py-4 text-right">
                     <button 
-                        onClick={() => handleViewTRB(trainee.name)}
+                        onClick={() => handleViewTRB(trainee)}
                         className="text-primary hover:text-primary/80 font-medium text-xs flex items-center justify-end gap-1 transition-colors"
                     >
                         View TRB <ChevronRight size={14} />
@@ -196,9 +215,9 @@ const TrainingProgressPage: React.FC = () => {
                 </tr>
               ))}
 
-              {filteredTrainees.length === 0 && (
+              {!isLoading && filteredTrainees.length === 0 && (
                  <tr>
-                    <td colSpan={6} className="text-center py-10 text-muted-foreground">
+                    <td colSpan={6} className="text-center py-20 text-muted-foreground">
                        No trainees found.
                     </td>
                  </tr>

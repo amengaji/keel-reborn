@@ -4,51 +4,58 @@ import { Request, Response } from 'express';
 import User from '../models/User';
 import Role from '../models/Role';
 import Vessel from '../models/Vessel';
+import Task from '../models/Task';
+import Assignment from '../models/Assignment';
 import TraineeAssignment from '../models/TraineeAssignment'; 
 import bcrypt from 'bcryptjs';
 
 /**
  * GET ALL CADETS
- * Updated to fetch the vessel name from the active assignment record.
- * This ensures that when a trainee is dragged to a ship, the Trainees page 
- * reflects the assignment immediately.
+ * Optimized to fetch:
+ * 1. Active Vessel Name
+ * 2. Sign-on Date for Sea Time calculation
+ * 3. Count of total available tasks
+ * 4. Count of completed (signed-off) tasks
  */
 export const getCadets = async (req: Request, res: Response) => {
   try {
+    const totalTasksCount = await Task.count();
+
     const cadets = await User.findAll({
       include: [
-        { 
-          model: Role, 
-          as: 'role', 
-          where: { name: 'CADET' } 
-        },
+        { model: Role, as: 'role', where: { name: 'CADET' } },
         {
           model: TraineeAssignment,
-          as: 'assignments', // Ensure this alias matches your associations.ts
+          as: 'assignments',
           where: { status: 'ACTIVE' },
-          required: false, // Use LEFT JOIN so we still get cadets without ships
-          include: [
-            {
-              model: Vessel,
-              attributes: ['name']
-            }
-          ]
+          required: false,
+          include: [{ model: Vessel, attributes: ['name'] }]
+        },
+        {
+          model: Assignment, 
+          as: 'taskAssignments', // MUST MATCH THE ALIAS IN setupAssociations
+          required: false,
         }
       ],
       attributes: { exclude: ['password_hash'] },
       order: [['first_name', 'ASC']]
     });
 
-    // Helper: We transform the data so the frontend 'vessel' property 
-    // points to the name found in the active assignment.
     const formattedCadets = cadets.map((c: any) => {
       const plainCadet = c.get({ plain: true });
       const activeAssignment = plainCadet.assignments?.[0];
       
+      // Calculate real progress based on the count of rows in the Assignment table
+      const completedTasksCount = plainCadet.taskAssignments ? plainCadet.taskAssignments.length : 0;
+
       return {
         ...plainCadet,
-        // If an active assignment exists, use that vessel name
-        vessel: activeAssignment?.Vessel ? activeAssignment.Vessel : null
+        name: `${plainCadet.first_name || ''} ${plainCadet.last_name || ''}`.trim(),
+        vessel: activeAssignment?.Vessel ? activeAssignment.Vessel.name : null,
+        sign_on_date: activeAssignment?.sign_on_date || null,
+        completed_tasks_count: completedTasksCount,
+        total_tasks_count: totalTasksCount,
+        progress: totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0
       };
     });
     
@@ -61,25 +68,13 @@ export const getCadets = async (req: Request, res: Response) => {
 
 /**
  * CREATE CADET
- * Standard function to add new trainees.
+ * Remains unchanged to ensure functionality parity.
  */
 export const createCadet = async (req: Request, res: Response) => {
   try {
-    const {
-      fullName,
-      first_name,
-      last_name,
-      email,
-      password,
-      indos,
-      rank,
-      nationality,
-      phone,
-    } = req.body;
+    const { fullName, first_name, last_name, email, password, indos, rank, nationality, phone } = req.body;
 
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
-    }
+    if (!email) return res.status(400).json({ message: "Email is required" });
 
     let resolvedFirstName: string;
     let resolvedLastName: string;
@@ -96,9 +91,7 @@ export const createCadet = async (req: Request, res: Response) => {
     }
 
     const cadetRole = await Role.findOne({ where: { name: "CADET" } });
-    if (!cadetRole) {
-      return res.status(500).json({ message: "System Error: CADET role missing" });
-    }
+    if (!cadetRole) return res.status(500).json({ message: "System Error: CADET role missing" });
 
     const passwordHash = await bcrypt.hash(password || "cadet123", 10);
 
@@ -115,10 +108,7 @@ export const createCadet = async (req: Request, res: Response) => {
       status: "Ready",
     });
 
-    return res.status(201).json({
-      message: "Cadet profile created successfully",
-      cadet: newUser
-    });
+    return res.status(201).json({ message: "Cadet profile created successfully", cadet: newUser });
   } catch (error: any) {
     console.error("CREATE CADET ERROR:", error);
     return res.status(500).json({ message: "Error creating cadet", error: error.message });
@@ -132,20 +122,10 @@ export const createCadet = async (req: Request, res: Response) => {
 export const deleteCadet = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    await TraineeAssignment.destroy({ where: { trainee_id: id } });
+    const deletedCount = await User.destroy({ where: { id } });
 
-    // 1. Clean up assignments
-    await TraineeAssignment.destroy({
-      where: { trainee_id: id }
-    });
-
-    // 2. Delete user
-    const deletedCount = await User.destroy({ 
-      where: { id } 
-    });
-
-    if (deletedCount === 0) {
-      return res.status(404).json({ message: 'Trainee not found in database' });
-    }
+    if (deletedCount === 0) return res.status(404).json({ message: 'Trainee not found in database' });
 
     res.json({ message: 'Trainee and all associated records removed successfully' });
   } catch (error: any) {

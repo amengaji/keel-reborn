@@ -15,10 +15,15 @@ import { toast } from 'sonner';
 /**
  * CadetsPage Component
  * Provides a comprehensive interface for managing trainee (cadet) profiles.
- * FIXED: Optimized for light/dark mode using theme variables to prevent "dark mode leak".
- * No functionality has been removed; search, sort, and SQL vessel associations remain.
+ * FIXED: Optimized for light/dark mode using theme variables.
+ * CTO RESTRICTIONS: Added role-based checks to hide Add/Import/Edit/Delete actions for CTOs.
  */
 const CadetsPage: React.FC = () => {
+  // --- ROLE IDENTIFICATION ---
+  const userJson = localStorage.getItem('keel_user');
+  const user = userJson ? JSON.parse(userJson) : null;
+  const isCTO = user?.role === 'CTO'; //
+
   // --- STATE MANAGEMENT ---
   const [cadets, setCadets] = useState<any[]>([]); 
   const [searchQuery, setSearchQuery] = useState(''); 
@@ -175,29 +180,35 @@ const CadetsPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col bg-background p-4 transition-colors duration-300">
       
-      {/* HEADER SECTION - Using theme-safe text colors */}
+      {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 shrink-0">
         <div className="flex flex-col gap-0.5">
           <h1 className="text-2xl font-bold text-foreground">Trainee Management</h1>
-          <p className="text-muted-foreground text-sm">Manage deck and engine cadets, assignments, and status.</p>
+          <p className="text-muted-foreground text-sm">
+            {isCTO ? "Viewing personnel currently assigned to your vessel." : "Manage deck and engine cadets, assignments, and status."}
+          </p>
         </div>
-        <div className="flex gap-2">
-           <button 
-             onClick={() => setIsImportOpen(true)}
-             className="bg-card hover:bg-muted text-foreground border border-border px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-sm active:scale-95"
-           >
-             <Upload size={18} /><span>Import</span>
-           </button>
-           <button 
-             onClick={() => { setEditingCadet(null); setIsAddOpen(true); }}
-             className="bg-primary hover:brightness-110 text-primary-foreground px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-lg active:scale-95 font-bold"
-           >
-             <Plus size={18} /><span>Add Trainee</span>
-           </button>
-        </div>
+
+        {/* HIDE ACTIONS FOR CTO */}
+        {!isCTO && (
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setIsImportOpen(true)}
+              className="bg-card hover:bg-muted text-foreground border border-border px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-sm active:scale-95"
+            >
+              <Upload size={18} /><span>Import</span>
+            </button>
+            <button 
+              onClick={() => { setEditingCadet(null); setIsAddOpen(true); }}
+              className="bg-primary hover:brightness-110 text-primary-foreground px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-lg active:scale-95 font-bold"
+            >
+              <Plus size={18} /><span>Add Trainee</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* TOOLBAR - Replaced bg-white/slate with bg-card */}
+      {/* TOOLBAR */}
       <div className="flex flex-col md:flex-row justify-between items-center bg-card p-4 rounded-2xl border border-border shrink-0 shadow-sm gap-4 transition-colors">
         <div className="relative w-full md:w-80">
            <Search className="absolute left-3 top-3 text-muted-foreground" size={16} />
@@ -241,7 +252,7 @@ const CadetsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TABLE - Clean implementation with bg-card and border-border */}
+      {/* TABLE */}
       <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex-1 flex flex-col transition-colors">
         <div className="overflow-auto flex-1 scrollbar-thin scrollbar-thumb-muted">
            <table className="w-full text-left border-collapse text-sm">
@@ -281,7 +292,7 @@ const CadetsPage: React.FC = () => {
                           <td className="p-4">
                              <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xs border border-primary/20 shadow-sm">
-                                   {(cadet.first_name || 'U').charAt(0)}{(cadet.last_name || '').charAt(0)}
+                                    {(cadet.first_name || 'U').charAt(0)}{(cadet.last_name || '').charAt(0)}
                                 </div>
                                 <div className="flex flex-col gap-0">
                                    <div className="font-bold text-foreground">
@@ -308,7 +319,6 @@ const CadetsPage: React.FC = () => {
                              <div className="flex items-center gap-2">
                                 <Anchor size={14} className="text-muted-foreground/60" />
                                 <span className={!cadet.vessel || cadet.vessel === 'Unassigned' ? 'text-muted-foreground italic text-xs' : 'text-foreground font-bold'}>
-                                   {/* Renders associated vessel name from SQL nested object */}
                                    {cadet.vessel?.name || 'Not Assigned'}
                                 </span>
                              </div>
@@ -326,22 +336,25 @@ const CadetsPage: React.FC = () => {
                              </div>
                           </td>
                           <td className="p-4 text-right">
-                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                                <button 
-                                  onClick={() => handleEditClick(cadet)}
-                                  className="p-2 bg-background hover:bg-primary/10 rounded-lg text-muted-foreground hover:text-primary border border-border shadow-xs transition-colors"
-                                  title="Edit Profile"
-                                >
-                                   <Edit size={16} />
-                                </button>
-                                <button 
-                                   onClick={() => handleDelete(cadet.id)}
-                                   className="p-2 bg-background hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive border border-border shadow-xs transition-colors"
-                                   title="Delete Profile"
-                                >
-                                   <Trash2 size={16} />
-                                </button>
-                             </div>
+                             {/* HIDE EDIT/DELETE ACTIONS FOR CTO */}
+                             {!isCTO && (
+                               <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                  <button 
+                                    onClick={() => handleEditClick(cadet)}
+                                    className="p-2 bg-background hover:bg-primary/10 rounded-lg text-muted-foreground hover:text-primary border border-border shadow-xs transition-colors"
+                                    title="Edit Profile"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  <button 
+                                     onClick={() => handleDelete(cadet.id)}
+                                     className="p-2 bg-background hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive border border-border shadow-xs transition-colors"
+                                     title="Delete Profile"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                               </div>
+                             )}
                           </td>
                        </tr>
                     ))
@@ -367,7 +380,7 @@ const CadetsPage: React.FC = () => {
       </div>
 
       {/* MODAL COMPONENTS */}
-      {isImportOpen && (
+      {!isCTO && isImportOpen && (
         <ImportCadetModal 
           isOpen={isImportOpen} 
           onClose={() => setIsImportOpen(false)} 
@@ -375,7 +388,7 @@ const CadetsPage: React.FC = () => {
         />
       )}
 
-      {isAddOpen && (
+      {!isCTO && isAddOpen && (
         <AddCadetModal
           isOpen={isAddOpen}
           onClose={() => { setIsAddOpen(false); setEditingCadet(null); }}

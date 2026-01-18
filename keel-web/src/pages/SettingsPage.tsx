@@ -133,9 +133,13 @@ const SettingsPage: React.FC = () => {
                 <label className="text-xs font-bold text-muted-foreground uppercase">Session Time (Minutes)</label>
                 <input 
                   type="number"
-                  min="5"
+                  min="5" // Enforces a minimum value in the UI
                   value={settings.general.sessionTimeout}
-                  onChange={(e) => handleGeneralChange('sessionTimeout', e.target.value)}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    // Ensures the state never drops below 5 minutes
+                    handleGeneralChange('sessionTimeout', isNaN(val) ? 5 : Math.max(5, val));
+                  }}
                   className="input-field w-full p-2 rounded-md bg-background border border-input" 
                 />
               </div>
