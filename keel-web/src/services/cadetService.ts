@@ -15,8 +15,17 @@ export const cadetService = {
   getAll: async () => {
     const res = await fetch(API_URL, { headers: getAuthHeaders() });
     if (!res.ok) throw new Error('Failed to fetch trainee data');
-    return res.json();
+
+    const json = await res.json();
+    const data = Array.isArray(json?.data) ? json.data : json;
+
+    // 🔥 FIX: backend has first_name + last_name, UI expects full_name
+    return data.map((u: any) => ({
+      ...u,
+      full_name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim(),
+    }));
   },
+
 
   // CREATE new cadet
   create: async (data: any) => {

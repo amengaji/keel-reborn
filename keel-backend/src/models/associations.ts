@@ -5,6 +5,18 @@ import Role from './Role';
 import Vessel from './Vessel';
 import Task from './Task';
 import Assignment from './Assignment';
+import TraineeAssignment from "./TraineeAssignment";
+
+
+TraineeAssignment.belongsTo(User, {
+  foreignKey: "trainee_id",
+  as: "trainee",
+});
+
+TraineeAssignment.belongsTo(Vessel, {
+  foreignKey: "vessel_id",
+});
+
 
 /**
  * MARITIME EXPERT NOTE:

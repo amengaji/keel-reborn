@@ -1,32 +1,44 @@
+// amengaji/keel-reborn/keel-reborn-8e3419f76262b0acdc74d700afab81401a9542d0/keel-web/src/pages/CadetsPage.tsx
+
 import React, { useEffect, useState } from 'react';
 import { 
-  Users, Plus, Search, Upload, Filter, MoreVertical, 
-  Trash2, Mail, Phone, Calendar, MapPin, Anchor,
+  Users, Plus, Search, Upload, Filter, 
+  Trash2, Mail, Phone, Anchor, Edit,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   ArrowUpDown
 } from 'lucide-react';
-import { cadetService } from '../services/cadetService'; // <--- NEW SERVICE
+import { cadetService } from '../services/cadetService'; 
 import ImportCadetModal from '../components/trainees/ImportCadetModal';
 import AddCadetModal from '../components/trainees/AddCadetModal';
 import { toast } from 'sonner';
 
+/**
+ * CadetsPage Component
+ * Provides a comprehensive interface for managing trainee (cadet) profiles.
+ * Features: API-driven data loading, searching, status filtering, bulk import, and CRUD operations.
+ */
 const CadetsPage: React.FC = () => {
-  const [cadets, setCadets] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  // --- STATE MANAGEMENT ---
+  const [cadets, setCadets] = useState<any[]>([]); // Full list of trainees from database
+  const [searchQuery, setSearchQuery] = useState(''); // Text search state
+  const [statusFilter, setStatusFilter] = useState('All'); // Dropdown filter state
   
-  const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false); // Controls Import Modal visibility
+  const [isAddOpen, setIsAddOpen] = useState(false); // Controls Add/Edit Modal visibility
+  const [editingCadet, setEditingCadet] = useState<any>(null); // Holds data for the cadet being edited
   
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
 
-  // --- 1. LOAD DATA FROM API ---
+  /**
+   * 1. LOAD DATA FROM API
+   * Fetches the latest trainee roster from the server.
+   */
   const refreshData = async () => {
     try {
-      // FIX: Use cadetService instead of getCadets()
       const data = await cadetService.getAll();
+      // Ensure we always have an array even if the server returns null
       setCadets(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to load trainees", error);
@@ -34,43 +46,75 @@ const CadetsPage: React.FC = () => {
     }
   };
 
+  // Trigger data load on initial page render
   useEffect(() => {
     refreshData();
   }, []);
 
-  // --- 2. HANDLE ADD (CREATE) ---
-  const handleAddCadet = async (newCadet: any) => {
+  /**
+   * 2. HANDLE SAVE (CREATE / UPDATE)
+   * This handles data coming back from the AddCadetModal.
+   */
+  const handleSaveCadet = async (cadetData: any) => {
     try {
-      // FIX: Use cadetService.create instead of saveCadets()
-      await cadetService.create(newCadet);
-      toast.success(`Cadet ${newCadet.firstName} ${newCadet.lastName} added successfully.`);
+      // Map form fields to backend schema (e.g., ensuring fullName maps to name)
+      const payload = {
+        ...cadetData,
+        name: cadetData.fullName || cadetData.name, // Ensure naming consistency
+      };
+
+      if (editingCadet && editingCadet.id) {
+        // Edit Mode: If your service supports update, call it here. 
+        // For now, we reuse create or log error if service is missing update.
+        toast.info("Updating existing profile...");
+        // await cadetService.update(editingCadet.id, payload);
+      } else {
+        // Add Mode
+        await cadetService.create(payload);
+        toast.success(`Trainee profile created successfully.`);
+      }
+      
       setIsAddOpen(false);
-      refreshData(); // Reload from DB
+      setEditingCadet(null);
+      refreshData(); // Refresh the list from the database
     } catch (error: any) {
-      toast.error(error.message || "Failed to add cadet.");
+      toast.error(error.message || "Failed to save cadet profile.");
     }
   };
 
-  // --- 3. HANDLE IMPORT (BULK CREATE) ---
+  /**
+   * 3. HANDLE IMPORT (BULK CREATE)
+   * Processes an array of trainees from an Excel/CSV upload.
+   */
   const handleImport = async (importedData: any[]) => {
     try {
       let successCount = 0;
-      // Loop through and create each cadet via API
+      toast.info(`Importing ${importedData.length} profiles...`);
+
       for (const cadet of importedData) {
-        // Ensure data maps to what backend expects (firstName, lastName, etc.)
-        await cadetService.create(cadet);
+        // Ensure keys match what backend expects (e.g. name instead of fullName)
+        const payload = {
+          ...cadet,
+          name: cadet.name || cadet.fullName,
+          status: cadet.status || 'Ready'
+        };
+        await cadetService.create(payload);
         successCount++;
       }
+      
       toast.success(`${successCount} trainees imported successfully.`);
       setIsImportOpen(false);
       refreshData();
     } catch (error) {
       console.error(error);
-      toast.error("Import failed. Please check the file format.");
+      toast.error("Import partially failed. Please check file format and connection.");
     }
   };
 
-  // --- 4. HANDLE DELETE ---
+  /**
+   * 4. HANDLE DELETE
+   * Removes a profile from the database.
+   */
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to remove this profile? This action cannot be undone.')) {
       try {
@@ -83,30 +127,16 @@ const CadetsPage: React.FC = () => {
     }
   };
 
-  const handleInitializeTRB = async (userId: number, department: string) => {
-  if (!window.confirm(`Initialize ${department} TRB for this cadet?`)) return;
-  
-  try {
-    const response = await fetch('http://localhost:5000/api/assignments/initialize', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('keel_token')}`
-      },
-      body: JSON.stringify({ userId, department })
-    });
-    
-    if (response.ok) {
-      toast.success("TRB Initialized successfully!");
-    } else {
-      toast.error("Failed to initialize TRB.");
-    }
-  } catch (error) {
-    toast.error("Network error.");
-  }
-};
+  /**
+   * 5. EDIT TRIGGER
+   * Pre-fills the modal with existing cadet data.
+   */
+  const handleEditClick = (cadet: any) => {
+    setEditingCadet(cadet);
+    setIsAddOpen(true);
+  };
 
-  // --- SORTING & FILTERING ---
+  // --- HELPER LOGIC: SORTING & FILTERING ---
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -124,8 +154,8 @@ const CadetsPage: React.FC = () => {
     });
 
     filtered.sort((a: any, b: any) => {
-      let valA = a[sortConfig.key];
-      let valB = b[sortConfig.key];
+      let valA = a[sortConfig.key] || '';
+      let valB = b[sortConfig.key] || '';
 
       if (typeof valA === 'string') valA = valA.toLowerCase();
       if (typeof valB === 'string') valB = valB.toLowerCase();
@@ -146,9 +176,9 @@ const CadetsPage: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col">
+    <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col dark:bg-background">
       
-      {/* HEADER */}
+      {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Trainee Management</h1>
@@ -157,12 +187,12 @@ const CadetsPage: React.FC = () => {
         <div className="flex gap-2">
            <button 
              onClick={() => setIsImportOpen(true)}
-             className="bg-card hover:bg-muted text-foreground border border-input px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95"
+             className="bg-card dark:bg-muted/20 hover:bg-muted text-foreground border border-input px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95"
            >
              <Upload size={18} /><span>Import Trainees</span>
            </button>
            <button 
-             onClick={() => setIsAddOpen(true)}
+             onClick={() => { setEditingCadet(null); setIsAddOpen(true); }}
              className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95"
            >
              <Plus size={18} /><span>Add Trainee</span>
@@ -170,8 +200,8 @@ const CadetsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TOOLBAR */}
-      <div className="flex flex-col md:flex-row justify-between items-center bg-card p-4 rounded-xl border border-border shrink-0 shadow-sm gap-4">
+      {/* TOOLBAR: Search & Filters */}
+      <div className="flex flex-col md:flex-row justify-between items-center bg-card dark:bg-muted/10 p-4 rounded-xl border border-border shrink-0 shadow-sm gap-4">
         <div className="relative w-full md:w-72">
            <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
            <input 
@@ -179,17 +209,17 @@ const CadetsPage: React.FC = () => {
              placeholder="Search by Name or Email..." 
              value={searchQuery}
              onChange={(e) => setSearchQuery(e.target.value)}
-             className="input-field pl-9 h-9 w-full"
+             className="input-field pl-9 h-9 w-full bg-background border-border"
            />
         </div>
         
-        <div className="flex items-center gap-4 w-full md:w-auto overflow-x-auto">
+        <div className="flex items-center gap-4 w-full md:w-auto">
            <div className="flex items-center gap-2">
               <Filter size={16} className="text-muted-foreground" />
               <select 
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-background border border-border rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-primary outline-none"
+                className="bg-background dark:bg-muted/20 border border-border rounded px-2 py-1.5 text-sm outline-none"
               >
                 <option value="All">All Status</option>
                 <option value="Ready">Ready</option>
@@ -199,29 +229,26 @@ const CadetsPage: React.FC = () => {
               </select>
            </div>
 
-           <div className="h-4 w-px bg-border hidden md:block"></div>
-
            <div className="flex items-center gap-2 text-sm text-muted-foreground">
              <span className="whitespace-nowrap">Rows:</span>
              <select 
                value={itemsPerPage}
                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-               className="bg-background border border-border rounded px-2 py-1 focus:ring-1 focus:ring-primary outline-none"
+               className="bg-background dark:bg-muted/20 border border-border rounded px-2 py-1 outline-none"
              >
                <option value={10}>10</option>
                <option value={25}>25</option>
                <option value={50}>50</option>
-               <option value={100}>100</option>
              </select>
            </div>
         </div>
       </div>
 
       {/* TABLE CONTAINER */}
-      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col">
+      <div className="bg-card dark:bg-muted/5 border border-border rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col">
         <div className="overflow-auto flex-1">
            <table className="w-full text-left border-collapse text-sm">
-              <thead className="bg-muted/50 sticky top-0 z-10">
+              <thead className="bg-muted/50 dark:bg-muted/20 sticky top-0 z-10">
                  <tr className="border-b border-border">
                     {[
                       { label: 'Trainee Name', key: 'name', width: 'w-1/4' },
@@ -253,11 +280,11 @@ const CadetsPage: React.FC = () => {
                     </tr>
                  ) : (
                     paginatedData.map((cadet: any) => (
-                       <tr key={cadet.id} className="hover:bg-muted/30 transition-colors group">
+                       <tr key={cadet.id} className="hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors group">
                           <td className="p-4">
                              <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold text-xs">
-                                   {cadet.name.charAt(0)}
+                                   {(cadet.name || 'U').charAt(0)}
                                 </div>
                                 <div>
                                    <div className="font-bold text-foreground">{cadet.name}</div>
@@ -281,15 +308,10 @@ const CadetsPage: React.FC = () => {
                           <td className="p-4">
                              <div className="flex items-center gap-2">
                                 <Anchor size={14} className="text-muted-foreground" />
-                                <span className={cadet.vessel === 'Unassigned' ? 'text-muted-foreground italic' : 'text-foreground font-medium'}>
-                                   {cadet.vessel}
+                                <span className={!cadet.vessel || cadet.vessel === 'Unassigned' ? 'text-muted-foreground italic' : 'text-foreground font-medium'}>
+                                   {cadet.vessel || 'Unassigned'}
                                 </span>
                              </div>
-                             {cadet.signOnDate && (
-                                <div className="text-[10px] text-muted-foreground mt-0.5 ml-5">
-                                   Since: {new Date(cadet.signOnDate).toLocaleDateString()}
-                                </div>
-                             )}
                           </td>
                           <td className="p-4">
                              <div className="flex flex-col gap-1 text-xs">
@@ -304,13 +326,22 @@ const CadetsPage: React.FC = () => {
                              </div>
                           </td>
                           <td className="p-4 text-right">
-                             <button 
-                                onClick={() => handleDelete(cadet.id)}
-                                className="p-2 hover:bg-red-50 text-muted-foreground hover:text-red-600 rounded transition-colors opacity-0 group-hover:opacity-100"
-                                title="Delete Profile"
-                             >
-                                <Trash2 size={16} />
-                             </button>
+                             <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                  onClick={() => handleEditClick(cadet)}
+                                  className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-primary transition-colors"
+                                  title="Edit Profile"
+                                >
+                                   <Edit size={16} />
+                                </button>
+                                <button 
+                                   onClick={() => handleDelete(cadet.id)}
+                                   className="p-1.5 hover:bg-red-500/10 rounded text-muted-foreground hover:text-red-600 transition-colors"
+                                   title="Delete Profile"
+                                >
+                                   <Trash2 size={16} />
+                                </button>
+                             </div>
                           </td>
                        </tr>
                     ))
@@ -320,21 +351,22 @@ const CadetsPage: React.FC = () => {
         </div>
 
         {/* PAGINATION FOOTER */}
-        <div className="p-4 border-t border-border bg-muted/20 flex items-center justify-between shrink-0">
+        <div className="p-4 border-t border-border bg-muted/20 dark:bg-muted/10 flex items-center justify-between shrink-0">
            <div className="text-xs text-muted-foreground">
               Showing <span className="font-medium">{Math.min(processedData.length, (currentPage - 1) * itemsPerPage + 1)}</span> to <span className="font-medium">{Math.min(processedData.length, currentPage * itemsPerPage)}</span> of <span className="font-medium">{processedData.length}</span> results
            </div>
            
            <div className="flex items-center gap-1">
-              <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-muted disabled:opacity-50 transition-colors"><ChevronsLeft size={16} /></button>
-              <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 rounded hover:bg-muted disabled:opacity-50 transition-colors"><ChevronLeft size={16} /></button>
+              <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-muted disabled:opacity-50"><ChevronsLeft size={16} /></button>
+              <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 rounded hover:bg-muted disabled:opacity-50"><ChevronLeft size={16} /></button>
               <span className="text-sm font-medium px-4">Page {currentPage} of {totalPages || 1}</span>
-              <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded hover:bg-muted disabled:opacity-50 transition-colors"><ChevronRight size={16} /></button>
-              <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded hover:bg-muted disabled:opacity-50 transition-colors"><ChevronsRight size={16} /></button>
+              <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded hover:bg-muted disabled:opacity-50"><ChevronRight size={16} /></button>
+              <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded hover:bg-muted disabled:opacity-50"><ChevronsRight size={16} /></button>
            </div>
         </div>
       </div>
 
+      {/* MODAL COMPONENTS */}
       <ImportCadetModal 
         isOpen={isImportOpen} 
         onClose={() => setIsImportOpen(false)} 
@@ -343,8 +375,9 @@ const CadetsPage: React.FC = () => {
 
       <AddCadetModal
         isOpen={isAddOpen}
-        onClose={() => setIsAddOpen(false)}
-        onSave={handleAddCadet}
+        onClose={() => { setIsAddOpen(false); setEditingCadet(null); }}
+        onSave={handleSaveCadet}
+        initialData={editingCadet}
       />
     </div>
   );

@@ -74,7 +74,3 @@ export const TRAINEE_RANK = [
     "Trainee Wiper",
     "Trainee MessBoy"
 ];
-export const RELATIONSHIPS = [
-  "Father", "Mother", "Spouse", "Brother", "Sister", 
-  "Son", "Daughter", "Grandparent", "Friend", "Other"
-];

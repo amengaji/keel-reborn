@@ -11,6 +11,7 @@ import cadetRoutes from './routes/cadet.routes'; // Import
 import taskRoutes from './routes/task.routes';
 import Task from './models/Task';
 import assignmentRoutes from './routes/assignment.routes';
+import traineeAssignmentRoutes from "./routes/traineeAssignment.routes";
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.use('/api/vessels', vesselRoutes);
 app.use('/api/trainees', cadetRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/assignments', assignmentRoutes);
+app.use("/api/trainee-assignments", traineeAssignmentRoutes);
 
 
 const startServer = async () => {
