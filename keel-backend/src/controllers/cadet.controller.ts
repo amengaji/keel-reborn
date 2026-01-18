@@ -4,13 +4,11 @@ import { Request, Response } from 'express';
 import User from '../models/User';
 import Role from '../models/Role';
 import Vessel from '../models/Vessel';
+import TraineeAssignment from '../models/TraineeAssignment'; // Added this to handle cleanup
 import bcrypt from 'bcryptjs';
 
 /**
  * GET ALL CADETS
- * PURPOSE: Fetches all users with the 'CADET' role.
- * FIXED: Sends raw database attributes so the Assignments Page and Cadets Page 
- * both receive the same predictable data structure.
  */
 export const getCadets = async (req: Request, res: Response) => {
   try {
@@ -27,11 +25,10 @@ export const getCadets = async (req: Request, res: Response) => {
           attributes: ['id', 'name'] 
         }
       ],
-      attributes: { exclude: ['password_hash'] }, // Safety: Never send hashes
+      attributes: { exclude: ['password_hash'] },
       order: [['first_name', 'ASC']]
     });
     
-    // We send the raw array. The frontend services handle specific formatting.
     res.json(cadets);
   } catch (error: any) {
     console.error("FETCH CADETS ERROR:", error);
@@ -41,8 +38,6 @@ export const getCadets = async (req: Request, res: Response) => {
 
 /**
  * CREATE CADET
- * PURPOSE: Adds a new trainee to the system.
- * Handles both 'fullName' (from imports) or 'first_name/last_name' (from forms).
  */
 export const createCadet = async (req: Request, res: Response) => {
   try {
@@ -62,7 +57,6 @@ export const createCadet = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    // RESOLVE NAMES: Ensure we have a first and last name for the DB
     let resolvedFirstName: string;
     let resolvedLastName: string;
 
@@ -109,13 +103,31 @@ export const createCadet = async (req: Request, res: Response) => {
 
 /**
  * DELETE CADET
+ * FIXED: Now performs a cascade delete to remove linked assignments first.
+ * This prevents the "Foreign Key Constraint" error.
  */
 export const deleteCadet = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    await User.destroy({ where: { id } });
-    res.json({ message: 'Cadet removed successfully' });
+
+    // 1. First, delete any assignments linked to this trainee
+    // This clears the way so the user can be deleted without errors
+    await TraineeAssignment.destroy({
+      where: { trainee_id: id }
+    });
+
+    // 2. Now delete the trainee profile itself
+    const deletedCount = await User.destroy({ 
+      where: { id } 
+    });
+
+    if (deletedCount === 0) {
+      return res.status(404).json({ message: 'Trainee not found in database' });
+    }
+
+    res.json({ message: 'Trainee and all associated records removed successfully' });
   } catch (error: any) {
+    console.error("DELETE CADET ERROR:", error);
     res.status(500).json({ message: 'Error removing cadet', error: error.message });
   }
 };

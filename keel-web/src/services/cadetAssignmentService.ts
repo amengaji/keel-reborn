@@ -11,9 +11,7 @@ const getAuthHeaders = () => {
 };
 
 export const cadetAssignmentService = {
-  // --------------------------------------------------
-  // GET ACTIVE ASSIGNMENTS (WITH TRAINEE + VESSEL)
-  // --------------------------------------------------
+  // GET ACTIVE ASSIGNMENTS
   getActive: async () => {
     const res = await fetch(API_URL, {
       headers: getAuthHeaders()
@@ -24,11 +22,10 @@ export const cadetAssignmentService = {
     return json;
   },
 
-  // --------------------------------------------------
   // ASSIGN TRAINEE TO VESSEL
-  // --------------------------------------------------
+  // We use trainee_id here to match your Backend Controller
   assign: async (payload: {
-    cadet_id: number;
+    trainee_id: number;
     vessel_id: number;
     sign_on_date: string;
   }) => {
@@ -43,11 +40,9 @@ export const cadetAssignmentService = {
     return json;
   },
 
-  // --------------------------------------------------
   // UNASSIGN TRAINEE (SIGN-OFF)
-  // --------------------------------------------------
-  unassign: async (cadetId: number) => {
-    const res = await fetch(`${API_URL}/${cadetId}`, {
+  unassign: async (traineeId: number) => {
+    const res = await fetch(`${API_URL}/${traineeId}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
