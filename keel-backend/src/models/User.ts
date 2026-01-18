@@ -1,7 +1,9 @@
+//keel-backend/src/models/User.ts
+
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database';
 import Role from './Role';
-import Vessel from './Vessel'; // Import Vessel model
+import Vessel from './Vessel'; 
 
 class User extends Model {
   public id!: number;
@@ -17,11 +19,16 @@ class User extends Model {
   public rank?: string;
   public nationality?: string;
   public status?: 'Ready' | 'Onboard' | 'Leave' | 'Training';
-  public vessel_id?: string; // Links to Vessel table
+  public vessel_id?: string; 
   public sign_on_date?: Date;
   
+  // --- NEW: Professional Details & Security ---
+  public coc_number?: string;
+  public seaman_book_number?: string;
+  public mfa_enabled?: boolean; // New Security Flag
+
   public role?: Role; 
-  public vessel?: Vessel; // For including vessel details
+  public vessel?: Vessel; 
 
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
@@ -64,14 +71,26 @@ User.init(
       type: DataTypes.STRING(20),
       allowNull: true,
     },
-    // --- New Maritime Columns ---
+    // --- Maritime Columns ---
     indos_number: {
       type: DataTypes.STRING(50),
       allowNull: true,
     },
+    coc_number: {
+      type: DataTypes.STRING(50),
+      allowNull: true, // New Field
+    },
+    seaman_book_number: {
+      type: DataTypes.STRING(50),
+      allowNull: true, // New Field
+    },
+    mfa_enabled: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false, // New Field
+    },
     rank: {
       type: DataTypes.STRING(50),
-      allowNull: true, // e.g. "Deck Cadet", "Engine Cadet"
+      allowNull: true, 
     },
     nationality: {
       type: DataTypes.STRING(50),

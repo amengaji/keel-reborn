@@ -1,7 +1,7 @@
-// keel-web/src/components/vessels/ImportVesselModal.tsx
+//keel-web/src/components/vessels/ImportVesselModal.tsx
 
 import React, { useRef, useState } from 'react';
-import { X, Upload, FileSpreadsheet, Download, AlertTriangle, CheckCircle2, ChevronLeft } from 'lucide-react';
+import { X, Upload, FileSpreadsheet, Download, AlertTriangle, CheckCircle2, ChevronLeft, Users } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -17,7 +17,7 @@ interface ImportVesselModalProps {
 /**
  * ImportVesselModal Component
  * This component handles the bulk import of vessel data from Excel files.
- * FIXED: Theming updated to use semantic CSS variables for perfect Light/Dark mode transitions.
+ * UPDATED: Includes logic to auto-generate Command Team accounts (Master + 4 CTOs) for each vessel.
  */
 const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, onImport }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,13 +42,19 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
     // --- SHEET 1: VESSELS (Data Entry) ---
     const worksheet = workbook.addWorksheet('Vessels');
 
-    // Define Columns - These headers are used by the fuzzy matcher during import
+    // Define Columns - Added Crew Email Columns
     worksheet.columns = [
       { header: 'Vessel Name', key: 'name', width: 25 },
       { header: 'IMO Number', key: 'imo_number', width: 15 },
       { header: 'Flag', key: 'flag', width: 20 },
       { header: 'Classification Society', key: 'class_society', width: 40 },
       { header: 'Vessel Type', key: 'vessel_type', width: 25 },
+      // Optional columns for custom emails
+      { header: 'Master Email (Optional)', key: 'email_master', width: 30 },
+      { header: 'CTO Deck Email (Optional)', key: 'email_deck', width: 30 },
+      { header: 'CTO Engine Email (Optional)', key: 'email_engine', width: 30 },
+      { header: 'CTO ETO Email (Optional)', key: 'email_eto', width: 30 },
+      { header: 'CTO Catering Email (Optional)', key: 'email_cat', width: 30 },
     ];
 
     // Style the Header Row (Keel Teal theme)
@@ -154,6 +160,17 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
         const class_soc = getValue(row, ['Classification Society', 'class', 'classification', 'class_society']);
         const v_type = getValue(row, ['Vessel Type', 'type', 'vessel_type']);
 
+        // Auto-generate Crew Emails if not provided in Excel
+        // We use the IMO number to ensure uniqueness: [role].[imo]@keel.com
+        const safeImo = imo || 'unknown';
+        const crewEmails = {
+          master: getValue(row, ['Master Email', 'email_master']) || `master.${safeImo}@keel.com`,
+          ctoDeck: getValue(row, ['CTO Deck Email', 'email_deck']) || `cto.deck.${safeImo}@keel.com`,
+          ctoEngine: getValue(row, ['CTO Engine Email', 'email_engine']) || `cto.engine.${safeImo}@keel.com`,
+          ctoEto: getValue(row, ['CTO ETO Email', 'email_eto']) || `cto.eto.${safeImo}@keel.com`,
+          ctoCatering: getValue(row, ['CTO Catering Email', 'email_cat']) || `cto.cat.${safeImo}@keel.com`,
+        };
+
         return {
           id: imo ? `VSL-${imo}` : `VSL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           name: name || 'Unnamed Vessel',
@@ -162,7 +179,8 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
           class_society: class_soc || 'Unknown', 
           vessel_type: v_type || 'Other', 
           is_active: true, 
-          program: 'Cadet Training Program'
+          program: 'Cadet Training Program',
+          crewEmails // Attach for backend processing
         };
       });
 
@@ -203,7 +221,7 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4">
-      <div className={`bg-card w-full ${previewData ? 'max-w-5xl' : 'max-w-xl'} rounded-xl border border-border shadow-2xl animate-in zoom-in-95 duration-200 transition-all overflow-hidden`}>
+      <div className={`bg-card w-full ${previewData ? 'max-w-6xl' : 'max-w-xl'} rounded-xl border border-border shadow-2xl animate-in zoom-in-95 duration-200 transition-all overflow-hidden`}>
         
         {/* MODAL HEADER */}
         <div className="flex items-center justify-between p-4 border-b border-border bg-card">
@@ -233,7 +251,7 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
                   <p className="text-muted-foreground mt-1 leading-relaxed">
                     1. Use the link below to get the Keel Smart Template.<br/>
                     2. Select values from the <b>Dropdown Menus</b> in Excel to avoid import errors.<br/>
-                    3. Upload the file to see a preview of the fleet data.
+                    3. Upload to see preview. <b>(5 Officer Accounts will be auto-created per ship)</b>
                   </p>
                </div>
             </div>
@@ -313,7 +331,7 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
                          <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">IMO Number</th>
                          <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Flag</th>
                          <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Type</th>
-                         <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Class Society</th>
+                         <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Cmd Accounts</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-border bg-card">
@@ -327,8 +345,14 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
                                   {vessel.vessel_type}
                                </span>
                             </td>
-                            <td className="p-4 text-muted-foreground text-xs font-medium truncate max-w-xs" title={vessel.class_society}>
-                               {vessel.class_society}
+                            <td className="p-4">
+                               <div className="flex items-center gap-2">
+                                  <Users size={14} className="text-primary" />
+                                  <div className="flex flex-col">
+                                    <span className="text-[10px] text-muted-foreground">M: {vessel.crewEmails.master}</span>
+                                    <span className="text-[10px] text-muted-foreground">D: {vessel.crewEmails.ctoDeck}</span>
+                                  </div>
+                               </div>
                             </td>
                          </tr>
                       ))}

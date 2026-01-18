@@ -1,62 +1,37 @@
-// keel-reborn/keel-web/src/services/authService.ts
+//keel-web/src/services/authService.ts
 
 const API_URL = 'http://localhost:5000/api/auth';
+
+export interface UserProfile {
+  id: number | string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  vesselId?: number;
+  cocNumber?: string;
+  seamanBookNumber?: string;
+  mfaEnabled?: boolean;
+}
 
 export interface LoginResponse {
   message: string;
   accessToken: string;
-  refreshToken: string;
-  user: {
-    id: number | string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-    vesselId?: number; // Added to link CTO to a specific ship
-  };
+  refreshToken?: string;
+  user: UserProfile;
 }
+
+// Helper to get current logged in user from storage
+export const getCurrentUser = (): UserProfile | null => {
+  try {
+    const data = localStorage.getItem('keel_user');
+    return data ? JSON.parse(data) : null;
+  } catch {
+    return null;
+  }
+};
 
 export const loginOfficer = async (email: string, password: string): Promise<LoginResponse> => {
-  // --- CTO EMERGENCY OVERRIDE ---
-  // Temporary hardcoded credentials for CTO Vessel Portal
-  if (email === 'cto@keel.com' && password === 'cto@123') {
-    const ctoData: LoginResponse = {
-      message: 'CTO Command Authentication Successful',
-      accessToken: 'mock-cto-token-secure',
-      refreshToken: 'mock-cto-refresh',
-      user: {
-        id: 'CTO-001',
-        email: 'cto@keel.com',
-        firstName: 'Chief',
-        lastName: 'Training Officer',
-        role: 'CTO',
-        vesselId: 1 // Hardlinked to Ocean Pioneer for this portal
-      }
-    };
-    localStorage.setItem('keel_token', ctoData.accessToken);
-    localStorage.setItem('keel_user', JSON.stringify(ctoData.user));
-    return ctoData;
-  }
-
-  if (email === 'master@keel.com' && password === 'master@123') {
-    const masterData: LoginResponse = {
-      message: 'Master Command Authentication Successful',
-      accessToken: 'mock-master-token',
-      refreshToken: 'mock-master-refresh',
-      user: {
-        id: 'MASTER-001',
-        email: 'master@keel.com',
-        firstName: 'Vessel',
-        lastName: 'Master',
-        role: 'MASTER',
-        vesselId: 1 // Linked to the same ship as the CTO
-      }
-    };
-    localStorage.setItem('keel_token', masterData.accessToken);
-    localStorage.setItem('keel_user', JSON.stringify(masterData.user));
-    return masterData;
-}
-
   try {
     const response = await fetch(`${API_URL}/login`, {
       method: 'POST',
@@ -66,14 +41,14 @@ export const loginOfficer = async (email: string, password: string): Promise<Log
 
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.message || 'Connection to Shore Server failed.');
+      throw new Error(data.message || 'Login failed.');
     }
 
     localStorage.setItem('keel_token', data.accessToken);
     localStorage.setItem('keel_user', JSON.stringify(data.user));
     return data;
   } catch (error: any) {
-    console.error('📡 COMMS ERROR:', error.message);
+    console.error('Login Error:', error.message);
     throw error;
   }
 };
@@ -82,4 +57,40 @@ export const logoutOfficer = () => {
   localStorage.removeItem('keel_token');
   localStorage.removeItem('keel_user');
   window.location.href = '/login';
+};
+
+// --- NEW METHODS FOR SETTINGS PAGE ---
+
+export const changePassword = async (userId: number | string, currentPassword: string, newPassword: string) => {
+  const response = await fetch(`${API_URL}/change-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, currentPassword, newPassword }),
+  });
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.message || 'Failed to change password');
+  }
+  return await response.json();
+};
+
+export const updateProfile = async (userId: number | string, data: { cocNumber?: string, seamanBookNumber?: string, mfaEnabled?: boolean }) => {
+  const response = await fetch(`${API_URL}/profile`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, ...data }),
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to update profile');
+  }
+  
+  const result = await response.json();
+  // Update local storage with new profile data
+  if (result.user) {
+    const currentUser = getCurrentUser() || {};
+    const updatedUser = { ...currentUser, ...result.user };
+    localStorage.setItem('keel_user', JSON.stringify(updatedUser));
+  }
+  return result;
 };

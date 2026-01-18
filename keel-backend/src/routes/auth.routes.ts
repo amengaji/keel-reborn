@@ -3,8 +3,7 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
 
-import { login } from "../controllers/auth.controller";
-import User from "../models/User";
+import { login, changePassword, updateProfile } from "../controllers/auth.controller";
 
 /**
  * Authentication Routes
@@ -19,6 +18,7 @@ const router = Router();
 // URL: POST /api/auth/login
 // ---------------------------------------------------------------------
 router.post("/login", login);
-
+router.post("/change-password", changePassword);
+router.put("/profile", updateProfile);
 
 export default router;

@@ -1,43 +1,65 @@
+//keel-web/src/pages/SettingsPage.tsx
+
 import React, { useState, useEffect } from 'react';
-import { Shield, Globe, Save, Users, Lock, CheckCircle, AlertCircle, Plus, Trash2, Upload, ImageIcon } from 'lucide-react';
+import { 
+  Shield, Globe, Save, Users, Lock, CheckCircle, 
+  AlertCircle, Plus, Trash2, ImageIcon, Key, UserCog, Clock 
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Country, State, City } from 'country-state-city';
 import { getSettings, saveSettings } from '../services/dataService';
+import { getCurrentUser, changePassword, updateProfile, UserProfile } from '../services/authService';
 
 const SettingsPage: React.FC = () => {
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  
+  // -- GLOBAL SETTINGS (Admin Only) --
   const [settings, setSettings] = useState<any>(null);
 
+  // -- PERSONAL SETTINGS (CTO/Master) --
+  const [cocNumber, setCocNumber] = useState('');
+  const [seamanBook, setSeamanBook] = useState('');
+  const [mfaEnabled, setMfaEnabled] = useState(false);
+  
+  // Password Form State
+  const [passForm, setPassForm] = useState({ current: '', new: '', confirm: '' });
+
   useEffect(() => {
+    // 1. Identify User Role
+    const currentUser = getCurrentUser();
+    if (currentUser) {
+      setUser(currentUser);
+      setCocNumber(currentUser.cocNumber || '');
+      setSeamanBook(currentUser.seamanBookNumber || '');
+      setMfaEnabled(currentUser.mfaEnabled || false);
+
+      // Check for Admin privileges (Shore Admin or just ADMIN role)
+      const roleName = (currentUser.role || '').toUpperCase();
+      setIsAdmin(roleName === 'ADMIN' || roleName === 'SHORE_ADMIN');
+    }
+
+    // 2. Load Global Settings (Even non-admins might need to see Session Timer)
     const loaded = getSettings();
     setSettings(loaded);
   }, []);
 
-  const handleSave = () => {
+  // --- ADMIN HANDLERS ---
+  const handleSaveGlobal = () => {
     saveSettings(settings);
-    toast.success("System configurations updated successfully.");
+    toast.success("System configurations updated.");
   };
 
-  // --- GENERAL HANDLERS ---
   const handleGeneralChange = (field: string, value: any) => {
-    setSettings({ 
-      ...settings, 
-      general: { ...settings.general, [field]: value } 
-    });
+    setSettings({ ...settings, general: { ...settings.general, [field]: value } });
   };
 
   const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const { name, value } = e.target;
-    // Reset subordinate fields when parent changes
     if (name === 'country') {
-      setSettings({
-        ...settings,
-        general: { ...settings.general, country: value, state: '', city: '' }
-      });
+      setSettings({ ...settings, general: { ...settings.general, country: value, state: '', city: '' } });
     } else if (name === 'state') {
-      setSettings({
-        ...settings,
-        general: { ...settings.general, state: value, city: '' }
-      });
+      setSettings({ ...settings, general: { ...settings.general, state: value, city: '' } });
     } else {
       handleGeneralChange(name, value);
     }
@@ -47,68 +69,222 @@ const SettingsPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        handleGeneralChange('logo', reader.result);
-      };
+      reader.onloadend = () => handleGeneralChange('logo', reader.result);
       reader.readAsDataURL(file);
     }
   };
 
-  // --- ROLE HANDLERS ---
   const toggleRolePermission = (id: number, field: 'canSign' | 'canUpload') => {
-    const updatedRoles = settings.roles.map((r: any) => 
-      r.id === id ? { ...r, [field]: !r[field] } : r
-    );
+    const updatedRoles = settings.roles.map((r: any) => r.id === id ? { ...r, [field]: !r[field] } : r);
     setSettings({ ...settings, roles: updatedRoles });
   };
 
   const handleRoleChange = (id: number, field: string, value: any) => {
-     const updatedRoles = settings.roles.map((r: any) => 
-      r.id === id ? { ...r, [field]: value } : r
-    );
+     const updatedRoles = settings.roles.map((r: any) => r.id === id ? { ...r, [field]: value } : r);
     setSettings({ ...settings, roles: updatedRoles });
   };
 
   const handleAddRole = () => {
     const newId = Math.max(...settings.roles.map((r: any) => r.id)) + 1;
-    const newRole = { 
-      id: newId, 
-      name: 'NEW_ROLE', 
-      description: 'Description here', 
-      canSign: false, 
-      canUpload: false, 
-      verifyLevel: 0 
-    };
+    const newRole = { id: newId, name: 'NEW_ROLE', description: 'Desc', canSign: false, canUpload: false, verifyLevel: 0 };
     setSettings({ ...settings, roles: [...settings.roles, newRole] });
-    toast.info("New role added. Please configure it.");
+    toast.info("New role added.");
   };
 
   const handleDeleteRole = (id: number) => {
-    if (confirm("Are you sure you want to delete this role?")) {
+    if (confirm("Delete this role?")) {
       const updatedRoles = settings.roles.filter((r: any) => r.id !== id);
       setSettings({ ...settings, roles: updatedRoles });
     }
   };
 
   const handleRuleChange = (field: string, value: boolean) => {
-    setSettings({ 
-      ...settings, 
-      rules: { ...settings.rules, [field]: value } 
-    });
+    setSettings({ ...settings, rules: { ...settings.rules, [field]: value } });
+  };
+  
+  // --- PERSONAL PROFILE HANDLERS ---
+  const handleUpdateProfile = async () => {
+    if (!user) return;
+    try {
+      await updateProfile(user.id, {
+        cocNumber,
+        seamanBookNumber: seamanBook,
+        mfaEnabled
+      });
+      toast.success("Professional profile updated.");
+    } catch (err: any) {
+      toast.error(err.message || "Update failed");
+    }
   };
 
-  if (!settings) return null;
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (passForm.new !== passForm.confirm) {
+      toast.error("New passwords do not match.");
+      return;
+    }
+    try {
+      await changePassword(user.id, passForm.current, passForm.new);
+      toast.success("Password changed successfully.");
+      setPassForm({ current: '', new: '', confirm: '' });
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
 
+  if (!settings || !user) return <div className="p-8 text-center text-muted-foreground">Loading settings...</div>;
+
+  // ==================================================================================
+  // VIEW 1: COMMAND TEAM (CTO / Master) - "Personal & Session Settings"
+  // ==================================================================================
+  if (!isAdmin) {
+    return (
+      <div className="max-w-3xl space-y-6 animate-in fade-in duration-500 pb-10">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">My Settings</h1>
+          <p className="text-muted-foreground text-sm">Manage your professional details and account security.</p>
+        </div>
+
+        {/* 1. PROFESSIONAL DETAILS */}
+        <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+          <div className="p-4 border-b border-border bg-muted/30 flex items-center space-x-2">
+            <UserCog className="text-primary" size={18} />
+            <h2 className="font-semibold text-foreground">Professional Details</h2>
+          </div>
+          <div className="p-6 space-y-4">
+             <div className="grid grid-cols-2 gap-4">
+               <div>
+                 <label className="text-xs font-bold text-muted-foreground uppercase">Rank / Role</label>
+                 <input disabled value={user.role} className="input-field w-full bg-muted/50 cursor-not-allowed" />
+               </div>
+               <div>
+                 <label className="text-xs font-bold text-muted-foreground uppercase">Email</label>
+                 <input disabled value={user.email} className="input-field w-full bg-muted/50 cursor-not-allowed" />
+               </div>
+             </div>
+             
+             <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-1.5">
+                 <label className="text-xs font-bold text-muted-foreground uppercase">CoC Number</label>
+                 <input 
+                   value={cocNumber} 
+                   onChange={(e) => setCocNumber(e.target.value)}
+                   className="input-field w-full" 
+                   placeholder="Enter CoC Number"
+                 />
+               </div>
+               <div className="space-y-1.5">
+                 <label className="text-xs font-bold text-muted-foreground uppercase">Seaman Book Number</label>
+                 <input 
+                   value={seamanBook} 
+                   onChange={(e) => setSeamanBook(e.target.value)}
+                   className="input-field w-full" 
+                   placeholder="Enter CDC Number"
+                 />
+               </div>
+             </div>
+             <div className="flex justify-end pt-2">
+                <button onClick={handleUpdateProfile} className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-primary/90 transition-all">
+                   Save Details
+                </button>
+             </div>
+          </div>
+        </div>
+
+        {/* 2. SECURITY (Password & MFA) */}
+        <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+          <div className="p-4 border-b border-border bg-muted/30 flex items-center space-x-2">
+            <Shield className="text-primary" size={18} />
+            <h2 className="font-semibold text-foreground">Account Security</h2>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+             
+             {/* CHANGE PASSWORD */}
+             <form onSubmit={handleChangePassword} className="space-y-3">
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2"><Key size={14}/> Change Password</h3>
+                <input 
+                  type="password" placeholder="Current Password" required
+                  value={passForm.current} onChange={(e) => setPassForm({...passForm, current: e.target.value})}
+                  className="input-field w-full"
+                />
+                <input 
+                  type="password" placeholder="New Password" required
+                  value={passForm.new} onChange={(e) => setPassForm({...passForm, new: e.target.value})}
+                  className="input-field w-full"
+                />
+                <input 
+                  type="password" placeholder="Confirm New Password" required
+                  value={passForm.confirm} onChange={(e) => setPassForm({...passForm, confirm: e.target.value})}
+                  className="input-field w-full"
+                />
+                <button type="submit" className="w-full bg-muted hover:bg-muted/80 text-foreground text-xs font-bold py-2 rounded border border-border">
+                   Update Password
+                </button>
+             </form>
+
+             {/* MFA TOGGLE */}
+             <div className="space-y-3 border-l border-border pl-6">
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2"><Lock size={14}/> 2-Factor Authentication</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                   Secure your account. When enabled, we will send an OTP to your registered email upon login.
+                </p>
+                <div className="flex items-center justify-between bg-muted/20 p-3 rounded-lg border border-border/50 mt-2">
+                   <span className="text-sm font-medium">Email MFA</span>
+                   <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                      <input 
+                        type="checkbox" 
+                        name="toggle" 
+                        id="mfa-toggle" 
+                        checked={mfaEnabled}
+                        onChange={(e) => {
+                           setMfaEnabled(e.target.checked);
+                           updateProfile(user.id, { mfaEnabled: e.target.checked })
+                             .then(() => toast.success(`MFA ${e.target.checked ? 'Enabled' : 'Disabled'}`))
+                             .catch(() => toast.error("Failed to toggle MFA"));
+                        }}
+                        className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer checked:right-0 checked:border-green-400"
+                        style={{ right: mfaEnabled ? '0' : 'auto', left: mfaEnabled ? 'auto' : '0' }}
+                      />
+                      <label htmlFor="mfa-toggle" className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer ${mfaEnabled ? 'bg-green-400' : 'bg-gray-300'}`}></label>
+                   </div>
+                </div>
+             </div>
+          </div>
+        </div>
+
+        {/* 3. SESSION TIMER (Read-Only/View) */}
+        <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
+          <div className="p-4 border-b border-border bg-muted/30 flex items-center space-x-2">
+            <Clock className="text-primary" size={18} />
+            <h2 className="font-semibold text-foreground">Session Configuration</h2>
+          </div>
+          <div className="p-6 flex items-center justify-between">
+             <div className="space-y-1">
+               <p className="text-sm font-medium text-foreground">Auto-Logout Timer</p>
+               <p className="text-xs text-muted-foreground">Your session will expire after inactivity.</p>
+             </div>
+             <div className="bg-primary/10 text-primary px-4 py-2 rounded-lg font-mono font-bold text-lg">
+                {settings.general.sessionTimeout} MIN
+             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================================================================================
+  // VIEW 2: ADMIN VIEW (Global Config) - Original Functionality Preserved
+  // ==================================================================================
   return (
     <div className="max-w-4xl space-y-6 animate-in fade-in duration-500 pb-10">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">System Settings</h1>
+        <h1 className="text-2xl font-bold text-foreground">System Settings (Admin)</h1>
         <p className="text-muted-foreground text-sm">Configure company profile, security, and user roles.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        
-        {/* SECTION: GENERAL CONFIG */}
+        {/* GENERAL CONFIG */}
         <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
           <div className="p-4 border-b border-border bg-muted/30 flex items-center space-x-2">
             <Globe className="text-primary" size={18} />
@@ -116,8 +292,6 @@ const SettingsPage: React.FC = () => {
           </div>
           
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* LEFT COLUMN: IDENTITY */}
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-muted-foreground uppercase">Company Name</label>
@@ -132,12 +306,10 @@ const SettingsPage: React.FC = () => {
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-muted-foreground uppercase">Session Time (Minutes)</label>
                 <input 
-                  type="number"
-                  min="5" // Enforces a minimum value in the UI
+                  type="number" min="5"
                   value={settings.general.sessionTimeout}
                   onChange={(e) => {
                     const val = parseInt(e.target.value);
-                    // Ensures the state never drops below 5 minutes
                     handleGeneralChange('sessionTimeout', isNaN(val) ? 5 : Math.max(5, val));
                   }}
                   className="input-field w-full p-2 rounded-md bg-background border border-input" 
@@ -156,7 +328,7 @@ const SettingsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* RIGHT COLUMN: LOGO UPLOAD */}
+            {/* LOGO UPLOAD */}
             <div className="space-y-4">
                <label className="text-xs font-bold text-muted-foreground uppercase">Company Logo</label>
                <div className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center bg-muted/10">
@@ -200,7 +372,7 @@ const SettingsPage: React.FC = () => {
                </div>
             </div>
 
-            {/* FULL WIDTH: LOCATION */}
+            {/* LOCATION */}
             <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4 pt-2 border-t border-border">
                <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground uppercase">Country</label>
@@ -260,7 +432,7 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* SECTION: USER ROLES & PERMISSIONS */}
+        {/* USER ROLES */}
         <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
           <div className="p-4 border-b border-border bg-muted/30 flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -351,7 +523,7 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* SECTION: TRB RULES */}
+        {/* TRB RULES */}
         <div className="bg-card rounded-xl shadow-sm border border-border overflow-hidden">
           <div className="p-4 border-b border-border bg-muted/30 flex items-center space-x-2">
             <Shield className="text-primary" size={18} />
@@ -388,7 +560,7 @@ const SettingsPage: React.FC = () => {
         {/* SAVE BUTTON */}
         <div className="flex justify-end pt-2 sticky bottom-4">
           <button 
-            onClick={handleSave}
+            onClick={handleSaveGlobal}
             className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-md active:scale-95"
           >
             <Save size={18} />

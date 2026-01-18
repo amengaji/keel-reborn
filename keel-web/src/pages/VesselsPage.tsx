@@ -1,4 +1,4 @@
-// keel-web/src/pages/VesselsPage.tsx
+//keel-web/src/pages/VesselsPage.tsx
 
 import React, { useEffect, useState } from 'react';
 import { 
@@ -15,8 +15,7 @@ import { toast } from 'sonner';
 /**
  * VesselsPage Component
  * Manages display and CRUD for the Fleet.
- * FIXED: Replaced hardcoded slate classes with semantic variables (bg-card, border-border, bg-background).
- * This ensures light mode displays with a clean white background as per index.css.
+ * UPDATED: Wires up the 'crewEmails' payload to ensure Command Team accounts are created.
  */
 const VesselsPage: React.FC = () => {
   // State management for Fleet and Trainees from SQL database
@@ -64,7 +63,7 @@ const VesselsPage: React.FC = () => {
   }, []);
 
   /**
-   * FIXED: Calculates cadet count by matching the Vessel ID.
+   * Calculates cadet count by matching the Vessel ID.
    * Looks at direct vessel_id property or nested assignments array from the SQL response.
    */
   const getCadetCount = (vesselId: number) => {
@@ -82,16 +81,19 @@ const VesselsPage: React.FC = () => {
 
   /**
    * Handles both Creating and Updating vessel records.
+   * UPDATED: Includes crewEmails in the payload for Account Creation.
    */
   const handleSaveVessel = async (data: any) => {
     try {
+      // Construct Payload - Added crewEmails to support command team creation
       const vesselPayload = {
         name: data.name,
         imo_number: data.imo || data.imo_number,
         vessel_type: data.type || data.vessel_type,
         flag: data.flag,
         class_society: data.class_society,
-        is_active: data.is_active === undefined ? true : data.is_active
+        is_active: data.is_active === undefined ? true : data.is_active,
+        crewEmails: data.crewEmails // <--- IMPORTANT: Passes the emails to the backend
       };
 
       if (editingVessel && editingVessel.id) {
@@ -101,7 +103,7 @@ const VesselsPage: React.FC = () => {
       } else {
         // Add Mode: Create new record
         await vesselService.create(vesselPayload);
-        toast.success('New vessel added to fleet.');
+        toast.success('New vessel added. Command accounts created.');
       }
       
       refreshData();
@@ -138,6 +140,7 @@ const VesselsPage: React.FC = () => {
 
   /**
    * Bulk import logic for Excel/CSV data.
+   * UPDATED: Includes crewEmails to support auto-creation of users during import.
    */
   const handleImport = async (data: any[]) => {
     toast.info(`Importing ${data.length} vessels...`);
@@ -145,15 +148,16 @@ const VesselsPage: React.FC = () => {
       try {
         await vesselService.create({
           name: item.name,
-          imo_number: String(item.imo),
+          imo_number: String(item.imo_number),
           vessel_type: item.vessel_type || "Other",
           flag: item.flag || "Unknown",
           class_society: item.class_society || "Unknown",
-          is_active: true
+          is_active: true,
+          crewEmails: item.crewEmails // <--- IMPORTANT: Passes auto-generated emails
         });
       } catch (err) { console.error("Import row failed:", err); }
     }
-    toast.success("Bulk import complete.");
+    toast.success("Bulk import complete. Command accounts created.");
     refreshData();
   };
 
@@ -207,7 +211,7 @@ const VesselsPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-140px)] flex flex-col bg-background p-4 transition-colors duration-300">
       
-      {/* HEADER SECTION - Theming fixed to use text-foreground */}
+      {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 shrink-0">
         <div className="flex flex-col gap-0.5">
           <h1 className="text-2xl font-bold text-foreground">Fleet Management</h1>
@@ -229,7 +233,7 @@ const VesselsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TOOLBAR - Replaced bg-white with bg-card */}
+      {/* TOOLBAR */}
       <div className="flex justify-between items-center bg-card p-4 rounded-2xl border border-border shrink-0 shadow-sm transition-colors duration-300">
         <div className="relative w-80">
            <Search className="absolute left-3 top-3 text-muted-foreground" size={16} />
@@ -256,7 +260,7 @@ const VesselsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TABLE SECTION - Semantic theming for light/dark mode compatibility */}
+      {/* TABLE SECTION */}
       <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex-1 flex flex-col transition-colors duration-300">
         <div className="overflow-auto flex-1 scrollbar-thin scrollbar-thumb-muted">
            <table className="w-full text-left border-collapse text-sm">
@@ -291,7 +295,6 @@ const VesselsPage: React.FC = () => {
                     <tr><td colSpan={7} className="p-10 text-center text-muted-foreground font-medium">No vessels found matching your search.</td></tr>
                  ) : (
                     paginatedData.map((vessel: any) => {
-                       // Calculate real-time count using the SQL assignment matching logic
                        const cadetCount = getCadetCount(vessel.id);
                        return (
                           <tr key={vessel.id} className="hover:bg-muted/20 transition-colors group">
