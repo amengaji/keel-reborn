@@ -1,10 +1,17 @@
+// keel-backend/src/controllers/cadet.controller.ts
+
 import { Request, Response } from 'express';
 import User from '../models/User';
 import Role from '../models/Role';
 import Vessel from '../models/Vessel';
 import bcrypt from 'bcryptjs';
 
-// GET ALL CADETS
+/**
+ * GET ALL CADETS
+ * PURPOSE: Fetches all users with the 'CADET' role.
+ * FIXED: Sends raw database attributes so the Assignments Page and Cadets Page 
+ * both receive the same predictable data structure.
+ */
 export const getCadets = async (req: Request, res: Response) => {
   try {
     const cadets = await User.findAll({
@@ -12,47 +19,33 @@ export const getCadets = async (req: Request, res: Response) => {
         { 
           model: Role, 
           as: 'role', 
-          where: { name: 'CADET' } // Filter by Role
+          where: { name: 'CADET' } 
         },
         {
           model: Vessel,
           as: 'vessel',
-          attributes: ['id', 'name'] // Include vessel name
+          attributes: ['id', 'name'] 
         }
       ],
-      attributes: { exclude: ['password_hash'] } // Don't send passwords
+      attributes: { exclude: ['password_hash'] }, // Safety: Never send hashes
+      order: [['first_name', 'ASC']]
     });
     
-    // Transform data to match frontend expectations if needed
-    const formatted = cadets.map((c: any) => ({
-      id: c.id,
-      name: `${c.first_name} ${c.last_name}`,
-      email: c.email,
-      rank: c.rank || 'Cadet',
-      nationality: c.nationality || 'Unknown',
-      vessel: c.vessel?.name || 'Unassigned',
-      vesselId: c.vessel_id,
-      status: c.status,
-      indos: c.indos_number,
-      signOnDate: c.sign_on_date,
-      mobile: c.phone
-    }));
-
-    res.json(formatted);
+    // We send the raw array. The frontend services handle specific formatting.
+    res.json(cadets);
   } catch (error: any) {
+    console.error("FETCH CADETS ERROR:", error);
     res.status(500).json({ message: 'Error fetching cadets', error: error.message });
   }
 };
 
-// CREATE CADET
+/**
+ * CREATE CADET
+ * PURPOSE: Adds a new trainee to the system.
+ * Handles both 'fullName' (from imports) or 'first_name/last_name' (from forms).
+ */
 export const createCadet = async (req: Request, res: Response) => {
   try {
-    /**
-     * ACCEPT MULTIPLE PAYLOAD SHAPES SAFELY
-     * Supports:
-     * - fullName
-     * - first_name + last_name
-     */
     const {
       fullName,
       first_name,
@@ -65,18 +58,11 @@ export const createCadet = async (req: Request, res: Response) => {
       phone,
     } = req.body;
 
-    // ------------------------------------------------------------------
-    // 1. VALIDATE EMAIL (MANDATORY)
-    // ------------------------------------------------------------------
     if (!email) {
-      return res.status(400).json({
-        message: "Email is required to create cadet",
-      });
+      return res.status(400).json({ message: "Email is required" });
     }
 
-    // ------------------------------------------------------------------
-    // 2. RESOLVE FIRST & LAST NAME (NO NULLS ALLOWED)
-    // ------------------------------------------------------------------
+    // RESOLVE NAMES: Ensure we have a first and last name for the DB
     let resolvedFirstName: string;
     let resolvedLastName: string;
 
@@ -86,40 +72,18 @@ export const createCadet = async (req: Request, res: Response) => {
     } else if (fullName) {
       const parts = fullName.trim().split(/\s+/);
       resolvedFirstName = parts[0];
-      resolvedLastName =
-        parts.length > 1 ? parts.slice(1).join(" ") : "Trainee";
+      resolvedLastName = parts.length > 1 ? parts.slice(1).join(" ") : "Trainee";
     } else {
-      return res.status(400).json({
-        message:
-          "Cadet name is required (provide fullName or first_name + last_name)",
-      });
+      return res.status(400).json({ message: "Name is required" });
     }
 
-    // Extra hard safety (never allow empty strings)
-    if (!resolvedFirstName || !resolvedLastName) {
-      return res.status(400).json({
-        message: "Invalid cadet name provided",
-      });
-    }
-
-    // ------------------------------------------------------------------
-    // 3. FIND CADET ROLE
-    // ------------------------------------------------------------------
     const cadetRole = await Role.findOne({ where: { name: "CADET" } });
     if (!cadetRole) {
-      return res.status(500).json({
-        message: "System configuration error: CADET role missing",
-      });
+      return res.status(500).json({ message: "System Error: CADET role missing" });
     }
 
-    // ------------------------------------------------------------------
-    // 4. HASH PASSWORD (MANDATORY)
-    // ------------------------------------------------------------------
     const passwordHash = await bcrypt.hash(password || "cadet123", 10);
 
-    // ------------------------------------------------------------------
-    // 5. CREATE USER (AUTHORITATIVE IDENTITY)
-    // ------------------------------------------------------------------
     const newUser = await User.create({
       first_name: resolvedFirstName,
       last_name: resolvedLastName,
@@ -133,37 +97,24 @@ export const createCadet = async (req: Request, res: Response) => {
       status: "Ready",
     });
 
-    // ------------------------------------------------------------------
-    // 6. RESPONSE
-    // ------------------------------------------------------------------
     return res.status(201).json({
       message: "Cadet profile created successfully",
-      cadet: {
-        id: newUser.id,
-        name: `${newUser.first_name} ${newUser.last_name}`,
-        email: newUser.email,
-        rank: newUser.rank,
-        nationality: newUser.nationality,
-        phone: newUser.phone,
-        status: newUser.status,
-      },
+      cadet: newUser
     });
   } catch (error: any) {
     console.error("CREATE CADET ERROR:", error);
-    return res.status(500).json({
-      message: "Error creating cadet",
-      error: error.message,
-    });
+    return res.status(500).json({ message: "Error creating cadet", error: error.message });
   }
 };
 
-
-// DELETE CADET
+/**
+ * DELETE CADET
+ */
 export const deleteCadet = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await User.destroy({ where: { id } });
-    res.json({ message: 'Cadet removed' });
+    res.json({ message: 'Cadet removed successfully' });
   } catch (error: any) {
     res.status(500).json({ message: 'Error removing cadet', error: error.message });
   }

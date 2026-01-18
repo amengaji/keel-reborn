@@ -1,6 +1,6 @@
 // keel-web/src/services/cadetService.ts
 
-const API_URL = 'http://localhost:5000/api/trainees'; // Matches the route we set in backend
+const API_URL = 'http://localhost:5000/api/trainees'; 
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('keel_token');
@@ -17,15 +17,9 @@ export const cadetService = {
     if (!res.ok) throw new Error('Failed to fetch trainee data');
 
     const json = await res.json();
-    const data = Array.isArray(json?.data) ? json.data : json;
-
-    // 🔥 FIX: backend has first_name + last_name, UI expects full_name
-    return data.map((u: any) => ({
-      ...u,
-      full_name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim(),
-    }));
+    // Return the raw data. We will handle the name display in the UI component.
+    return Array.isArray(json?.data) ? json.data : json;
   },
-
 
   // CREATE new cadet
   create: async (data: any) => {

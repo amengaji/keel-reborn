@@ -1,3 +1,5 @@
+// keel-backend/src/controllers/traineeAssignment.controller.ts
+
 import { Request, Response } from "express";
 import TraineeAssignment from "../models/TraineeAssignment";
 import User from "../models/User";
@@ -5,6 +7,8 @@ import Vessel from "../models/Vessel";
 
 /**
  * GET all ACTIVE trainee-vessel assignments
+ * FIXED: Ensures trainee first_name and last_name are explicitly included 
+ * and properly structured for the frontend.
  */
 export const getActiveTraineeAssignments = async (_req: Request, res: Response) => {
   try {
@@ -13,7 +17,7 @@ export const getActiveTraineeAssignments = async (_req: Request, res: Response) 
       include: [
         {
           model: User,
-          as: "trainee",
+          as: "trainee", // This alias must match the association in associations.ts
           attributes: [
             "id",
             "first_name",
@@ -30,7 +34,18 @@ export const getActiveTraineeAssignments = async (_req: Request, res: Response) 
       order: [["created_at", "DESC"]],
     });
 
-    res.json(rows);
+    // Helper: Map the rows to ensure the trainee object is never null 
+    // and keys are predictable for the frontend.
+    const formattedRows = rows.map(row => {
+      const data = row.toJSON();
+      return {
+        ...data,
+        // Ensure trainee exists to prevent "Deck Cadet" fallback on UI
+        trainee: data.trainee || { first_name: "Unknown", last_name: "Trainee", rank: "N/A" }
+      };
+    });
+
+    res.json(formattedRows);
   } catch (error) {
     console.error("GET ACTIVE TRAINEE ASSIGNMENTS ERROR:", error);
     res.status(500).json({ message: "Failed to fetch trainee assignments" });
@@ -69,10 +84,11 @@ export const unassignTrainee = async (req: Request, res: Response) => {
   try {
     const { traineeId } = req.params;
 
+    // Set status to COMPLETED and set sign-off date
     await TraineeAssignment.update(
       {
         status: "COMPLETED",
-        sign_off_date: new Date(),
+        sign_off_date: new Date().toISOString().split('T')[0], // Standard YYYY-MM-DD
       },
       {
         where: {

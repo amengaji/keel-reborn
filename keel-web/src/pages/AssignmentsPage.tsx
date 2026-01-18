@@ -1,7 +1,7 @@
 // keel-web/src/pages/AssignmentsPage.tsx
 
 import React, { useEffect, useState } from 'react';
-import { Ship, ArrowRight, UserCheck, Hand, Search, UserMinus } from 'lucide-react'; 
+import { Ship, ArrowRight, UserCheck, Hand, Search, UserMinus, User } from 'lucide-react'; 
 import { cadetAssignmentService } from '../services/cadetAssignmentService'; 
 import { cadetService } from '../services/cadetService'; 
 import { vesselService } from '../services/vesselService';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 /**
  * AssignmentsPage Component
  * Connected to the SQL backend to manage real-time vessel assignments.
+ * Helper comments added for clarity.
  */
 const AssignmentsPage: React.FC = () => {
   const [cadets, setCadets] = useState<any[]>([]);
@@ -17,44 +18,36 @@ const AssignmentsPage: React.FC = () => {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // MODAL STATE
   const [selectedCadet, setSelectedCadet] = useState<any>(null);
   const [assignDate, setAssignDate] = useState('');
-  const [selectedVessel, setSelectedVessel] = useState('');
+  const [selectedVesselId, setSelectedVesselId] = useState('');
 
-  // DRAG STATE
   const [dragOverVesselId, setDragOverVesselId] = useState<string | number | null>(null);
-
-  // SEARCH STATES
   const [searchReady, setSearchReady] = useState('');
   const [searchFleet, setSearchFleet] = useState('');
 
-  /**
-   * Fetches real data from the Backend API
-   */
+  // Helper function to get the name safely from a trainee object
+  const getTraineeName = (c: any) => {
+    if (!c) return "Unknown Trainee";
+    const firstName = c.first_name || "";
+    const lastName = c.last_name || "";
+    const fullName = `${firstName} ${lastName}`.trim();
+    // If name is empty, return the rank, otherwise return the name
+    return fullName.length > 0 ? fullName : (c.rank || "Unnamed Trainee");
+  };
+
   const refreshData = async () => {
     setIsLoading(true);
-
     try {
-      const cadetPromise = cadetService.getAll();
-      const vesselPromise = vesselService.getAll();
-      const assignmentPromise = cadetAssignmentService.getActive();
-
       const [cadetRes, vesselRes, assignmentRes] = await Promise.all([
-        cadetPromise,
-        vesselPromise,
-        assignmentPromise
+        cadetService.getAll(),
+        vesselService.getAll(),
+        cadetAssignmentService.getActive()
       ]);
 
-      const cadetData = Array.isArray(cadetRes?.data) ? cadetRes.data : cadetRes;
-      const vesselData = Array.isArray(vesselRes?.data) ? vesselRes.data : vesselRes;
-      const assignmentData = Array.isArray(assignmentRes?.data)
-        ? assignmentRes.data
-        : assignmentRes;
-
-      setCadets(Array.isArray(cadetData) ? cadetData : []);
-      setVessels(Array.isArray(vesselData) ? vesselData : []);
-      setAssignments(Array.isArray(assignmentData) ? assignmentData : []);
+      setCadets(Array.isArray(cadetRes) ? cadetRes : []);
+      setVessels(Array.isArray(vesselRes) ? vesselRes : []);
+      setAssignments(Array.isArray(assignmentRes) ? assignmentRes : []);
     } catch (error) {
       console.error("FETCH ERROR:", error);
       toast.error("Failed to connect to fleet database.");
@@ -67,11 +60,8 @@ const AssignmentsPage: React.FC = () => {
     refreshData();
   }, []);
 
-  /**
-   * Handles assigning a cadet to a vessel in the DB
-   */
   const handleAssign = async () => {
-    if (!selectedCadet || !selectedVessel || !assignDate) {
+    if (!selectedCadet || !selectedVesselId || !assignDate) {
       toast.error("Please fill all assignment details.");
       return;
     }
@@ -79,49 +69,32 @@ const AssignmentsPage: React.FC = () => {
     try {
       await cadetAssignmentService.assign({
         cadet_id: selectedCadet.id,
-        vessel_id: Number(selectedVessel),
+        vessel_id: Number(selectedVesselId),
         sign_on_date: assignDate
       });
 
-      toast.success(
-        `${selectedCadet.first_name} ${selectedCadet.last_name} assigned`
-      );
-
+      toast.success(`${getTraineeName(selectedCadet)} assigned successfully.`);
       setSelectedCadet(null);
-      setSelectedVessel('');
+      setSelectedVesselId('');
       setAssignDate('');
       refreshData();
-    } catch (err) {
-      console.error("ASSIGN UI ERROR:", err);
-      toast.error("Assignment failed on server.");
+    } catch (err: any) {
+      toast.error(err.message || "Assignment failed.");
     }
   };
 
-
-  /**
-   * HANDLE UNASSIGN
-   */
   const handleUnassign = async (trainee: any) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to unassign ${trainee.first_name} ${trainee.last_name}?`
-      )
-    ) {
-      return;
-    }
+    if (!window.confirm(`Sign off ${getTraineeName(trainee)}?`)) return;
 
     try {
       await cadetAssignmentService.unassign(trainee.id);
-      toast.info(`${trainee.first_name} ${trainee.last_name} returned to Ready Pool.`);
-
+      toast.info(`${getTraineeName(trainee)} signed off.`);
       refreshData();
     } catch (err) {
-      console.error("UNASSIGN UI ERROR:", err);
-      toast.error("Could not process unassignment.");
+      toast.error("Could not process sign-off.");
     }
   };
 
-  // DRAG HANDLERS
   const handleDragStart = (e: React.DragEvent, cadet: any) => {
     e.dataTransfer.setData("cadet", JSON.stringify(cadet));
   };
@@ -134,138 +107,76 @@ const AssignmentsPage: React.FC = () => {
   const handleDrop = (e: React.DragEvent, vessel: any) => {
     e.preventDefault();
     setDragOverVesselId(null);
-
     const cadetData = e.dataTransfer.getData("cadet");
     if (!cadetData) return;
-
     const cadet = JSON.parse(cadetData);
     setSelectedCadet(cadet);
-    setSelectedVessel(vessel.name);
+    setSelectedVesselId(vessel.id.toString());
   };
 
-    /**
-     * FILTER LOGIC
-     */
-    const readyCadets = cadets
-    .filter(c => c.status === 'Ready' || c.status === 'Leave' || c.status === 'Training')
-    .filter(c =>
-      `${c.first_name ?? ''} ${c.last_name ?? ''}`
-        .toLowerCase()
-        .includes(searchReady.toLowerCase())
-    );
-
-
-  const filteredVessels = vessels.filter(v =>
-    (v.name || '').toLowerCase().includes(searchFleet.toLowerCase())
+  // Filter Pool
+  const readyCadets = cadets.filter(c => 
+    (c.status === 'Ready' || c.status === 'Leave' || c.status === 'Training') &&
+    getTraineeName(c).toLowerCase().includes(searchReady.toLowerCase())
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-140px)] flex flex-col dark:bg-background">
+    <div className="space-y-6 h-[calc(100vh-140px)] flex flex-col bg-slate-50 dark:bg-slate-950 p-4">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Trainee Assignments</h1>
-        <p className="text-muted-foreground text-sm">
-          Drag 'Ready' trainees from the database to active vessels.
-        </p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Fleet Assignments</h1>
+        <p className="text-slate-500 text-sm">Manage vessel crew lists via drag-and-drop.</p>
       </div>
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
-
-        {/* LEFT COL: READY POOL */}
-        <div className="bg-card dark:bg-muted/10 border border-border rounded-xl flex flex-col overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-border bg-muted/30 space-y-3">
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <UserCheck size={18} className="text-blue-500" /> Ready Pool
-              </h3>
-              <span className="bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold px-2 py-1 rounded-full">
-                {readyCadets.length}
-              </span>
-            </div>
-
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2 text-muted-foreground" size={14} />
-              <input
-                type="text"
-                placeholder="Search DB trainees..."
-                value={searchReady}
-                onChange={(e) => setSearchReady(e.target.value)}
-                className="w-full bg-background dark:bg-background/50 pl-8 pr-3 py-1.5 rounded-md border border-input text-sm focus:ring-1 focus:ring-primary outline-none"
-              />
-            </div>
+        
+        {/* POOL */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col overflow-hidden shadow-sm">
+          <div className="p-4 border-b dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+            <h3 className="font-semibold dark:text-white flex items-center gap-2 mb-3">
+              <UserCheck size={18} className="text-blue-500" /> Ready Pool ({readyCadets.length})
+            </h3>
+            <input
+              type="text"
+              placeholder="Search trainees..."
+              value={searchReady}
+              onChange={(e) => setSearchReady(e.target.value)}
+              className="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border dark:border-slate-700 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+            />
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {isLoading ? (
-              <p className="text-center text-xs text-muted-foreground py-10">
-                Syncing with server...
-              </p>
-            ) : readyCadets.length === 0 ? (
-              <p className="text-center text-xs text-muted-foreground py-10">
-                No ready trainees in database.
-              </p>
-            ) : (
-              readyCadets.map(cadet => (
-                <div
-                  key={cadet.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, cadet)}
-                  className="bg-background dark:bg-muted/5 border border-border p-3 rounded-lg flex justify-between items-center hover:border-primary/50 hover:shadow-md cursor-grab active:cursor-grabbing transition-all group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="text-muted-foreground/30 group-hover:text-primary/50">
-                      <Hand size={14} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-foreground text-sm">
-                        {(cadet.first_name || '') + ' ' + (cadet.last_name || '') || 'Unnamed Trainee'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{cadet.rank}</p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setSelectedCadet(cadet)}
-                    className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary hover:text-white"
-                  >
-                    <ArrowRight size={12} />
-                  </button>
+            {readyCadets.map(cadet => (
+              <div
+                key={cadet.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e, cadet)}
+                className="bg-slate-50 dark:bg-slate-800/40 border dark:border-slate-700 p-3 rounded-lg flex justify-between items-center hover:border-blue-500 cursor-grab active:cursor-grabbing transition-all group"
+              >
+                <div>
+                  <p className="font-bold text-sm dark:text-white">{getTraineeName(cadet)}</p>
+                  <p className="text-xs text-slate-500">{cadet.rank}</p>
                 </div>
-              ))
-            )}
+                <button onClick={() => setSelectedCadet(cadet)} className="p-1 text-slate-400 hover:text-blue-500">
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* RIGHT COL: FLEET STATUS */}
-        <div className="lg:col-span-2 bg-card dark:bg-muted/10 border border-border rounded-xl flex flex-col overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-border bg-muted/30 space-y-3">
-            <div className="flex justify-between items-center">
-              <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <Ship size={18} className="text-teal-500" /> Fleet Status
-              </h3>
-            </div>
-
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2 text-muted-foreground" size={14} />
-              <input
-                type="text"
-                placeholder="Search fleet..."
-                value={searchFleet}
-                onChange={(e) => setSearchFleet(e.target.value)}
-                className="w-full bg-background dark:bg-background/50 pl-8 pr-3 py-1.5 rounded-md border border-input text-sm focus:ring-1 focus:ring-primary outline-none"
-              />
-            </div>
+        {/* FLEET */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col overflow-hidden">
+          <div className="p-4 border-b dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+            <h3 className="font-semibold dark:text-white flex items-center gap-2">
+              <Ship size={18} className="text-teal-500" /> Active Fleet Status
+            </h3>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredVessels.map(vessel => {
-              const crewAssignments = assignments.filter((a: any) => {
-                const aVesselId = a?.vessel?.id ?? a?.vessel_id;
-                const isActive = (a?.status || '').toUpperCase() === 'ACTIVE';
-                return String(aVesselId) === String(vessel.id) && isActive;
-              });
-
-              const crew = crewAssignments
-                .map((a: any) => a?.trainee)
+            {vessels.map(vessel => {
+              const crew = assignments
+                .filter(a => String(a.vessel_id) === String(vessel.id) && a.status === 'ACTIVE')
+                .map(a => a.trainee)
                 .filter(Boolean);
 
               const isDragOver = dragOverVesselId === vessel.id;
@@ -274,51 +185,27 @@ const AssignmentsPage: React.FC = () => {
                 <div
                   key={vessel.id}
                   onDragOver={(e) => handleDragOver(e, vessel.id)}
-                  onDragLeave={(e) => { e.preventDefault(); setDragOverVesselId(null); }}
+                  onDragLeave={() => setDragOverVesselId(null)}
                   onDrop={(e) => handleDrop(e, vessel)}
-                  className={`border rounded-lg p-4 space-y-3 h-fit transition-all duration-200 ${
-                    isDragOver
-                      ? 'border-dashed border-2 border-primary bg-primary/5 scale-[1.02]'
-                      : 'bg-background dark:bg-muted/5 border-border'
+                  className={`border rounded-xl p-4 min-h-[120px] transition-all ${
+                    isDragOver ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/10' : 'bg-slate-50 dark:bg-slate-800/30 dark:border-slate-700'
                   }`}
                 >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className={`font-bold ${isDragOver ? 'text-primary' : 'text-foreground'}`}>
-                        {vessel.name}
-                      </h4>
-                      <p className="text-xs text-muted-foreground">{vessel.vessel_type}</p>
-                    </div>
-                    <span className="text-xs font-mono bg-muted px-2 py-1 rounded text-muted-foreground">
-                      {crew.length} Trainees
+                  <div className="flex justify-between items-start mb-3">
+                    <h4 className="font-bold dark:text-white">{vessel.name}</h4>
+                    <span className="text-[10px] bg-white dark:bg-slate-700 px-2 py-1 rounded dark:text-slate-300">
+                      {crew.length} ONBOARD
                     </span>
                   </div>
 
-                  <div className="space-y-2 pt-2 border-t border-border">
-                    {crew.length === 0 && !isDragOver && (
-                      <p className="text-xs text-muted-foreground italic">
-                        No trainees onboard.
-                      </p>
-                    )}
-
+                  <div className="space-y-2">
                     {crew.map((c: any) => (
-                      <div
-                        key={c.id}
-                        className="flex items-center justify-between gap-2 text-sm text-foreground bg-muted/20 p-2 rounded group"
-                      >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
-                            {(c.first_name || 'C').charAt(0)}
-                          </div>
-                          <span className="truncate">
-                            {(c.first_name || '') + ' ' + (c.last_name || '') || 'Unnamed Trainee'}
-                          </span>
+                      <div key={c.id} className="flex items-center justify-between bg-white dark:bg-slate-800 p-2 rounded shadow-sm border dark:border-slate-700 group">
+                        <div className="truncate">
+                          <p className="text-sm font-bold dark:text-white truncate">{getTraineeName(c)}</p>
+                          <p className="text-[10px] text-slate-500 uppercase">{c.rank}</p>
                         </div>
-
-                        <button
-                          onClick={() => handleUnassign(c)}
-                          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 p-1 rounded transition-colors opacity-0 group-hover:opacity-100"
-                        >
+                        <button onClick={() => handleUnassign(c)} className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
                           <UserMinus size={14} />
                         </button>
                       </div>
@@ -331,55 +218,36 @@ const AssignmentsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ASSIGNMENT MODAL */}
+      {/* MODAL */}
       {selectedCadet && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-card dark:bg-zinc-900 w-full max-w-md rounded-xl border border-border shadow-2xl p-6 space-y-4 animate-in zoom-in-95">
-            <h3 className="font-bold text-lg text-foreground">
-              Assign {(selectedCadet.first_name || '') + ' ' + (selectedCadet.last_name || '')}
-            </h3>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground uppercase">
-                Select Vessel
-              </label>
-              <select
-                className="input-field bg-background border border-border w-full p-2 rounded"
-                value={selectedVessel}
-                onChange={(e) => setSelectedVessel(e.target.value)}
-              >
-                <option value="">Choose Vessel...</option>
-                {vessels.map(v => (
-                  <option key={v.id} value={v.id}>{v.name}</option>
-                ))}
-              </select>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl p-6 shadow-2xl border dark:border-slate-800">
+            <h3 className="font-bold text-lg dark:text-white mb-4">Assign {getTraineeName(selectedCadet)}</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Select Vessel</label>
+                <select
+                  className="w-full bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 p-2 rounded-lg mt-1 dark:text-white outline-none"
+                  value={selectedVesselId}
+                  onChange={(e) => setSelectedVesselId(e.target.value)}
+                >
+                  <option value="">-- Choose --</option>
+                  {vessels.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Sign On Date</label>
+                <input
+                  type="date"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 p-2 rounded-lg mt-1 dark:text-white outline-none"
+                  value={assignDate}
+                  onChange={(e) => setAssignDate(e.target.value)}
+                />
+              </div>
             </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted-foreground uppercase">
-                Sign On Date
-              </label>
-              <input
-                type="date"
-                className="input-field bg-background border border-border w-full p-2 rounded"
-                value={assignDate}
-                onChange={(e) => setAssignDate(e.target.value)}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => { setSelectedCadet(null); setSelectedVessel(''); }}
-                className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAssign}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-bold shadow-sm"
-              >
-                Confirm Assignment
-              </button>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setSelectedCadet(null)} className="text-sm text-slate-500 font-semibold">Cancel</button>
+              <button onClick={handleAssign} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg">Confirm</button>
             </div>
           </div>
         </div>
