@@ -15,6 +15,11 @@ interface ImportCadetModalProps {
   onImport: (data: any[]) => void;
 }
 
+/**
+ * ImportCadetModal Component
+ * Handles bulk import of cadet data from XLSX files.
+ * FIXED: Optimized Tailwind classes to utilize semantic theme variables for Light/Dark mode.
+ */
 const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, onImport }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -193,32 +198,40 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-       <div className={`bg-card dark:bg-zinc-900 w-full ${previewData ? 'max-w-5xl' : 'max-w-lg'} rounded-xl border border-border shadow-2xl transition-all`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4">
+       <div className={`bg-card w-full ${previewData ? 'max-w-5xl' : 'max-w-lg'} rounded-xl border border-border shadow-2xl transition-all overflow-hidden`}>
           
-          <div className="flex items-center justify-between p-4 border-b border-border">
+          {/* HEADER */}
+          <div className="flex items-center justify-between p-4 border-b border-border bg-card">
              <div className="flex items-center space-x-2 text-foreground">
-                <FileSpreadsheet size={20} className="text-teal-600" />
+                <FileSpreadsheet size={20} className="text-primary" />
                 <h2 className="font-bold text-lg">Import Trainees</h2>
              </div>
-             <button onClick={onClose}><X size={20} className="text-muted-foreground hover:text-foreground"/></button>
+             <button 
+              onClick={onClose}
+              className="p-1 rounded-lg hover:bg-muted transition-colors"
+             >
+              <X size={20} className="text-muted-foreground hover:text-foreground"/>
+             </button>
           </div>
           
           {!previewData ? (
-             <div className="p-6 space-y-6">
-                 <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg flex items-start space-x-3">
-                    <AlertTriangle className="text-blue-500 shrink-0 mt-0.5" size={18} />
+             <div className="p-6 space-y-6 bg-card">
+                 {/* ALERT BOX */}
+                 <div className="bg-primary/10 border border-primary/20 p-4 rounded-xl flex items-start space-x-3">
+                    <AlertTriangle className="text-primary shrink-0 mt-0.5" size={18} />
                     <div className="text-sm">
                        <p className="font-bold text-foreground">Full Field Support</p>
-                       <p className="text-muted-foreground mt-1">
+                       <p className="text-muted-foreground mt-1 leading-relaxed">
                           This template now includes columns for <b>Password</b>, <b>Mobile</b>, <b>Passport</b>, <b>CDC</b>, and <b>TRB</b>.
                        </p>
                     </div>
                  </div>
 
+                 {/* DROP ZONE */}
                  <div 
-                   className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center transition-all cursor-pointer ${
-                     dragActive ? 'border-primary bg-primary/5' : 'border-border bg-muted/20 hover:bg-muted/40'
+                   className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center transition-all cursor-pointer ${
+                     dragActive ? 'border-primary bg-primary/5' : 'border-border bg-muted/20 hover:border-primary/50 hover:bg-muted/40'
                    }`}
                    onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
                    onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
@@ -227,57 +240,80 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
                    onClick={() => fileInputRef.current?.click()}
                  >
                     <input ref={fileInputRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => e.target.files && handleFile(e.target.files[0])} />
-                    <Upload size={40} className="text-primary mb-3"/>
-                    <p className="font-medium text-foreground">Click to upload or drag and drop</p>
-                    <p className="text-xs text-muted-foreground mt-1">XLSX files only</p>
+                    <div className="p-4 bg-background rounded-full shadow-sm mb-3 border border-border">
+                      <Upload size={32} className="text-primary"/>
+                    </div>
+                    <p className="font-bold text-foreground">Click to upload or drag and drop</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-widest font-bold">XLSX files only</p>
                  </div>
 
                  <div className="flex justify-start">
-                    <button onClick={downloadTemplate} className="text-primary text-sm font-medium hover:underline flex items-center gap-1">
-                       <Download size={14}/> Download Updated Smart Template
+                    <button 
+                      onClick={downloadTemplate} 
+                      className="text-primary text-sm font-bold hover:underline flex items-center gap-2 transition-all p-1"
+                    >
+                       <Download size={16}/> Download Smart Template
                     </button>
                  </div>
              </div>
           ) : (
-             <div className="flex flex-col h-125">
+             <div className="flex flex-col h-[500px] bg-card">
+                {/* PREVIEW HEADER */}
                 <div className="p-4 bg-muted/30 border-b border-border flex justify-between items-center">
-                   <div>
+                   <div className="flex flex-col gap-0.5">
                       <h3 className="font-bold text-foreground">Preview {previewData.length} Trainees</h3>
-                      <p className="text-xs text-muted-foreground">Confirm data accuracy before finalizing the import.</p>
+                      <p className="text-xs text-muted-foreground font-medium">Confirm data accuracy before finalizing the import.</p>
                    </div>
-                   <button onClick={() => setPreviewData(null)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                   <button 
+                    onClick={() => setPreviewData(null)} 
+                    className="text-xs font-bold text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all border border-primary/20"
+                   >
                       <ChevronLeft size={14} /> Re-upload
                    </button>
                 </div>
 
-                <div className="flex-1 overflow-auto">
+                {/* TABLE */}
+                <div className="flex-1 overflow-auto scrollbar-thin scrollbar-thumb-muted">
                    <table className="w-full text-left text-sm border-collapse">
-                      <thead className="bg-muted sticky top-0 z-10">
-                         <tr>
-                            <th className="p-3 font-semibold text-muted-foreground text-xs uppercase">Name</th>
-                            <th className="p-3 font-semibold text-muted-foreground text-xs uppercase">Email</th>
-                            <th className="p-3 font-semibold text-muted-foreground text-xs uppercase">INDoS</th>
-                            <th className="p-3 font-semibold text-muted-foreground text-xs uppercase">Rank</th>
-                            <th className="p-3 font-semibold text-muted-foreground text-xs uppercase">Nationality</th>
+                      <thead className="bg-muted/50 sticky top-0 z-10">
+                         <tr className="border-b border-border">
+                            <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Name</th>
+                            <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Email</th>
+                            <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">INDoS</th>
+                            <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Rank</th>
+                            <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Nationality</th>
                          </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
                          {previewData.map((t, idx) => (
-                            <tr key={idx} className="hover:bg-muted/20">
-                               <td className="p-3 font-bold text-foreground">{t.fullName}</td>
-                               <td className="p-3 text-muted-foreground">{t.email}</td>
-                               <td className="p-3 text-muted-foreground font-mono">{t.indosNo}</td>
-                               <td className="p-3 text-muted-foreground">{t.traineeType}</td>
-                               <td className="p-3 text-muted-foreground">{t.nationality}</td>
+                            <tr key={idx} className="hover:bg-muted/20 transition-colors">
+                               <td className="p-4 font-bold text-foreground">{t.fullName}</td>
+                               <td className="p-4 text-muted-foreground font-medium">{t.email}</td>
+                               <td className="p-4 text-muted-foreground font-mono font-bold">{t.indosNo}</td>
+                               <td className="p-4">
+                                <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px] font-bold border border-primary/20">
+                                  {t.traineeType}
+                                </span>
+                               </td>
+                               <td className="p-4 text-muted-foreground font-medium">{t.nationality}</td>
                             </tr>
                          ))}
                       </tbody>
                    </table>
                 </div>
 
-                <div className="p-4 border-t border-border bg-card rounded-b-xl flex justify-end gap-3">
-                   <button onClick={() => setPreviewData(null)} className="px-4 py-2 text-sm text-muted-foreground">Cancel</button>
-                   <button onClick={handleConfirmImport} className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+                {/* FOOTER */}
+                <div className="p-4 border-t border-border bg-card flex justify-end gap-3 shrink-0">
+                   <button 
+                    onClick={() => setPreviewData(null)} 
+                    className="px-5 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all"
+                   >
+                    Cancel
+                   </button>
+                   <button 
+                    onClick={handleConfirmImport} 
+                    className="bg-primary hover:brightness-110 text-primary-foreground px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                   >
                       <CheckCircle2 size={16} /> Confirm Bulk Import
                    </button>
                 </div>

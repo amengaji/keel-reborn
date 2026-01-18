@@ -2,6 +2,9 @@
 
 const API_URL = 'http://localhost:5000/api/trainees'; 
 
+/**
+ * Helper to generate Authorization headers for secure API calls.
+ */
 const getAuthHeaders = () => {
   const token = localStorage.getItem('keel_token');
   return {
@@ -11,17 +14,19 @@ const getAuthHeaders = () => {
 };
 
 export const cadetService = {
-  // GET all cadets
+  // GET all cadets (Trainees)
+  // FIXED: Returns raw SQL data so that nested vessel associations are preserved for counting.
   getAll: async () => {
     const res = await fetch(API_URL, { headers: getAuthHeaders() });
     if (!res.ok) throw new Error('Failed to fetch trainee data');
 
     const json = await res.json();
-    // Return the raw data. We will handle the name display in the UI component.
+    
+    // Return raw data directly. The UI components handle name formatting.
     return Array.isArray(json?.data) ? json.data : json;
   },
 
-  // CREATE new cadet
+  // CREATE new cadet profile
   create: async (data: any) => {
     const res = await fetch(API_URL, {
       method: 'POST',
@@ -34,7 +39,7 @@ export const cadetService = {
     return json;
   },
 
-  // DELETE cadet
+  // DELETE a cadet profile
   delete: async (id: string | number) => {
     const res = await fetch(`${API_URL}/${id}`, {
       method: 'DELETE',

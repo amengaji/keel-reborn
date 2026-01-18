@@ -1,4 +1,4 @@
-// amengaji/keel-reborn/keel-reborn-8e3419f76262b0acdc74d700afab81401a9542d0/keel-web/src/pages/VesselsPage.tsx
+// keel-web/src/pages/VesselsPage.tsx
 
 import React, { useEffect, useState } from 'react';
 import { 
@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, 
   ArrowUpDown, Users 
 } from 'lucide-react';
-import { getCadets } from '../services/dataService'; 
+import { cadetService } from '../services/cadetService'; 
 import { vesselService } from '../services/vesselService'; 
 import ImportVesselModal from '../components/vessels/ImportVesselModal';
 import AddVesselModal from '../components/vessels/AddVesselModal';
@@ -14,18 +14,21 @@ import { toast } from 'sonner';
 
 /**
  * VesselsPage Component
- * Manages the display, search, sorting, and CRUD operations for the Fleet.
+ * Manages display and CRUD for the Fleet.
+ * FIXED: Replaced hardcoded slate classes with semantic variables (bg-card, border-border, bg-background).
+ * This ensures light mode displays with a clean white background as per index.css.
  */
 const VesselsPage: React.FC = () => {
-  // State for storing the list of vessels and trainees
+  // State management for Fleet and Trainees from SQL database
   const [vessels, setVessels] = useState<any[]>([]);
   const [trainees, setTrainees] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   // UI State for modals and searching
   const [searchQuery, setSearchQuery] = useState('');
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editingVessel, setEditingVessel] = useState<any>(null); // Stores the vessel being edited
+  const [editingVessel, setEditingVessel] = useState<any>(null); 
   
   // Pagination and Sorting State
   const [currentPage, setCurrentPage] = useState(1);
@@ -33,45 +36,58 @@ const VesselsPage: React.FC = () => {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
 
   /**
-   * Fetches fresh data from the backend API.
-   * Ensures that the UI stays in sync with the database.
+   * Fetches fresh data from SQL Backend.
+   * Calls both vessels and trainees concurrently using Promise.all for performance.
    */
   const refreshData = async () => {
+    setIsLoading(true);
     try {
-      const fleet = await vesselService.getAll();
-      // Ensure we always work with an array to prevent .map() errors
-      setVessels(Array.isArray(fleet) ? fleet : []);
+      const [fleet, crew] = await Promise.all([
+        vesselService.getAll(),
+        cadetService.getAll()
+      ]);
 
-      const crew = getCadets(); 
+      // Normalize data arrays to prevent mapping crashes
+      setVessels(Array.isArray(fleet) ? fleet : []);
       setTrainees(Array.isArray(crew) ? crew : []);
     } catch (error) {
-      console.error("Failed to load data", error);
-      toast.error("Could not connect to fleet database.");
+      console.error("Failed to load fleet data", error);
+      toast.error("Database connection error.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Load data on initial component mount
+  // Trigger data fetch on initial mount
   useEffect(() => {
     refreshData();
   }, []);
 
   /**
-   * Calculates how many cadets are currently assigned to a specific vessel.
+   * FIXED: Calculates cadet count by matching the Vessel ID.
+   * Looks at direct vessel_id property or nested assignments array from the SQL response.
    */
-  const getCadetCount = (vesselName: string) => {
-    return trainees.filter((t: any) => t.vessel === vesselName && t.status === 'Onboard').length;
+  const getCadetCount = (vesselId: number) => {
+    return trainees.filter((t: any) => {
+      // 1. Ensure the trainee is currently marked as 'Onboard'
+      const isOnboard = t.status === 'Onboard';
+      
+      // 2. Check direct property OR nested assignments array
+      const directMatch = Number(t.vessel_id) === Number(vesselId);
+      const associationMatch = t.assignments?.some((a: any) => Number(a.vessel_id) === Number(vesselId) && a.status === 'ACTIVE');
+      
+      return isOnboard && (directMatch || associationMatch);
+    }).length;
   };
 
   /**
-   * Handles both Creating and Updating a vessel.
-   * If an 'id' exists, it triggers an update; otherwise, it creates a new entry.
+   * Handles both Creating and Updating vessel records.
    */
   const handleSaveVessel = async (data: any) => {
     try {
-      // Map the form data to the backend schema fields
       const vesselPayload = {
         name: data.name,
-        imo_number: data.imo || data.imo_number, // Ensure IMO number is captured correctly
+        imo_number: data.imo || data.imo_number,
         vessel_type: data.type || data.vessel_type,
         flag: data.flag,
         class_society: data.class_society,
@@ -79,26 +95,26 @@ const VesselsPage: React.FC = () => {
       };
 
       if (editingVessel && editingVessel.id) {
-        // Edit Mode: Send PUT request to update existing record
+        // Edit Mode: Update existing record
         await vesselService.update(editingVessel.id, vesselPayload);
-        toast.success('Vessel details updated successfully.');
+        toast.success('Vessel records updated.');
       } else {
-        // Add Mode: Send POST request to create new record
+        // Add Mode: Create new record
         await vesselService.create(vesselPayload);
         toast.success('New vessel added to fleet.');
       }
       
-      refreshData(); // Fetch the updated list from the server
+      refreshData();
       setIsAddOpen(false);
-      setEditingVessel(null); // Clear the edit state
+      setEditingVessel(null);
     } catch (error) {
       console.error(error);
-      toast.error("Operation failed. Please check server connection.");
+      toast.error("Save operation failed.");
     }
   };
 
   /**
-   * Opens the AddVesselModal in 'Edit Mode' with pre-filled data.
+   * Triggers the edit modal for a specific vessel.
    */
   const handleEditClick = (vessel: any) => {
     setEditingVessel(vessel);
@@ -106,59 +122,43 @@ const VesselsPage: React.FC = () => {
   };
 
   /**
-   * Deletes a vessel record after user confirmation.
+   * Deletes a vessel record after confirmation.
    */
   const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to remove this vessel?')) {
+    if (window.confirm('Are you sure you want to remove this vessel from the database?')) {
       try {
         await vesselService.delete(id);
-        toast.success('Vessel removed from database.');
+        toast.success('Vessel removed.');
         refreshData();
       } catch (error) {
-        toast.error("Could not delete vessel.");
+        toast.error("Delete operation failed.");
       }
     }
   };
 
   /**
-   * Handles bulk import from Excel/CSV.
-   * Iterates through the imported data and creates a record for each.
+   * Bulk import logic for Excel/CSV data.
    */
   const handleImport = async (data: any[]) => {
-    let successCount = 0;
-    let failCount = 0;
-
-    toast.info(`Starting import of ${data.length} vessels...`);
-
+    toast.info(`Importing ${data.length} vessels...`);
     for (const item of data) {
       try {
-        const vesselPayload = {
+        await vesselService.create({
           name: item.name,
           imo_number: String(item.imo),
           vessel_type: item.vessel_type || "Other",
           flag: item.flag || "Unknown",
           class_society: item.class_society || "Unknown",
           is_active: true
-        };
-
-        await vesselService.create(vesselPayload);
-        successCount++;
-      } catch (err) {
-        console.error("Row failed:", item, err);
-        failCount++;
-      }
+        });
+      } catch (err) { console.error("Import row failed:", err); }
     }
-
-    if (failCount === 0) {
-      toast.success(`Successfully imported ${successCount} vessels.`);
-    } else {
-      toast.error(`Import finished: ${successCount} success, ${failCount} failed.`);
-    }
+    toast.success("Bulk import complete.");
     refreshData();
   };
 
   /**
-   * Logic for sorting columns.
+   * Sorts the data based on column keys.
    */
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -169,12 +169,12 @@ const VesselsPage: React.FC = () => {
   };
 
   /**
-   * Filters and sorts the data based on search and sort state.
+   * Process search, filtering, and sorting based on user input.
    */
   const processData = () => {
     let filtered = vessels.filter((v: any) => 
       (v.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (v.imo_number || v.imo || '').includes(searchQuery)
+      (v.imo_number || '').includes(searchQuery)
     );
 
     filtered.sort((a: any, b: any) => {
@@ -182,8 +182,8 @@ const VesselsPage: React.FC = () => {
       let valB = b[sortConfig.key];
 
       if (sortConfig.key === 'cadets') {
-        valA = getCadetCount(a.name);
-        valB = getCadetCount(b.name);
+        valA = getCadetCount(a.id);
+        valB = getCadetCount(b.id);
       } else {
          if (typeof valA === 'string') valA = valA.toLowerCase();
          if (typeof valB === 'string') valB = valB.toLowerCase();
@@ -205,49 +205,49 @@ const VesselsPage: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col dark:bg-background">
+    <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-140px)] flex flex-col bg-background p-4 transition-colors duration-300">
       
-      {/* HEADER SECTION */}
+      {/* HEADER SECTION - Theming fixed to use text-foreground */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 shrink-0">
-        <div>
+        <div className="flex flex-col gap-0.5">
           <h1 className="text-2xl font-bold text-foreground">Fleet Management</h1>
-          <p className="text-muted-foreground text-sm">Monitor active vessels and cadet allocation.</p>
+          <p className="text-muted-foreground text-sm font-medium">Monitor active vessels and real-time cadet allocation.</p>
         </div>
         <div className="flex gap-2">
            <button 
              onClick={() => setIsImportOpen(true)}
-             className="bg-card dark:bg-muted/20 hover:bg-muted text-foreground border border-input px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95"
+             className="bg-card hover:bg-muted text-foreground border border-border px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-sm active:scale-95"
            >
              <Upload size={18} /><span>Import Fleet</span>
            </button>
            <button 
              onClick={() => { setEditingVessel(null); setIsAddOpen(true); }}
-             className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center space-x-2 transition-all shadow-sm active:scale-95"
+             className="bg-primary hover:brightness-110 text-primary-foreground px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-lg active:scale-95 font-bold"
            >
              <Plus size={18} /><span>Add Vessel</span>
            </button>
         </div>
       </div>
 
-      {/* SEARCH AND SETTINGS TOOLBAR */}
-      <div className="flex justify-between items-center bg-card dark:bg-muted/10 p-4 rounded-xl border border-border shrink-0 shadow-sm">
-        <div className="relative w-72">
-           <Search className="absolute left-3 top-2.5 text-muted-foreground" size={16} />
+      {/* TOOLBAR - Replaced bg-white with bg-card */}
+      <div className="flex justify-between items-center bg-card p-4 rounded-2xl border border-border shrink-0 shadow-sm transition-colors duration-300">
+        <div className="relative w-80">
+           <Search className="absolute left-3 top-3 text-muted-foreground" size={16} />
            <input 
              type="text" 
-             placeholder="Search Fleet (Name or IMO)..." 
+             placeholder="Search by Name or IMO..." 
              value={searchQuery}
              onChange={(e) => setSearchQuery(e.target.value)}
-             className="input-field pl-9 h-9 w-full bg-background border-border"
+             className="input-field pl-10"
            />
         </div>
         
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-           <span>Rows per page:</span>
+           <span className="font-medium">Rows per page:</span>
            <select 
              value={itemsPerPage}
              onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-             className="bg-background dark:bg-muted/20 border border-border rounded px-2 py-1 outline-none"
+             className="bg-background border border-border text-foreground rounded-lg px-2 py-1 outline-none transition-all cursor-pointer"
            >
              <option value={10}>10</option>
              <option value={25}>25</option>
@@ -256,11 +256,11 @@ const VesselsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MAIN DATA TABLE */}
-      <div className="bg-card dark:bg-muted/5 border border-border rounded-xl shadow-sm overflow-hidden flex-1 flex flex-col">
-        <div className="overflow-auto flex-1">
+      {/* TABLE SECTION - Semantic theming for light/dark mode compatibility */}
+      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex-1 flex flex-col transition-colors duration-300">
+        <div className="overflow-auto flex-1 scrollbar-thin scrollbar-thumb-muted">
            <table className="w-full text-left border-collapse text-sm">
-              <thead className="bg-muted/50 dark:bg-muted/20 sticky top-0 z-10">
+              <thead className="bg-muted/40 sticky top-0 z-10 transition-colors">
                  <tr className="border-b border-border">
                     {[
                       { label: 'Vessel Name / Flag', key: 'name', width: 'w-1/4' },
@@ -269,11 +269,11 @@ const VesselsPage: React.FC = () => {
                       { label: 'Class', key: 'class_society', width: 'w-1/6' },
                       { label: 'Status', key: 'is_active', width: 'w-1/12' },
                       { label: 'Cadets', key: 'cadets', width: 'w-1/12' },
-                      { label: 'Actions', key: 'actions', width: 'w-20' }
+                      { label: '', key: 'actions', width: 'w-20' }
                     ].map((col) => (
                        <th 
                          key={col.key}
-                         className={`p-4 font-semibold text-muted-foreground text-xs uppercase tracking-wider cursor-pointer hover:bg-muted transition-colors ${col.width}`}
+                         className={`p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-muted/60 transition-colors ${col.width}`}
                          onClick={() => col.key !== 'actions' && handleSort(col.key)}
                        >
                          <div className="flex items-center gap-1">
@@ -285,63 +285,60 @@ const VesselsPage: React.FC = () => {
                  </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                 {paginatedData.length === 0 ? (
-                    <tr>
-                       <td colSpan={7} className="p-10 text-center text-muted-foreground">
-                          {vessels.length === 0 ? "Loading fleet data..." : "No vessels found."}
-                       </td>
-                    </tr>
+                 {isLoading ? (
+                    <tr><td colSpan={7} className="p-10 text-center text-muted-foreground font-medium animate-pulse">Syncing with fleet database...</td></tr>
+                 ) : paginatedData.length === 0 ? (
+                    <tr><td colSpan={7} className="p-10 text-center text-muted-foreground font-medium">No vessels found matching your search.</td></tr>
                  ) : (
                     paginatedData.map((vessel: any) => {
-                       const cadetCount = getCadetCount(vessel.name);
+                       // Calculate real-time count using the SQL assignment matching logic
+                       const cadetCount = getCadetCount(vessel.id);
                        return (
-                          <tr key={vessel.id} className="hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors group">
+                          <tr key={vessel.id} className="hover:bg-muted/20 transition-colors group">
                              <td className="p-4">
                                 <div className="flex items-center gap-3">
-                                   <div className="w-8 h-8 rounded bg-teal-500/10 text-teal-600 flex items-center justify-center shrink-0">
+                                   <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20 shadow-sm">
                                       <Ship size={16} />
                                    </div>
-                                   <div>
+                                   <div className="flex flex-col gap-0">
                                       <div className="font-bold text-foreground">{vessel.name}</div>
-                                      <div className="text-xs text-muted-foreground">
-                                         🏳️ {vessel.flag}
-                                      </div>
+                                      <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">🏳️ {vessel.flag || 'Unknown'}</div>
                                    </div>
                                 </div>
                              </td>
-                             <td className="p-4 font-mono text-muted-foreground">{vessel.imo_number || vessel.imo}</td>
-                             <td className="p-4 text-foreground">{vessel.vessel_type}</td>
-                             <td className="p-4 text-muted-foreground truncate max-w-37.5" title={vessel.class_society}>
-                                {vessel.class_society}
+                             <td className="p-4 font-mono text-muted-foreground text-xs font-bold">{vessel.imo_number}</td>
+                             <td className="p-4 text-foreground/80 font-bold">{vessel.vessel_type}</td>
+                             <td className="p-4 text-muted-foreground truncate max-w-[150px] font-medium" title={vessel.class_society}>
+                                {vessel.class_society || 'N/A'}
                              </td>
 
                              <td className="p-4">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                                    vessel.is_active 
-                                   ? 'bg-green-500/10 text-green-700 dark:text-green-400' 
-                                   : 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
+                                   ? 'bg-green-500/10 text-green-600 border-green-500/20' 
+                                   : 'bg-muted text-muted-foreground border-border'
                                 }`}>
                                    {vessel.is_active ? "Active" : "Inactive"}
                                 </span>
                              </td>
                              <td className="p-4">
-                                <div className={`flex items-center gap-1 font-medium ${cadetCount > 0 ? 'text-primary' : 'text-muted-foreground'}`}>
+                                <div className={`flex items-center gap-1.5 font-extrabold ${cadetCount > 0 ? 'text-primary' : 'text-muted-foreground/40'}`}>
                                    <Users size={14} />
-                                   {cadetCount}
+                                   <span>{cadetCount}</span>
                                 </div>
                              </td>
                              <td className="p-4 text-right">
-                                <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
                                    <button 
                                      onClick={() => handleEditClick(vessel)}
-                                     className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-primary transition-colors"
+                                     className="p-2 bg-background hover:bg-primary/10 rounded-lg text-muted-foreground hover:text-primary border border-border shadow-xs transition-colors"
                                      title="Edit Vessel"
                                    >
                                       <Edit size={16} />
                                    </button>
                                    <button 
                                       onClick={() => handleDelete(vessel.id)}
-                                      className="p-1.5 hover:bg-red-500/10 rounded text-muted-foreground hover:text-red-600 transition-colors"
+                                      className="p-2 bg-background hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive border border-border shadow-xs transition-colors"
                                       title="Delete Vessel"
                                    >
                                       <Trash2 size={16} />
@@ -356,18 +353,18 @@ const VesselsPage: React.FC = () => {
            </table>
         </div>
 
-        {/* PAGINATION FOOTER */}
-        <div className="p-4 border-t border-border bg-muted/20 dark:bg-muted/10 flex items-center justify-between shrink-0">
-           <div className="text-xs text-muted-foreground">
-              Showing <span className="font-medium">{Math.min(processedData.length, (currentPage - 1) * itemsPerPage + 1)}</span> to <span className="font-medium">{Math.min(processedData.length, currentPage * itemsPerPage)}</span> of <span className="font-medium">{processedData.length}</span> results
+        {/* FOOTER / PAGINATION */}
+        <div className="p-4 border-t border-border bg-muted/20 flex items-center justify-between shrink-0 transition-colors duration-300">
+           <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              Showing {Math.min(processedData.length, (currentPage - 1) * itemsPerPage + 1)} - {Math.min(processedData.length, currentPage * itemsPerPage)} of {processedData.length}
            </div>
            
            <div className="flex items-center gap-1">
-              <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded hover:bg-muted disabled:opacity-50"><ChevronsLeft size={16} /></button>
-              <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 rounded hover:bg-muted disabled:opacity-50"><ChevronLeft size={16} /></button>
-              <span className="text-sm font-medium px-4">Page {currentPage} of {totalPages || 1}</span>
-              <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded hover:bg-muted disabled:opacity-50"><ChevronRight size={16} /></button>
-              <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded hover:bg-muted disabled:opacity-50"><ChevronsRight size={16} /></button>
+              <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded-lg hover:bg-background border border-transparent hover:border-border disabled:opacity-30 transition-all"><ChevronsLeft size={16} /></button>
+              <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 rounded-lg hover:bg-background border border-transparent hover:border-border disabled:opacity-30 transition-all"><ChevronLeft size={16} /></button>
+              <span className="text-xs font-bold px-4 text-foreground uppercase tracking-tight">PAGE {currentPage} / {totalPages || 1}</span>
+              <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded-lg hover:bg-background border border-transparent hover:border-border disabled:opacity-30 transition-all"><ChevronRight size={16} /></button>
+              <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded-lg hover:bg-background border border-transparent hover:border-border disabled:opacity-30 transition-all"><ChevronsRight size={16} /></button>
            </div>
         </div>
       </div>

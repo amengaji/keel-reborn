@@ -6,9 +6,8 @@ import User from "../models/User";
 import Vessel from "../models/Vessel";
 
 /**
- * GET all ACTIVE trainee-vessel assignments
- * FIXED: Ensures trainee first_name and last_name are explicitly included 
- * and properly structured for the frontend.
+ * GET all ACTIVE trainee-vessel assignments.
+ * Includes nested Trainee (User) and Vessel details.
  */
 export const getActiveTraineeAssignments = async (_req: Request, res: Response) => {
   try {
@@ -17,14 +16,8 @@ export const getActiveTraineeAssignments = async (_req: Request, res: Response) 
       include: [
         {
           model: User,
-          as: "trainee", // This alias must match the association in associations.ts
-          attributes: [
-            "id",
-            "first_name",
-            "last_name",
-            "rank",
-            "status",
-          ],
+          as: "trainee",
+          attributes: ["id", "first_name", "last_name", "rank", "status"],
         },
         {
           model: Vessel,
@@ -34,13 +27,11 @@ export const getActiveTraineeAssignments = async (_req: Request, res: Response) 
       order: [["created_at", "DESC"]],
     });
 
-    // Helper: Map the rows to ensure the trainee object is never null 
-    // and keys are predictable for the frontend.
+    // Helper: Map data to ensure no null trainees cause UI crashes
     const formattedRows = rows.map(row => {
       const data = row.toJSON();
       return {
         ...data,
-        // Ensure trainee exists to prevent "Deck Cadet" fallback on UI
         trainee: data.trainee || { first_name: "Unknown", last_name: "Trainee", rank: "N/A" }
       };
     });
@@ -53,7 +44,8 @@ export const getActiveTraineeAssignments = async (_req: Request, res: Response) 
 };
 
 /**
- * ASSIGN trainee to vessel
+ * ASSIGN trainee to vessel.
+ * FIXED: Updates User status to 'Onboard' so they leave the Ready Pool.
  */
 export const assignTraineeToVessel = async (req: Request, res: Response) => {
   try {
@@ -63,12 +55,20 @@ export const assignTraineeToVessel = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    // 1. Create the assignment record in the TraineeAssignments table
     const assignment = await TraineeAssignment.create({
       trainee_id,
       vessel_id,
       sign_on_date,
       status: "ACTIVE",
     });
+
+    // 2. Update the Trainee (User) status to 'Onboard'
+    // This removes them from the 'Ready' list in the frontend filter.
+    await User.update(
+      { status: "Onboard" },
+      { where: { id: trainee_id } }
+    );
 
     res.status(201).json(assignment);
   } catch (error) {
@@ -78,17 +78,18 @@ export const assignTraineeToVessel = async (req: Request, res: Response) => {
 };
 
 /**
- * UNASSIGN trainee (sign-off)
+ * UNASSIGN trainee (sign-off).
+ * FIXED: Updates User status back to 'Ready' so they reappear in the pool.
  */
 export const unassignTrainee = async (req: Request, res: Response) => {
   try {
     const { traineeId } = req.params;
 
-    // Set status to COMPLETED and set sign-off date
+    // 1. Close the active assignment record
     await TraineeAssignment.update(
       {
         status: "COMPLETED",
-        sign_off_date: new Date().toISOString().split('T')[0], // Standard YYYY-MM-DD
+        sign_off_date: new Date().toISOString().split('T')[0],
       },
       {
         where: {
@@ -96,6 +97,12 @@ export const unassignTrainee = async (req: Request, res: Response) => {
           status: "ACTIVE",
         },
       }
+    );
+
+    // 2. Return the trainee to the 'Ready' pool status
+    await User.update(
+      { status: "Ready" },
+      { where: { id: traineeId } }
     );
 
     res.json({ success: true });

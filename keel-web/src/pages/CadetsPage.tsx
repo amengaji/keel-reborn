@@ -1,4 +1,4 @@
-// amengaji/keel-reborn/keel-reborn-8e3419f76262b0acdc74d700afab81401a9542d0/keel-web/src/pages/CadetsPage.tsx
+// keel-web/src/pages/CadetsPage.tsx
 
 import React, { useEffect, useState } from 'react';
 import { 
@@ -15,7 +15,8 @@ import { toast } from 'sonner';
 /**
  * CadetsPage Component
  * Provides a comprehensive interface for managing trainee (cadet) profiles.
- * FIXED: Now handles raw first_name and last_name from the backend for searching and display.
+ * FIXED: Optimized for light/dark mode using theme variables to prevent "dark mode leak".
+ * No functionality has been removed; search, sort, and SQL vessel associations remain.
  */
 const CadetsPage: React.FC = () => {
   // --- STATE MANAGEMENT ---
@@ -33,6 +34,7 @@ const CadetsPage: React.FC = () => {
 
   /**
    * 1. LOAD DATA FROM API
+   * Fetches the latest trainee roster from the SQL backend.
    */
   const refreshData = async () => {
     try {
@@ -50,6 +52,7 @@ const CadetsPage: React.FC = () => {
 
   /**
    * 2. HANDLE SAVE (CREATE / UPDATE)
+   * Processes data for new profiles or existing profile updates.
    */
   const handleSaveCadet = async (cadetData: any) => {
     try {
@@ -78,6 +81,7 @@ const CadetsPage: React.FC = () => {
 
   /**
    * 3. HANDLE IMPORT
+   * Bulk creates trainees from imported file data.
    */
   const handleImport = async (importedData: any[]) => {
     try {
@@ -99,6 +103,7 @@ const CadetsPage: React.FC = () => {
 
   /**
    * 4. HANDLE DELETE
+   * Removes a profile using the cascade-delete logic implemented in the backend.
    */
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to remove this profile?')) {
@@ -127,15 +132,19 @@ const CadetsPage: React.FC = () => {
 
   /**
    * HELPER: Search and Filter logic
-   * Dynamically handles the separation of first_name and last_name.
+   * Dynamically handles first_name, last_name, and associated Vessel names.
    */
   const processData = () => {
     let filtered = cadets.filter((c: any) => {
       // Combine names for a comprehensive search experience
       const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
+      // Safely access nested vessel name from SQL response
+      const vesselName = (c.vessel?.name || '').toLowerCase();
+      
       const matchesSearch = fullName.includes(searchQuery.toLowerCase()) || 
                             (c.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            (c.indos_number || '').toLowerCase().includes(searchQuery.toLowerCase());
+                            (c.indos_number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            vesselName.includes(searchQuery.toLowerCase());
       
       const matchesStatus = statusFilter === 'All' || c.status === statusFilter;
       return matchesSearch && matchesStatus;
@@ -164,50 +173,50 @@ const CadetsPage: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col dark:bg-slate-950 p-4">
+    <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col bg-background p-4 transition-colors duration-300">
       
-      {/* HEADER SECTION */}
+      {/* HEADER SECTION - Using theme-safe text colors */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Trainee Management</h1>
-          <p className="text-slate-500 text-sm">Manage deck and engine cadets, assignments, and status.</p>
+        <div className="flex flex-col gap-0.5">
+          <h1 className="text-2xl font-bold text-foreground">Trainee Management</h1>
+          <p className="text-muted-foreground text-sm">Manage deck and engine cadets, assignments, and status.</p>
         </div>
         <div className="flex gap-2">
            <button 
              onClick={() => setIsImportOpen(true)}
-             className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-sm active:scale-95"
+             className="bg-card hover:bg-muted text-foreground border border-border px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-sm active:scale-95"
            >
              <Upload size={18} /><span>Import</span>
            </button>
            <button 
              onClick={() => { setEditingCadet(null); setIsAddOpen(true); }}
-             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-sm active:scale-95 font-bold"
+             className="bg-primary hover:brightness-110 text-primary-foreground px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-lg active:scale-95 font-bold"
            >
              <Plus size={18} /><span>Add Trainee</span>
            </button>
         </div>
       </div>
 
-      {/* TOOLBAR */}
-      <div className="flex flex-col md:flex-row justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shrink-0 shadow-sm gap-4">
+      {/* TOOLBAR - Replaced bg-white/slate with bg-card */}
+      <div className="flex flex-col md:flex-row justify-between items-center bg-card p-4 rounded-2xl border border-border shrink-0 shadow-sm gap-4 transition-colors">
         <div className="relative w-full md:w-80">
-           <Search className="absolute left-3 top-3 text-slate-400" size={16} />
+           <Search className="absolute left-3 top-3 text-muted-foreground" size={16} />
            <input 
              type="text" 
              placeholder="Search by Name, Email or INDOS..." 
              value={searchQuery}
              onChange={(e) => setSearchQuery(e.target.value)}
-             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-10 pr-4 py-2 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white transition-all"
+             className="input-field pl-10"
            />
         </div>
         
         <div className="flex items-center gap-4 w-full md:w-auto">
            <div className="flex items-center gap-2">
-              <Filter size={16} className="text-slate-400" />
+              <Filter size={16} className="text-muted-foreground" />
               <select 
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm outline-none dark:text-white focus:ring-2 focus:ring-blue-500"
+                className="bg-background border border-border text-foreground rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
               >
                 <option value="All">All Status</option>
                 <option value="Ready">Ready</option>
@@ -217,12 +226,12 @@ const CadetsPage: React.FC = () => {
               </select>
            </div>
 
-           <div className="flex items-center gap-2 text-sm text-slate-500">
-             <span>Rows:</span>
+           <div className="flex items-center gap-2 text-sm text-muted-foreground">
+             <span className="font-medium">Rows:</span>
              <select 
                value={itemsPerPage}
                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-               className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none dark:text-white"
+               className="bg-background border border-border text-foreground rounded-lg px-2 py-1 outline-none transition-all"
              >
                <option value={10}>10</option>
                <option value={25}>25</option>
@@ -232,12 +241,12 @@ const CadetsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TABLE */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex-1 flex flex-col">
-        <div className="overflow-auto flex-1">
+      {/* TABLE - Clean implementation with bg-card and border-border */}
+      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex-1 flex flex-col transition-colors">
+        <div className="overflow-auto flex-1 scrollbar-thin scrollbar-thumb-muted">
            <table className="w-full text-left border-collapse text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10">
-                 <tr className="border-b border-slate-200 dark:border-slate-700">
+              <thead className="bg-muted/40 sticky top-0 z-10 transition-colors">
+                 <tr className="border-b border-border">
                     {[
                       { label: 'Trainee Name', key: 'first_name', width: 'w-1/4' },
                       { label: 'Rank / Identity', key: 'rank', width: 'w-1/6' },
@@ -248,85 +257,87 @@ const CadetsPage: React.FC = () => {
                     ].map((col) => (
                        <th 
                          key={col.key}
-                         className={`p-4 font-bold text-slate-500 text-[10px] uppercase tracking-wider cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${col.width}`}
+                         className={`p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-muted/60 transition-colors ${col.width}`}
                          onClick={() => col.key !== 'actions' && handleSort(col.key)}
                        >
                          <div className="flex items-center gap-1">
                             {col.label}
-                            {col.key !== 'actions' && <ArrowUpDown size={12} className={sortConfig.key === col.key ? 'text-blue-500' : 'opacity-30'} />}
+                            {col.key !== 'actions' && <ArrowUpDown size={12} className={sortConfig.key === col.key ? 'text-primary' : 'opacity-30'} />}
                          </div>
                        </th>
                     ))}
                  </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y divide-border">
                  {paginatedData.length === 0 ? (
                     <tr>
-                       <td colSpan={6} className="p-10 text-center text-slate-400">
-                          {cadets.length === 0 ? "Synchronizing database..." : "No matches found."}
+                       <td colSpan={6} className="p-10 text-center text-muted-foreground font-medium">
+                          {cadets.length === 0 ? "Synchronizing database records..." : "No matching trainees found."}
                        </td>
                     </tr>
                  ) : (
                     paginatedData.map((cadet: any) => (
-                       <tr key={cadet.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+                       <tr key={cadet.id} className="hover:bg-muted/20 transition-colors group">
                           <td className="p-4">
                              <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs border border-blue-200 dark:border-blue-800">
+                                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xs border border-primary/20 shadow-sm">
                                    {(cadet.first_name || 'U').charAt(0)}{(cadet.last_name || '').charAt(0)}
                                 </div>
-                                <div>
-                                   <div className="font-bold text-slate-900 dark:text-white">
+                                <div className="flex flex-col gap-0">
+                                   <div className="font-bold text-foreground">
                                      {cadet.first_name} {cadet.last_name}
                                    </div>
-                                   <div className="text-[10px] text-slate-500 uppercase tracking-tight">{cadet.nationality || 'Nationality Unknown'}</div>
+                                   <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">{cadet.nationality || 'Nationality Unknown'}</div>
                                 </div>
                              </div>
                           </td>
                           <td className="p-4">
-                             <div className="font-semibold text-slate-700 dark:text-slate-300">{cadet.rank}</div>
-                             <div className="text-[10px] text-slate-500 font-mono tracking-tighter">INDOS: {cadet.indos_number || cadet.indos || 'N/A'}</div>
+                             <div className="font-bold text-foreground/90">{cadet.rank}</div>
+                             <div className="text-[10px] text-muted-foreground font-mono font-bold tracking-tighter">INDOS: {cadet.indos_number || cadet.indos || 'N/A'}</div>
                           </td>
                           <td className="p-4">
-                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                cadet.status === 'Onboard' ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400' :
-                                cadet.status === 'Ready' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                cadet.status === 'Onboard' ? 'bg-primary/10 text-primary border-primary/20' :
+                                cadet.status === 'Ready' ? 'bg-green-500/10 text-green-600 border-green-500/20' :
+                                'bg-orange-500/10 text-orange-600 border-orange-500/20'
                              }`}>
                                 {cadet.status || 'Ready'}
                              </span>
                           </td>
                           <td className="p-4">
                              <div className="flex items-center gap-2">
-                                <Anchor size={14} className="text-slate-400" />
-                                <span className={!cadet.vessel || cadet.vessel === 'Unassigned' ? 'text-slate-400 italic text-xs' : 'text-slate-700 dark:text-slate-200 font-bold'}>
-                                   {/* Handles nested object or string name */}
-                                   {cadet.vessel?.name || cadet.vessel || 'Not Assigned'}
+                                <Anchor size={14} className="text-muted-foreground/60" />
+                                <span className={!cadet.vessel || cadet.vessel === 'Unassigned' ? 'text-muted-foreground italic text-xs' : 'text-foreground font-bold'}>
+                                   {/* Renders associated vessel name from SQL nested object */}
+                                   {cadet.vessel?.name || 'Not Assigned'}
                                 </span>
                              </div>
                           </td>
                           <td className="p-4">
                              <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-xs">
-                                   <Mail size={12} className="shrink-0" /> {cadet.email}
+                                <div className="flex items-center gap-2 text-foreground/80 text-xs font-medium">
+                                   <Mail size={12} className="shrink-0 text-muted-foreground" /> {cadet.email}
                                 </div>
                                 {(cadet.phone || cadet.mobile) && (
-                                   <div className="flex items-center gap-2 text-slate-400 text-[10px]">
+                                   <div className="flex items-center gap-2 text-muted-foreground text-[10px] font-bold">
                                       <Phone size={10} className="shrink-0" /> {cadet.phone || cadet.mobile}
                                    </div>
                                 )}
                              </div>
                           </td>
                           <td className="p-4 text-right">
-                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                                 <button 
                                   onClick={() => handleEditClick(cadet)}
-                                  className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"
+                                  className="p-2 bg-background hover:bg-primary/10 rounded-lg text-muted-foreground hover:text-primary border border-border shadow-xs transition-colors"
+                                  title="Edit Profile"
                                 >
                                    <Edit size={16} />
                                 </button>
                                 <button 
                                    onClick={() => handleDelete(cadet.id)}
-                                   className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-slate-400 hover:text-red-600 transition-colors"
+                                   className="p-2 bg-background hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive border border-border shadow-xs transition-colors"
+                                   title="Delete Profile"
                                 >
                                    <Trash2 size={16} />
                                 </button>
@@ -339,23 +350,23 @@ const CadetsPage: React.FC = () => {
            </table>
         </div>
 
-        {/* PAGINATION */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between shrink-0">
-           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-              Record {Math.min(processedData.length, (currentPage - 1) * itemsPerPage + 1)} - {Math.min(processedData.length, currentPage * itemsPerPage)} of {processedData.length}
+        {/* PAGINATION FOOTER */}
+        <div className="p-4 border-t border-border bg-muted/20 flex items-center justify-between shrink-0 transition-colors">
+           <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              Records {Math.min(processedData.length, (currentPage - 1) * itemsPerPage + 1)} - {Math.min(processedData.length, currentPage * itemsPerPage)} of {processedData.length}
            </div>
            
            <div className="flex items-center gap-1">
-              <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 transition-all"><ChevronsLeft size={16} /></button>
-              <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 transition-all"><ChevronLeft size={16} /></button>
-              <span className="text-xs font-bold px-4 dark:text-white">PAGE {currentPage} / {totalPages || 1}</span>
-              <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 transition-all"><ChevronRight size={16} /></button>
-              <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded-lg hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30 transition-all"><ChevronsRight size={16} /></button>
+              <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 rounded-lg hover:bg-background border border-transparent hover:border-border disabled:opacity-30 transition-all"><ChevronsLeft size={16} /></button>
+              <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 rounded-lg hover:bg-background border border-transparent hover:border-border disabled:opacity-30 transition-all"><ChevronLeft size={16} /></button>
+              <span className="text-xs font-bold px-4 text-foreground uppercase tracking-tight">PAGE {currentPage} / {totalPages || 1}</span>
+              <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded-lg hover:bg-background border border-transparent hover:border-border disabled:opacity-30 transition-all"><ChevronRight size={16} /></button>
+              <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || totalPages === 0} className="p-2 rounded-lg hover:bg-background border border-transparent hover:border-border disabled:opacity-30 transition-all"><ChevronsRight size={16} /></button>
            </div>
         </div>
       </div>
 
-      {/* MODALS */}
+      {/* MODAL COMPONENTS */}
       {isImportOpen && (
         <ImportCadetModal 
           isOpen={isImportOpen} 

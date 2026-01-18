@@ -17,7 +17,7 @@ interface ImportVesselModalProps {
 /**
  * ImportVesselModal Component
  * This component handles the bulk import of vessel data from Excel files.
- * It includes a "Smart Template" generator with dropdowns to ensure data quality.
+ * FIXED: Theming updated to use semantic CSS variables for perfect Light/Dark mode transitions.
  */
 const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, onImport }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -34,7 +34,7 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
   // ---------------------------------------------------------
   /**
    * Creates an Excel file with specific columns and data validation (dropdowns).
-   * This ensures that when a novice user fills the file, they select valid Class and Type values.
+   * Note: The ARGB color FF3194A0 matches the primary Keel Teal branding.
    */
   const downloadTemplate = async () => {
     const workbook = new ExcelJS.Workbook();
@@ -147,8 +147,7 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
       }
 
       // TRANSFORM & VALIDATE DATA FOR THE BACKEND
-      // Note: We use keys like 'imo_number' and 'vessel_type' to match the database exactly.
-      const mappedData = jsonData.map((row: any, index: number) => {
+      const mappedData = jsonData.map((row: any) => {
         const name = getValue(row, ['Vessel Name', 'name', 'vessel_name']);
         const imo = getValue(row, ['IMO Number', 'imo', 'imo_number']);
         const flag = getValue(row, ['Flag', 'flag', 'country']);
@@ -156,13 +155,12 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
         const v_type = getValue(row, ['Vessel Type', 'type', 'vessel_type']);
 
         return {
-          // ID generation for local preview tracking
           id: imo ? `VSL-${imo}` : `VSL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           name: name || 'Unnamed Vessel',
-          imo_number: String(imo || ''), // Matches backend 'imo_number'
+          imo_number: String(imo || ''), 
           flag: flag || 'Unknown',
-          class_society: class_soc || 'Unknown', // Matches backend 'class_society'
-          vessel_type: v_type || 'Other', // Matches backend 'vessel_type'
+          class_society: class_soc || 'Unknown', 
+          vessel_type: v_type || 'Other', 
           is_active: true, 
           program: 'Cadet Training Program'
         };
@@ -204,18 +202,18 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 p-4">
-      <div className={`bg-card dark:bg-zinc-900 w-full ${previewData ? 'max-w-5xl' : 'max-w-xl'} rounded-xl border border-border shadow-2xl animate-in zoom-in-95 duration-200 transition-all overflow-hidden`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 p-4">
+      <div className={`bg-card w-full ${previewData ? 'max-w-5xl' : 'max-w-xl'} rounded-xl border border-border shadow-2xl animate-in zoom-in-95 duration-200 transition-all overflow-hidden`}>
         
         {/* MODAL HEADER */}
-        <div className="flex items-center justify-between p-4 border-b border-border bg-card dark:bg-zinc-900">
+        <div className="flex items-center justify-between p-4 border-b border-border bg-card">
           <div className="flex items-center space-x-2 text-foreground">
-            <FileSpreadsheet size={20} className="text-teal-600" />
+            <FileSpreadsheet size={20} className="text-primary" />
             <h2 className="font-bold text-lg">Import Vessels</h2>
           </div>
           <button 
             onClick={onClose} 
-            className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
+            className="text-muted-foreground hover:text-foreground transition-all p-1.5 rounded-lg hover:bg-muted"
           >
             <X size={20} />
           </button>
@@ -227,8 +225,8 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
           /* --- UPLOAD VIEW --- */
           <div className="p-6 space-y-6">
             
-            {/* INSTRUCTIONS BOX */}
-            <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg flex items-start space-x-3">
+            {/* INSTRUCTIONS BOX - Semantic blue colors for alerts */}
+            <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex items-start space-x-3">
                <AlertTriangle className="text-blue-500 shrink-0 mt-0.5" size={18} />
                <div className="text-sm">
                   <p className="font-bold text-foreground">Smart Template Recommended</p>
@@ -240,9 +238,9 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
                </div>
             </div>
 
-            {/* INTERACTIVE DROP ZONE */}
+            {/* INTERACTIVE DROP ZONE: Responsive to theme variables */}
             <div 
-              className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center transition-all cursor-pointer ${
+              className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center transition-all cursor-pointer ${
                 dragActive 
                 ? 'border-primary bg-primary/5' 
                 : 'border-border bg-muted/20 hover:border-primary/50 hover:bg-muted/40'
@@ -264,15 +262,15 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
                {isProcessing ? (
                   <div className="flex flex-col items-center space-y-3">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-                    <p className="text-sm font-medium text-muted-foreground">Parsing Fleet Data...</p>
+                    <p className="text-sm font-bold text-muted-foreground">Parsing Fleet Data...</p>
                   </div>
                ) : (
                   <>
-                    <div className="p-4 bg-background dark:bg-zinc-800 rounded-full shadow-sm mb-3">
+                    <div className="p-4 bg-background rounded-full shadow-sm mb-3 border border-border">
                       <Upload size={24} className="text-primary" />
                     </div>
-                    <p className="font-medium text-foreground">Click to upload or drag and drop</p>
-                    <p className="text-xs text-muted-foreground mt-1 uppercase tracking-wider font-semibold">Excel (XLSX, XLS) only</p>
+                    <p className="font-bold text-foreground">Click to upload or drag and drop</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-widest font-bold">Excel (XLSX, XLS) only</p>
                   </>
                )}
             </div>
@@ -281,7 +279,7 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
             <div className="flex justify-center items-center pt-2">
               <button 
                 onClick={downloadTemplate} 
-                className="text-sm text-primary hover:text-primary/80 font-semibold flex items-center space-x-2 p-2 hover:bg-primary/5 rounded-lg transition-all"
+                className="text-sm text-primary hover:text-primary/80 font-bold flex items-center space-x-2 p-2.5 hover:bg-primary/5 rounded-xl transition-all"
               >
                 <Download size={16} />
                 <span>Download Keel Smart Template</span>
@@ -292,44 +290,44 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
         ) : (
 
           /* --- PREVIEW TABLE VIEW --- */
-          <div className="flex flex-col max-h-[70vh]"> 
-             <div className="p-4 bg-muted/30 dark:bg-zinc-800/50 border-b border-border flex justify-between items-center">
-                <div>
+          <div className="flex flex-col max-h-[75vh]"> 
+             <div className="p-4 bg-muted/30 border-b border-border flex justify-between items-center">
+                <div className="flex flex-col gap-0.5">
                    <h3 className="font-bold text-foreground">Preview Fleet Import</h3>
-                   <p className="text-xs text-muted-foreground">Found {previewData.length} vessel records. Review before adding to database.</p>
+                   <p className="text-xs text-muted-foreground font-medium">Found {previewData.length} vessel records. Review before adding to database.</p>
                 </div>
                 <button 
                   onClick={() => setPreviewData(null)} 
-                  className="text-xs font-semibold text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all"
+                  className="text-xs font-bold text-primary hover:bg-primary/5 px-4 py-2 rounded-xl border border-primary/20 flex items-center gap-1 transition-all"
                 >
                    <ChevronLeft size={14} /> Re-upload File
                 </button>
              </div>
 
-             {/* DATA PREVIEW TABLE */}
-             <div className="flex-1 overflow-auto">
+             {/* DATA PREVIEW TABLE: Connected to theme-safe colors */}
+             <div className="flex-1 overflow-auto scrollbar-thin scrollbar-thumb-muted">
                 <table className="w-full text-left text-sm border-collapse">
-                   <thead className="bg-muted/50 dark:bg-zinc-800 sticky top-0 z-10">
+                   <thead className="bg-muted/50 sticky top-0 z-10">
                       <tr className="border-b border-border">
-                         <th className="p-4 font-semibold text-muted-foreground text-xs uppercase">Vessel Name</th>
-                         <th className="p-4 font-semibold text-muted-foreground text-xs uppercase">IMO Number</th>
-                         <th className="p-4 font-semibold text-muted-foreground text-xs uppercase">Flag</th>
-                         <th className="p-4 font-semibold text-muted-foreground text-xs uppercase">Type</th>
-                         <th className="p-4 font-semibold text-muted-foreground text-xs uppercase">Class Society</th>
+                         <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Vessel Name</th>
+                         <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">IMO Number</th>
+                         <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Flag</th>
+                         <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Type</th>
+                         <th className="p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-widest">Class Society</th>
                       </tr>
                    </thead>
-                   <tbody className="divide-y divide-border bg-card dark:bg-zinc-900">
+                   <tbody className="divide-y divide-border bg-card">
                       {previewData.map((vessel, idx) => (
-                         <tr key={idx} className="hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors">
+                         <tr key={idx} className="hover:bg-muted/20 transition-colors">
                             <td className="p-4 font-bold text-foreground">{vessel.name}</td>
-                            <td className="p-4 font-mono text-muted-foreground">{vessel.imo_number}</td>
-                            <td className="p-4 text-foreground">{vessel.flag}</td>
+                            <td className="p-4 font-mono text-muted-foreground font-bold">{vessel.imo_number}</td>
+                            <td className="p-4 text-foreground font-medium">{vessel.flag}</td>
                             <td className="p-4">
-                               <span className="bg-primary/10 text-primary dark:bg-primary/20 px-2 py-1 rounded text-[10px] font-bold uppercase border border-primary/20">
+                               <span className="bg-primary/10 text-primary px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border border-primary/20">
                                   {vessel.vessel_type}
                                </span>
                             </td>
-                            <td className="p-4 text-muted-foreground text-xs truncate max-w-xs" title={vessel.class_society}>
+                            <td className="p-4 text-muted-foreground text-xs font-medium truncate max-w-xs" title={vessel.class_society}>
                                {vessel.class_society}
                             </td>
                          </tr>
@@ -339,16 +337,16 @@ const ImportVesselModal: React.FC<ImportVesselModalProps> = ({ isOpen, onClose, 
              </div>
 
              {/* MODAL FOOTER ACTIONS */}
-             <div className="p-4 border-t border-border bg-card dark:bg-zinc-900 flex justify-end gap-3 shrink-0">
+             <div className="p-4 border-t border-border bg-card flex justify-end gap-3 shrink-0">
                 <button 
                   onClick={() => setPreviewData(null)}
-                  className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+                  className="px-5 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all"
                 >
                    Discard
                 </button>
                 <button 
                    onClick={handleConfirmImport}
-                   className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                   className="bg-primary hover:brightness-110 text-primary-foreground px-6 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95"
                 >
                    <CheckCircle2 size={16} />
                    Confirm Fleet Import
