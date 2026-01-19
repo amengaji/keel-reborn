@@ -39,6 +39,19 @@ export const cadetService = {
     return json;
   },
 
+  // UPDATE existing cadet profile (NEW)
+  update: async (id: string | number, data: any) => {
+    const res = await fetch(`${API_URL}/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.message || 'Failed to update trainee');
+    return json;
+  },
+
   // DELETE a cadet profile
   delete: async (id: string | number) => {
     const res = await fetch(`${API_URL}/${id}`, {

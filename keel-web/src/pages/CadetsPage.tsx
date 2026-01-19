@@ -16,13 +16,14 @@ import { toast } from 'sonner';
  * CadetsPage Component
  * Provides a comprehensive interface for managing trainee (cadet) profiles.
  * FIXED: Optimized for light/dark mode using theme variables.
+ * FIXED: Vessel Name display crash (Strict null check added).
  * CTO RESTRICTIONS: Added role-based checks to hide Add/Import/Edit/Delete actions for CTOs.
  */
 const CadetsPage: React.FC = () => {
   // --- ROLE IDENTIFICATION ---
   const userJson = localStorage.getItem('keel_user');
   const user = userJson ? JSON.parse(userJson) : null;
-  const isCTO = user?.role === 'CTO'; //
+  const isCTO = user?.role === 'CTO'; 
 
   // --- STATE MANAGEMENT ---
   const [cadets, setCadets] = useState<any[]>([]); 
@@ -69,11 +70,11 @@ const CadetsPage: React.FC = () => {
       };
 
       if (editingCadet && editingCadet.id) {
-        toast.info("Update logic triggered.");
-        // await cadetService.update(editingCadet.id, payload);
+        await cadetService.update(editingCadet.id, payload); // Call update if editing
+        toast.success("Trainee profile updated successfully.");
       } else {
         await cadetService.create(payload);
-        toast.success(`Trainee profile created successfully.`);
+        toast.success("Trainee profile created successfully.");
       }
       
       setIsAddOpen(false);
@@ -143,8 +144,18 @@ const CadetsPage: React.FC = () => {
     let filtered = cadets.filter((c: any) => {
       // Combine names for a comprehensive search experience
       const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
-      // Safely access nested vessel name from SQL response
-      const vesselName = (c.vessel?.name || '').toLowerCase();
+      
+      // FIXED: Safely handle vessel whether it is a string OR an object OR null
+      let vesselName = '';
+      if (c.vessel) {
+        // Strict check: Is it an object and NOT null?
+        if (typeof c.vessel === 'object' && c.vessel !== null) {
+           vesselName = c.vessel.name || '';
+        } else {
+           vesselName = String(c.vessel);
+        }
+      }
+      vesselName = vesselName.toLowerCase();
       
       const matchesSearch = fullName.includes(searchQuery.toLowerCase()) || 
                             (c.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -318,8 +329,9 @@ const CadetsPage: React.FC = () => {
                           <td className="p-4">
                              <div className="flex items-center gap-2">
                                 <Anchor size={14} className="text-muted-foreground/60" />
+                                {/* FIXED: Crash prevention for vessel.name check */}
                                 <span className={!cadet.vessel || cadet.vessel === 'Unassigned' ? 'text-muted-foreground italic text-xs' : 'text-foreground font-bold'}>
-                                   {cadet.vessel?.name || 'Not Assigned'}
+                                   {typeof cadet.vessel === 'object' && cadet.vessel !== null ? cadet.vessel.name : (cadet.vessel || 'Not Assigned')}
                                 </span>
                              </div>
                           </td>

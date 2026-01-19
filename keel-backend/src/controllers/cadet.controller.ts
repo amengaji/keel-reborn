@@ -11,11 +11,6 @@ import bcrypt from 'bcryptjs';
 
 /**
  * GET ALL CADETS
- * Optimized to fetch:
- * 1. Active Vessel Name
- * 2. Sign-on Date for Sea Time calculation
- * 3. Count of total available tasks
- * 4. Count of completed (signed-off) tasks
  */
 export const getCadets = async (req: Request, res: Response) => {
   try {
@@ -33,7 +28,7 @@ export const getCadets = async (req: Request, res: Response) => {
         },
         {
           model: Assignment, 
-          as: 'taskAssignments', // MUST MATCH THE ALIAS IN setupAssociations
+          as: 'taskAssignments',
           required: false,
         }
       ],
@@ -44,14 +39,12 @@ export const getCadets = async (req: Request, res: Response) => {
     const formattedCadets = cadets.map((c: any) => {
       const plainCadet = c.get({ plain: true });
       const activeAssignment = plainCadet.assignments?.[0];
-      
-      // Calculate real progress based on the count of rows in the Assignment table
       const completedTasksCount = plainCadet.taskAssignments ? plainCadet.taskAssignments.length : 0;
 
       return {
         ...plainCadet,
         name: `${plainCadet.first_name || ''} ${plainCadet.last_name || ''}`.trim(),
-        vessel: activeAssignment?.Vessel ? activeAssignment.Vessel.name : null,
+        vessel: activeAssignment?.Vessel ? activeAssignment.Vessel.name : null, // Fixed: Return simple string name
         sign_on_date: activeAssignment?.sign_on_date || null,
         completed_tasks_count: completedTasksCount,
         total_tasks_count: totalTasksCount,
@@ -67,45 +60,74 @@ export const getCadets = async (req: Request, res: Response) => {
 };
 
 /**
- * CREATE CADET
- * Remains unchanged to ensure functionality parity.
+ * CREATE CADET (Updated to support full profile)
  */
 export const createCadet = async (req: Request, res: Response) => {
   try {
-    const { fullName, first_name, last_name, email, password, indos, rank, nationality, phone } = req.body;
+    const data = req.body; // Shortcut for full payload
 
-    if (!email) return res.status(400).json({ message: "Email is required" });
+    if (!data.email) return res.status(400).json({ message: "Email is required" });
 
-    let resolvedFirstName: string;
-    let resolvedLastName: string;
+    // Name Resolution
+    let resolvedFirstName = data.first_name;
+    let resolvedLastName = data.last_name;
 
-    if (first_name && last_name) {
-      resolvedFirstName = first_name.trim();
-      resolvedLastName = last_name.trim();
-    } else if (fullName) {
-      const parts = fullName.trim().split(/\s+/);
+    if (!resolvedFirstName && data.fullName) {
+      const parts = data.fullName.trim().split(/\s+/);
       resolvedFirstName = parts[0];
       resolvedLastName = parts.length > 1 ? parts.slice(1).join(" ") : "Trainee";
-    } else {
-      return res.status(400).json({ message: "Name is required" });
     }
 
     const cadetRole = await Role.findOne({ where: { name: "CADET" } });
     if (!cadetRole) return res.status(500).json({ message: "System Error: CADET role missing" });
 
-    const passwordHash = await bcrypt.hash(password || "cadet123", 10);
+    const passwordHash = await bcrypt.hash(data.password || "cadet123", 10);
 
     const newUser = await User.create({
+      // Core Auth
       first_name: resolvedFirstName,
       last_name: resolvedLastName,
-      email,
+      email: data.email,
       password_hash: passwordHash,
       role_id: cadetRole.id,
-      indos_number: indos || null,
-      rank: rank || "Deck Cadet",
-      nationality: nationality || null,
-      phone: phone || null,
       status: "Ready",
+      
+      // Professional / Maritime
+      rank: data.rank || data.traineeType || "Deck Cadet",
+      indos_number: data.indos_number || data.indosNo || null,
+      sid_number: data.sid_number || data.sidNo || null,
+      nationality: data.nationality || null,
+      phone: data.phone || data.mobile || null,
+      
+      // Personal
+      dob: data.dob || null,
+      gender: data.gender || null,
+      blood_group: data.bloodGroup || null,
+      
+      // Address
+      address: data.address || null,
+      city: data.city || null,
+      state: data.state || null,
+      country: data.country || null,
+      pincode: data.pincode || null,
+
+      // Passport
+      passport_number: data.passportNo || null,
+      passport_issue_date: data.passportIssueDate || null,
+      passport_expiry_date: data.passportExpiryDate || null,
+      passport_place: data.passportPlace || null,
+
+      // CDC
+      cdc_number: data.cdcNo || null,
+      cdc_country: data.cdcCountry || null,
+      cdc_issue_date: data.cdcIssueDate || null,
+      cdc_expiry_date: data.cdcExpiryDate || null,
+
+      // Kin
+      kin_name: data.kinName || null,
+      kin_relation: data.kinRelation || null,
+      kin_mobile: data.kinMobile || null,
+      kin_email: data.kinEmail || null,
     });
 
     return res.status(201).json({ message: "Cadet profile created successfully", cadet: newUser });
@@ -116,8 +138,90 @@ export const createCadet = async (req: Request, res: Response) => {
 };
 
 /**
+ * UPDATE CADET (New functionality)
+ */
+export const updateCadet = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const data = req.body;
+
+    // Resolve Name if provided
+    let nameUpdates = {};
+    if (data.fullName) {
+       const parts = data.fullName.trim().split(/\s+/);
+       nameUpdates = {
+         first_name: parts[0],
+         last_name: parts.slice(1).join(" ") || ""
+       };
+    } else if (data.first_name || data.last_name) {
+       nameUpdates = {
+         first_name: data.first_name,
+         last_name: data.last_name
+       };
+    }
+
+    // Map Frontend keys to DB keys
+    const updatePayload = {
+      ...nameUpdates,
+      email: data.email,
+      phone: data.mobile || data.phone,
+      
+      // Maritime
+      rank: data.traineeType || data.rank,
+      indos_number: data.indosNo || data.indos_number,
+      sid_number: data.sidNo || data.sid_number,
+      nationality: data.nationality,
+      
+      // Personal
+      dob: data.dob,
+      gender: data.gender,
+      blood_group: data.bloodGroup || data.blood_group,
+      
+      // Address
+      address: data.address,
+      city: data.city,
+      state: data.state,
+      country: data.country,
+      pincode: data.pincode,
+
+      // Passport
+      passport_number: data.passportNo || data.passport_number,
+      passport_issue_date: data.passportIssueDate || data.passport_issue_date,
+      passport_expiry_date: data.passportExpiryDate || data.passport_expiry_date,
+      passport_place: data.passportPlace || data.passport_place,
+
+      // CDC
+      cdc_number: data.cdcNo || data.cdc_number,
+      cdc_country: data.cdcCountry || data.cdc_country,
+      cdc_issue_date: data.cdcIssueDate || data.cdc_issue_date,
+      cdc_expiry_date: data.cdcExpiryDate || data.cdc_expiry_date,
+
+      // Kin
+      kin_name: data.kinName || data.kin_name,
+      kin_relation: data.kinRelation || data.kin_relation,
+      kin_mobile: data.kinMobile || data.kin_mobile,
+      kin_email: data.kinEmail || data.kin_email,
+    };
+
+    // Remove undefined keys to prevent overwriting with null
+    Object.keys(updatePayload).forEach(key => (updatePayload as any)[key] === undefined && delete (updatePayload as any)[key]);
+
+    const [updated] = await User.update(updatePayload, { where: { id } });
+
+    if (updated) {
+      const updatedUser = await User.findByPk(id);
+      return res.json({ message: "Profile updated", cadet: updatedUser });
+    }
+    
+    return res.status(404).json({ message: "Cadet not found" });
+  } catch (error: any) {
+    console.error("UPDATE CADET ERROR:", error);
+    res.status(500).json({ message: "Error updating cadet", error: error.message });
+  }
+};
+
+/**
  * DELETE CADET
- * FIXED: Performs cleanup of assignments before deleting user.
  */
 export const deleteCadet = async (req: Request, res: Response) => {
   try {

@@ -18,7 +18,7 @@ interface ImportCadetModalProps {
 /**
  * ImportCadetModal Component
  * Handles bulk import of cadet data from XLSX files.
- * FIXED: Optimized Tailwind classes to utilize semantic theme variables for Light/Dark mode.
+ * FIXED: Mapped 'traineeType' to 'rank' so the Backend receives the correct field.
  */
 const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, onImport }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -30,7 +30,7 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
   if (!isOpen) return null;
 
   // ---------------------------------------------------------
-  // 1. GENERATE SMART TEMPLATE (FULL PARITY – NO UI CHANGE)
+  // 1. GENERATE SMART TEMPLATE
   // ---------------------------------------------------------
   const downloadTemplate = async () => {
     const workbook = new ExcelJS.Workbook();
@@ -104,7 +104,7 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
   };
 
   // ---------------------------------------------------------
-  // 2. HELPER: FUZZY HEADER MATCHER (UNCHANGED)
+  // 2. HELPER: FUZZY HEADER MATCHER
   // ---------------------------------------------------------
   const getValue = (row: any, targetKeys: string[]) => {
     const normalize = (k: string) => String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -117,7 +117,7 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
   };
 
   // ---------------------------------------------------------
-  // 3. FILE PARSING (FULL DATA – SAME UI)
+  // 3. FILE PARSING
   // ---------------------------------------------------------
   const handleFile = async (file: File) => {
     setIsProcessing(true);
@@ -134,35 +134,42 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
       }
 
       const mappedData = json.map((row: any) => ({
-        fullName: getValue(row, ['Full Name', 'fullName']),
-        dob: getValue(row, ['Date of Birth', 'dob']),
-        gender: getValue(row, ['Gender']),
-        address: getValue(row, ['Address']),
-        country: getValue(row, ['Country']),
-        state: getValue(row, ['State']),
-        city: getValue(row, ['City']),
-        pincode: getValue(row, ['Pin Code']),
-        email: getValue(row, ['Email']),
-        mobile: getValue(row, ['Mobile']),
-        bloodGroup: getValue(row, ['Blood Group']),
-        kinName: getValue(row, ['Emergency Contact Name']),
-        kinRelation: getValue(row, ['Relation']),
-        kinMobile: getValue(row, ['Emergency Mobile']),
-        kinEmail: getValue(row, ['Emergency Email']),
-        passportNo: getValue(row, ['Passport No']),
+        fullName: getValue(row, ['Full Name', 'fullName', 'Name', 'Candidate Name']),
+        dob: getValue(row, ['Date of Birth', 'dob', 'DOB']),
+        gender: getValue(row, ['Gender', 'Sex']),
+        address: getValue(row, ['Address', 'Permanent Address']),
+        country: getValue(row, ['Country', 'Country (ISO)']),
+        state: getValue(row, ['State', 'State (ISO)']),
+        city: getValue(row, ['City', 'Town']),
+        pincode: getValue(row, ['Pin Code', 'pincode', 'Zip Code']),
+        email: getValue(row, ['Email', 'Email Address']),
+        mobile: getValue(row, ['Mobile', 'Phone', 'Cell']),
+        bloodGroup: getValue(row, ['Blood Group', 'Blood Type']),
+        
+        kinName: getValue(row, ['Emergency Contact Name', 'Next of Kin', 'Kin Name']),
+        kinRelation: getValue(row, ['Relation', 'Relationship']),
+        kinMobile: getValue(row, ['Emergency Mobile', 'Kin Mobile']),
+        kinEmail: getValue(row, ['Emergency Email', 'Kin Email']),
+        
+        passportNo: getValue(row, ['Passport No', 'Passport Number']),
         nationality: getValue(row, ['Nationality']),
-        passportIssueDate: getValue(row, ['Passport Issue Date']),
-        passportExpiryDate: getValue(row, ['Passport Expiry Date']),
-        passportPlace: getValue(row, ['Passport Place']),
-        cdcNo: getValue(row, ['CDC No']),
+        passportIssueDate: getValue(row, ['Passport Issue Date', 'Passport Issue']),
+        passportExpiryDate: getValue(row, ['Passport Expiry Date', 'Passport Expiry']),
+        passportPlace: getValue(row, ['Passport Place', 'Place of Issue']),
+        
+        cdcNo: getValue(row, ['CDC No', 'CDC Number', 'Seaman Book No']),
         cdcCountry: getValue(row, ['CDC Country']),
         cdcIssueDate: getValue(row, ['CDC Issue Date']),
         cdcExpiryDate: getValue(row, ['CDC Expiry Date']),
-        indosNo: getValue(row, ['INDoS No']),
-        sidNo: getValue(row, ['SID No']),
-        traineeType: getValue(row, ['Trainee Type']),
-        doj: getValue(row, ['Date of Joining']),
-        trbApplicable: String(getValue(row, ['TRB Applicable']) || '').toUpperCase() === 'YES',
+        
+        indosNo: getValue(row, ['INDoS No', 'INDoS']),
+        sidNo: getValue(row, ['SID No', 'SID']),
+        
+        // FIXED: Changed key from 'traineeType' to 'rank' so backend creates it correctly
+        rank: getValue(row, ['Trainee Type', 'Rank', 'Role', 'Designation', 'Position', 'traineeType']),
+        
+        doj: getValue(row, ['Date of Joining', 'doj', 'Joining Date', 'Sign On Date']),
+        trbApplicable: String(getValue(row, ['TRB Applicable', 'TRB', 'Is TRB Applicable']) || '').toUpperCase() === 'YES',
       }));
 
       const cleanData = mappedData.filter(d => d.email);
@@ -257,7 +264,7 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
                  </div>
              </div>
           ) : (
-             <div className="flex flex-col h-[500px] bg-card">
+             <div className="flex flex-col h-125 bg-card">
                 {/* PREVIEW HEADER */}
                 <div className="p-4 bg-muted/30 border-b border-border flex justify-between items-center">
                    <div className="flex flex-col gap-0.5">
@@ -292,7 +299,8 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
                                <td className="p-4 text-muted-foreground font-mono font-bold">{t.indosNo}</td>
                                <td className="p-4">
                                 <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-[10px] font-bold border border-primary/20">
-                                  {t.traineeType}
+                                  {/* Fixed: Display 'rank' instead of 'traineeType' */}
+                                  {t.rank}
                                 </span>
                                </td>
                                <td className="p-4 text-muted-foreground font-medium">{t.nationality}</td>

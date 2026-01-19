@@ -6,53 +6,43 @@ import sequelize from '../config/database';
 import { setupAssociations } from '../models/associations';
 import bcrypt from 'bcryptjs';
 
-/**
- * MARITIME EXPERT NOTE:
- * This script initializes the "Crew Manifest".
- * It establishes the legal ranks required for STCW compliance 
- * and creates the first System Administrator with a SECURE HASHED password.
- */
-
 const seed = async () => {
   try {
-    // 1. Initialize Connection and Associations
+    // 1. Initialize Connection
     await sequelize.authenticate();
     setupAssociations();
     
-    // Sync tables (This creates the tables if they don't exist yet)
+    // Sync tables
     await sequelize.sync({ alter: true });
     console.log('⚓ DATABASE: Tables synchronized.');
 
-    // 2. Create Standard Maritime Roles
+    // 2. Create Roles
     const roles = ['CADET', 'CTO', 'MASTER', 'SHORE_OFFICER', 'ADMIN', 'SHORE_ADMIN'];
     for (const roleName of roles) {
-      await Role.findOrCreate({ 
-        where: { name: roleName } 
-      });
+      await Role.findOrCreate({ where: { name: roleName } });
     }
     console.log('✅ ROLES: Standard maritime hierarchy initialized.');
 
-    // 3. Create or Fix the First Administrator
+    // 3. Fix or Create Admin with HASHED Password
     const adminRole = await Role.findOne({ where: { name: 'ADMIN' } });
     
     if (adminRole) {
-      // HASH THE PASSWORD (Crucial Fix)
+      // --- THE FIX: Hash the password ---
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash('admin123', salt);
 
-      // Check if Admin exists
       const existingAdmin = await User.findOne({ where: { email: 'admin@keel.com' } });
 
       if (existingAdmin) {
-        // UPDATE existing admin with the new hashed password
+        // REPAIR existing account
         existingAdmin.password_hash = passwordHash;
         existingAdmin.first_name = 'System';
         existingAdmin.last_name = 'Administrator';
         existingAdmin.role_id = adminRole.id;
         await existingAdmin.save();
-        console.log('✅ USER: Admin account REPAIRED with hashed password (admin@keel.com / admin123)');
+        console.log('✅ USER: Admin account REPAIRED (admin@keel.com / admin123)');
       } else {
-        // CREATE new admin
+        // CREATE new account
         await User.create({
           email: 'admin@keel.com',
           first_name: 'System',
@@ -65,7 +55,7 @@ const seed = async () => {
       }
     }
 
-    console.log('🚀 SEEDING COMPLETE: System is ready for login.');
+    console.log('🚀 SEEDING COMPLETE: System is ready.');
     process.exit(0);
   } catch (error) {
     console.error('❌ SEEDING ERROR:', error);
