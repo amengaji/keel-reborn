@@ -1,16 +1,24 @@
+// keel-backend/src/models/Task.ts
+
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database';
 
 class Task extends Model {
   public id!: number;
-  public code!: string;             // e.g. "A.1.2"
-  public title!: string;            // e.g. "Steer the ship"
-  public description?: string;      // e.g. "Demonstrate ability to keep course..."
-  public department!: string;       // "Deck" or "Engine"
-  public category?: string;         // e.g. "Navigation at Operational Level"
-  public function_code?: string;    // NEW: "1", "2", "3" (STCW Function ID)
-  public safety_level?: string;     // "Green", "Amber", "Red" (Risk Level)
-  
+  public code!: string;
+  public title!: string;
+  public description!: string; // Competence
+  public instructions!: string; // Step-by-step
+  public department!: string;
+  public category!: string; // Section / Topic
+  public function_code!: string; // STCW Function
+  public safety_level!: string;
+  public trainee_type!: string; // Rank
+  public frequency!: string;
+  public mandatory!: boolean;
+  public evidence_type!: string;
+  public verification_method!: string;
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 }
@@ -25,30 +33,56 @@ Task.init(
     code: {
       type: DataTypes.STRING(50),
       allowNull: false,
-      unique: true, // No duplicate task codes allowed
+      unique: true,
     },
     title: {
-      type: DataTypes.TEXT, // Text because some task names are long
+      type: DataTypes.STRING(255),
       allowNull: false,
     },
     description: {
-      type: DataTypes.TEXT,
+      type: DataTypes.TEXT, // Changed to TEXT for longer content
+      allowNull: true,
+    },
+    instructions: {
+      type: DataTypes.TEXT, // New Field
       allowNull: true,
     },
     department: {
-      type: DataTypes.ENUM('Deck', 'Engine'),
-      allowNull: false,
-      defaultValue: 'Deck'
+      type: DataTypes.STRING(50),
+      allowNull: true,
     },
     category: {
-      type: DataTypes.STRING(150),
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+    function_code: {
+      type: DataTypes.STRING(50),
       allowNull: true,
     },
     safety_level: {
-      type: DataTypes.ENUM('Green', 'Amber', 'Red', 'None'),
-      defaultValue: 'Green',
+      type: DataTypes.STRING(50),
+      defaultValue: 'None',
     },
-    function_code: { type: DataTypes.STRING(10), allowNull: true, defaultValue: '1' },
+    trainee_type: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    frequency: {
+      type: DataTypes.STRING(50),
+      defaultValue: 'ONCE',
+    },
+    mandatory: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
+    evidence_type: {
+      type: DataTypes.STRING(50),
+      defaultValue: 'DOCUMENT/PHOTO',
+    },
+    verification_method: {
+      type: DataTypes.STRING(50),
+      defaultValue: 'OBSERVATION',
+    }
   },
   {
     sequelize,

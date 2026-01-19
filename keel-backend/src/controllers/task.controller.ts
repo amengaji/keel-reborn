@@ -1,3 +1,5 @@
+// keel-backend/src/controllers/task.controller.ts
+
 import { Request, Response } from 'express';
 import Task from '../models/Task';
 
@@ -12,16 +14,16 @@ const STCW_MAP: Record<string, string> = {
   '7': 'Radio Communications'
 };
 
-// GET ALL TASKS (Returns Nested Tree: Function -> Topic -> Task)
+// GET ALL TASKS
 export const getTasks = async (req: Request, res: Response) => {
   try {
-    const tasks = await Task.findAll({ order: [['code', 'ASC']] });
+    const tasks = await Task.findAll({ order: [['function_code', 'ASC'], ['code', 'ASC']] });
     
     // Convert Flat List -> Tree Structure
     const tree: any[] = [];
 
     tasks.forEach((task: any) => {
-      // 1. Handle Function (e.g., "Function 1")
+      // 1. Handle Function
       const funcNum = task.function_code || '0';
       const funcId = `FUNC-${funcNum}`;
       
@@ -45,59 +47,81 @@ export const getTasks = async (req: Request, res: Response) => {
         funcNode.topics.push(topicNode);
       }
 
-      // 3. Add Task
+      // 3. Add Task (Pass ALL data for Edit Modal)
       topicNode.tasks.push({
         id: task.id,
         code: task.code,
         title: task.title,
-        stcw: task.code, // Frontend alias
-        dept: task.department,
+        
+        // Content
+        description: task.description || '', // Competence
+        instructions: task.instructions || '', // Detailed Steps
+        
+        // Metadata
+        function_code: task.function_code,
+        category: task.category,
+        department: task.department,
+        rank: task.trainee_type,
+        
+        // Requirements
         safety: task.safety_level,
-        description: task.title // Fallback description
+        frequency: task.frequency,
+        mandatory: task.mandatory,
+        evidence: task.evidence_type,
+        verification: task.verification_method,
+        
+        // STCW (often same as code in simple setups, but can be distinct)
+        stcw: task.code 
       });
     });
 
     // Sort Functions 1-7
     tree.sort((a, b) => a.id.localeCompare(b.id));
 
-    res.json(tree); // <--- SERVER NOW RETURNS THE TREE!
+    res.json(tree); 
   } catch (error: any) {
     res.status(500).json({ message: 'Error fetching tasks', error: error.message });
   }
 };
 
 // CREATE TASK
-// CREATE TASK
 export const createTask = async (req: Request, res: Response) => {
   try {
-    // Extracting all possible variations of the same fields
+    // Destructure all possible variations of keys from frontend/import
     const { 
       code, stcw, 
-      title, 
+      title, description, instructions, instruction,
       department, dept, 
       section, category, 
       partNum, function_code, 
-      safety_level, safety 
+      safety_level, safety,
+      trainee_type, traineeType,
+      frequency, mandatory, mandatory_for_all,
+      evidence_type, evidence,
+      verification_method, verification
     } = req.body;
 
-    // Map Frontend names to Backend names strictly
     const payload = {
-      // The DB requires 'code'. We check both 'code' and 'stcw'
-      code: code || stcw, 
+      code: code || stcw || `TRB-${Date.now()}`, 
       title: title,
+      description: description,
+      instructions: instructions || instruction, // Capture instructions
+      
       department: department || dept || 'Deck',
-      // Map 'section' -> 'category'
       category: section || category || 'General',
-      // Map 'partNum' -> 'function_code'
       function_code: partNum || function_code || '1', 
-      ssafety_level: ['Green', 'Amber', 'Red'].includes(safety_level || safety) 
-        ? (safety_level || safety) 
-        : 'Green'
+      
+      trainee_type: trainee_type || traineeType || 'DECK_CADET',
+      safety_level: ['Green', 'Amber', 'Red'].includes(safety_level || safety) ? (safety_level || safety) : 'None',
+      
+      frequency: frequency || 'ONCE',
+      mandatory: mandatory !== undefined ? mandatory : (mandatory_for_all !== undefined ? mandatory_for_all : true),
+      evidence_type: evidence_type || evidence || 'DOCUMENT/PHOTO',
+      verification_method: verification_method || verification || 'OBSERVATION'
     };
 
-    // Safety Check: If both code and stcw were missing, throw a clear error
-    if (!payload.code) {
-      return res.status(400).json({ message: 'Task code is required.' });
+    if (!payload.title) {
+      return res.status(400).json({ message: 'Task Title is required.' });
     }
 
     const newTask = await Task.create(payload);
@@ -115,15 +139,32 @@ export const createTask = async (req: Request, res: Response) => {
 export const updateTask = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    // Map updates
+    const body = req.body;
+
+    // Map Frontend keys to DB keys for update
     const payload = {
-      ...req.body,
-      category: req.body.section || req.body.category,
-      function_code: req.body.partNum || req.body.function_code
+      title: body.title,
+      description: body.description,
+      instructions: body.instruction || body.instructions,
+      
+      category: body.section || body.category,
+      function_code: body.partNum || body.function_code,
+      department: body.dept || body.department,
+      trainee_type: body.traineeType || body.trainee_type,
+      
+      safety_level: body.safety || body.safety_level,
+      frequency: body.frequency,
+      mandatory: body.mandatory,
+      evidence_type: body.evidence || body.evidence_type,
+      verification_method: body.verification || body.verification_method
     };
     
+    // Clean undefined
+    Object.keys(payload).forEach(key => (payload as any)[key] === undefined && delete (payload as any)[key]);
+
     await Task.update(payload, { where: { id } });
-    res.json({ message: 'Updated' });
+    const updated = await Task.findByPk(id);
+    res.json(updated);
   } catch (error: any) {
     res.status(500).json({ message: 'Error updating task', error: error.message });
   }

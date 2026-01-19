@@ -399,7 +399,7 @@ const TasksPage: React.FC = () => {
             isOpen={isTaskFormOpen} 
             onClose={() => setIsTaskFormOpen(false)} 
             onSave={handleSaveTask} 
-            initialData={editingTask} 
+            editData={editingTask} 
           />
         </>
       )}
