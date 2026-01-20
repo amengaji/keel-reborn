@@ -92,29 +92,57 @@ const TasksPage: React.FC = () => {
   const handleImport = async (flatData: any[]) => {
     try {
       let count = 0;
+
       for (const item of flatData) {
         await taskService.create({
-          code: item.code || item.stcw,
+          code: item.stcw_reference,
           title: item.title,
-          department: item.dept || 'Deck',
-          section: item.section || 'General',
-          partNum: item.function || '1',
-          safety_level: item.safety || 'Green'
+          description: item.description,
+          instructions: item.instructions,
+          stcw: item.stcw || null,
+
+
+          department: item.department || 'Deck',
+          section: item.category || 'General',
+          partNum: item.function_code || '1',
+
+          trainee_type: item.trainee_type,
+          safety_level: item.safety_level,
+          frequency: item.frequency,
+          mandatory: item.mandatory,
+          evidence_type: item.evidence_type,
+          verification_method: item.verification_method
         });
         count++;
       }
+
       toast.success(`Imported ${count} tasks successfully.`);
-      loadData(); 
+      loadData();
       setIsImportOpen(false);
-    } catch (error) {
+    } catch {
       toast.error("Import failed.");
     }
   };
 
+
   // --- 3. DELETE (FROM DATABASE) ---
   const handleDeleteAll = async () => {
-    toast.error("Bulk delete is disabled for safety in Database mode.");
+    const confirmed = window.confirm(
+      "⚠️ This will permanently delete ALL TRB tasks.\n\nThis action cannot be undone.\n\nProceed?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await taskService.deleteAll();
+      toast.success("All tasks deleted successfully.");
+      setSyllabus([]);
+      setActiveFunction(null);
+    } catch (error) {
+      toast.error("Failed to delete all tasks.");
+    }
   };
+
 
   const deleteTask = async (funcId: string, topicId: string, taskId: number) => {
     if (!window.confirm("Delete this task?")) return;
@@ -148,47 +176,68 @@ const TasksPage: React.FC = () => {
   // --- 5. SAVE/UPDATE (TO DATABASE) ---
   const handleSaveTask = async (formData: any) => {
     try {
-      if (formData.code && editingTask) {
-         await taskService.update(editingTask.id, formData);
-         toast.success("Task updated.");
+      if (formData.id) {
+        // ✅ UPDATE EXISTING TASK
+        await taskService.update(formData.id, formData);
+        toast.success("Task updated.");
       } else {
-         await taskService.create(formData);
-         toast.success("New task created.");
+        // ✅ CREATE NEW TASK
+        await taskService.create(formData);
+        toast.success("New task created.");
       }
-      
+
       setIsTaskFormOpen(false);
       setEditingTask(null);
-      loadData(); 
-      
-      const funcId = `FUNC-${formData.partNum}`;
-      setActiveFunction(funcId);
-      
+      await loadData();
+
+      if (formData.partNum) {
+        setActiveFunction(`FUNC-${formData.partNum}`);
+      }
     } catch (error: any) {
       toast.error(error.message || "Operation failed.");
     }
   };
 
+
   const openEdit = (task: any, funcId: string, sectionTitle: string) => {
     setEditingTask({
-      id: task.id, 
-      code: task.code || task.stcw,
+      // PRIMARY
+      id: task.id,
+
+      // HIERARCHY
+      function_code: funcId.replace('FUNC-', ''),
+      category: sectionTitle,
+      stcw: task.stcw || '',
+
+      // CONTENT
       title: task.title,
-      department: task.dept,
-      safety_level: task.safety,
-      partNum: funcId.replace('FUNC-', ''),
-      section: sectionTitle
+      description: task.description || '',
+      instructions: task.instructions || '',
+
+      // METADATA
+      department: task.dept || 'Deck',
+      trainee_type: task.trainee_type || 'DECK_CADET',
+
+      // REQUIREMENTS
+      safety_level: task.safety || 'None',
+      frequency: task.frequency || 'ONCE',
+      mandatory: task.mandatory ?? true,
+
+      // VERIFICATION
+      evidence_type: task.evidence_type || 'DOCUMENT/PHOTO',
+      verification_method: task.verification_method || 'OBSERVATION',
     });
+
     setIsTaskFormOpen(true);
   };
 
-  const getFunctionLabel = (funcId: string) => {
-    const func = syllabus.find(f => f.id === funcId);
-    if (func && func.title) return func.title;
 
+  const getFunctionLabel = (funcId: string) => {
     const num = funcId.replace('FUNC-', '');
     const name = STCW_MAP[num] || 'General';
     return `Function ${num}: ${name}`;
   };
+
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col">
@@ -340,7 +389,7 @@ const TasksPage: React.FC = () => {
                                           
                                           <div className="flex flex-wrap gap-2 mt-3 items-center">
                                              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground border border-border">
-                                                {task.stcw || task.code || 'NO REF'}
+                                                {task.stcw || 'NO STCW REF'}
                                              </span>
                                              {task.dept && <span className="text-[10px] border border-border px-2 py-0.5 rounded text-muted-foreground">{task.dept}</span>}
                                              {task.safety && task.safety !== 'Green' && (

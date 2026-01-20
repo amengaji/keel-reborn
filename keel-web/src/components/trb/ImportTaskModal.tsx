@@ -223,16 +223,18 @@ const ImportTaskModal: React.FC<ImportTaskModalProps> = ({ isOpen, onClose, onIm
                            <th className="p-3 font-bold">Function</th>
                            <th className="p-3 font-bold">Topic</th>
                            <th className="p-3 font-bold">Task Title</th>
-                           <th className="p-3 font-bold">Description</th>
+                           <th className="p-3 font-bold">Competence</th>
+                           <th className="p-3 font-bold">Ref (STCW)</th> {/* ADDED */}
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-border">
                         {previewData.map((task, idx) => (
                            <tr key={idx} className="hover:bg-muted/30">
                               <td className="p-3 font-mono">{task.function_code}</td>
-                              <td className="p-3 truncate max-w-37.5">{task.category}</td>
+                              <td className="p-3 font-bold truncate max-w-37.5">{task.category}</td>
                               <td className="p-3 font-medium">{task.title}</td>
-                              <td className="p-3 text-muted-foreground">{task.description}</td>
+                              <td className="p-3 text-muted-foreground truncate max-w-50">{task.description}</td>
+                              <td className="p-3 text-muted-foreground">{task.stcw}</td> {/* ADDED */}
                            </tr>
                         ))}
                      </tbody>

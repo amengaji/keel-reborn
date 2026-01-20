@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as TaskController from '../controllers/task.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { checkRole } from '../middleware/role.middleware';
+import { deleteAllTasks } from '../controllers/task.controller';
 
 const router = Router();
 
@@ -12,5 +13,6 @@ router.get('/', authenticate, TaskController.getTasks);
 router.post('/', authenticate, checkRole(['ADMIN']), TaskController.createTask);
 router.put('/:id', authenticate, checkRole(['ADMIN']), TaskController.updateTask);
 router.delete('/:id', authenticate, checkRole(['ADMIN']), TaskController.deleteTask);
+router.delete('/', authenticate, checkRole(['ADMIN']), TaskController.deleteAllTasks);
 
 export default router;

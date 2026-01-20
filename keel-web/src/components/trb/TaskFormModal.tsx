@@ -20,6 +20,7 @@ const STCW_FUNCTIONS = [
   { value: '7', label: 'Function 7: Radio Communications' },
 ];
 
+// --- RESTORED: STCW References Constant ---
 const STCW_REFERENCES = [
   { value: 'A-II/1', label: 'A-II/1 - Deck (Operational Level)' },
   { value: 'A-II/2', label: 'A-II/2 - Deck (Management Level)' },
@@ -47,28 +48,38 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
   useEffect(() => {
     if (isOpen) {
       if (editData) {
-        // --- FIXED: Populate Form from Edit Data (Robust Mapping) ---
+        // --- FIXED: Map Edit Data from DB to Form State ---
         setFormData({
           id: editData.id,
+          // Hierarchy
           partNum: editData.function_code || editData.partNum || '1',
           section: editData.category || editData.section || '',
-          stcw: editData.stcw || editData.code || '',
+          stcw: editData.stcw || '',
+
+          // Content
           title: editData.title || '',
-          description: editData.description || '',
-          instruction: editData.instructions || editData.instruction || '',
-          dept: editData.department || 'Deck',
-          traineeType: editData.trainee_type || editData.traineeType || 'DECK_CADET',
-          safety: editData.safety_level || editData.safety || 'None',
+          description: editData.description || '', // Competence
+          instruction: editData.instructions || editData.instruction || '', // Instructions
+
+          // Metadata
+          dept: editData.department || editData.dept || 'Deck',
+          traineeType: editData.rank || editData.trainee_type || 'DECK_CADET',
+          
+          // Requirements
+          safety: editData.safety || editData.safety_level || 'None',
           frequency: editData.frequency || 'ONCE',
           mandatory: editData.mandatory !== undefined ? editData.mandatory : true,
-          evidence: editData.evidence_type || editData.evidence || 'DOCUMENT/PHOTO',
-          verification: editData.verification_method || editData.verification || 'OBSERVATION',
+          
+          // Verification
+          evidence: editData.evidence || editData.evidence_type || 'DOCUMENT/PHOTO',
+          verification: editData.verification || editData.verification_method || 'OBSERVATION',
         });
       } else {
-        // Reset for New
+        // RESET FOR NEW TASK
         setFormData({
           partNum: '1',
           section: '',
+          stcw: '',
           dept: 'Deck',
           traineeType: 'DECK_CADET',
           safety: 'None',
@@ -86,15 +97,24 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
+    // Checkbox handling
     const finalValue = (type === 'checkbox') ? (e.target as HTMLInputElement).checked : value;
     setFormData({ ...formData, [name]: finalValue });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(formData);
-    onClose();
-  };
+  e.preventDefault();
+
+  // IMPORTANT:
+  // If editData exists, ensure ID is passed back for UPDATE
+  const payload = editData?.id
+    ? { ...formData, id: editData.id }
+    : formData;
+
+  onSave(payload);
+  onClose();
+};
+
 
   const tabs = [
     { id: 'hierarchy', label: 'Hierarchy', icon: <Layers size={16} /> }, 
@@ -107,13 +127,17 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-card w-full max-w-2xl rounded-xl border border-border shadow-2xl flex flex-col max-h-[90vh]">
         
+        {/* HEADER */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h2 className="font-bold text-lg text-foreground">
             {editData ? 'Edit TRB Task' : 'Create New Task'}
           </h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X size={20} />
+          </button>
         </div>
 
+        {/* TABS */}
         <div className="flex border-b border-border bg-muted/30 px-4 pt-2 space-x-1">
           {tabs.map(tab => (
             <button
@@ -130,9 +154,11 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
           ))}
         </div>
 
+        {/* FORM BODY */}
         <div className="flex-1 overflow-y-auto p-6">
           <form id="taskForm" onSubmit={handleSubmit} className="space-y-6">
 
+            {/* TAB 1: HIERARCHY */}
             {activeTab === 'hierarchy' && (
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                  <div className="grid grid-cols-2 gap-4">
@@ -145,8 +171,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                         ))}
                       </select>
                     </div>
+
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-muted-foreground uppercase">STCW Reference</label>
+                      {/* --- RESTORED DROPDOWN --- */}
                       <select name="stcw" value={formData.stcw || ''} onChange={handleChange} className="input-field">
                         <option value="">Select Reference...</option>
                         {STCW_REFERENCES.map(ref => (
@@ -155,10 +183,12 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                       </select>
                     </div>
                  </div>
+
                  <div className="space-y-1.5">
                     <label className="text-xs font-bold text-muted-foreground uppercase">Section / Topic Name</label>
                     <input name="section" required value={formData.section || ''} onChange={handleChange} className="input-field" placeholder="e.g. Plan and Conduct a Passage" />
                  </div>
+
                  <div className="grid grid-cols-2 gap-4 pt-2">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-muted-foreground uppercase">Department</label>
@@ -182,29 +212,34 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
               </div>
             )}
 
+            {/* TAB 2: DETAILS */}
             {activeTab === 'details' && (
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground uppercase">Task Title</label>
-                  <input name="title" required value={formData.title || ''} onChange={handleChange} className="input-field" />
+                  <input name="title" required value={formData.title || ''} onChange={handleChange} className="input-field" placeholder="e.g. Steer the ship..." />
                 </div>
+                
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground uppercase">Description / Competence</label>
-                  <textarea name="description" rows={2} value={formData.description || ''} onChange={handleChange} className="input-field resize-none" />
+                  <textarea name="description" rows={2} value={formData.description || ''} onChange={handleChange} className="input-field resize-none" placeholder="e.g. Navigation at the Operational Level" />
                 </div>
+
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground uppercase">Detailed Instructions</label>
-                  <textarea name="instruction" rows={4} value={formData.instruction || ''} onChange={handleChange} className="input-field min-h-25" />
+                  <textarea name="instruction" rows={4} value={formData.instruction || ''} onChange={handleChange} className="input-field min-h-25" placeholder="Step-by-step instructions..." />
                 </div>
               </div>
             )}
 
+            {/* TAB 3: REQUIREMENTS */}
             {activeTab === 'requirements' && (
                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                   <div className="space-y-1.5">
                       <label className="text-xs font-bold text-muted-foreground uppercase">Safety Requirements</label>
-                      <input name="safety" value={formData.safety || ''} onChange={handleChange} className="input-field" />
+                      <input name="safety" value={formData.safety || ''} onChange={handleChange} className="input-field" placeholder="e.g. Wear PPE" />
                   </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-muted-foreground uppercase">Frequency</label>
@@ -219,7 +254,13 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                       </select>
                     </div>
                     <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-lg border border-border mt-6">
-                      <input type="checkbox" name="mandatory" checked={formData.mandatory} onChange={handleChange} className="w-5 h-5 accent-primary" />
+                      <input 
+                        type="checkbox" 
+                        name="mandatory" 
+                        checked={formData.mandatory} 
+                        onChange={handleChange} 
+                        className="w-5 h-5 accent-primary" 
+                      />
                       <div>
                           <p className="text-sm font-bold text-foreground">Mandatory Task</p>
                           <p className="text-xs text-muted-foreground">Required for TRB completion.</p>
@@ -229,6 +270,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                </div>
             )}
 
+            {/* TAB 4: VERIFICATION */}
             {activeTab === 'verification' && (
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                  <div className="grid grid-cols-2 gap-4">
@@ -248,14 +290,24 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSave, 
                       </select>
                     </div>
                  </div>
+                 
+                 <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg text-sm text-blue-700 dark:text-blue-400">
+                    <p className="font-bold">Verification Policy</p>
+                    <p className="mt-1">
+                       Setting 'Physical Observation' will require the onboard Officer to physically sign off on this task.
+                    </p>
+                 </div>
               </div>
             )}
 
           </form>
         </div>
 
+        {/* FOOTER */}
         <div className="p-4 border-t border-border flex justify-end space-x-3 bg-card rounded-b-xl">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+            Cancel
+          </button>
           <button form="taskForm" type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 shadow-sm">
             <Save size={16} />
             <span>{editData ? 'Update Task' : 'Create Task'}</span>

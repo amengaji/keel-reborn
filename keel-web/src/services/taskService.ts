@@ -47,5 +47,15 @@ export const taskService = {
     });
     if (!res.ok) throw new Error('Failed to delete task');
     return true;
+  },
+
+  // DELETE all tasks
+  deleteAll: async () => {
+    const res = await fetch(`${API_URL}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to delete all tasks');
+    return true;
   }
 };

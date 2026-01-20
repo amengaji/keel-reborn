@@ -7,13 +7,17 @@ class Task extends Model {
   public id!: number;
   public code!: string;
   public title!: string;
-  public description!: string; // Competence
-  public instructions!: string; // Step-by-step
+  public description!: string;
+  public instructions!: string;
+  
+  // --- NEW: STCW Reference Column ---
+  public stcw_code!: string; 
+
   public department!: string;
-  public category!: string; // Section / Topic
-  public function_code!: string; // STCW Function
+  public category!: string;
+  public function_code!: string;
   public safety_level!: string;
-  public trainee_type!: string; // Rank
+  public trainee_type!: string;
   public frequency!: string;
   public mandatory!: boolean;
   public evidence_type!: string;
@@ -40,11 +44,16 @@ Task.init(
       allowNull: false,
     },
     description: {
-      type: DataTypes.TEXT, // Changed to TEXT for longer content
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     instructions: {
-      type: DataTypes.TEXT, // New Field
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    // --- NEW FIELD ---
+    stcw_code: {
+      type: DataTypes.STRING(50),
       allowNull: true,
     },
     department: {
