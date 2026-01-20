@@ -14,9 +14,18 @@ import bcrypt from 'bcryptjs';
  */
 export const getCadets = async (req: Request, res: Response) => {
   try {
+    // @ts-ignore
+    const currentUser = req.user;
+    const whereClause: any = {};
     const totalTasksCount = await Task.count();
 
+    // FILTER BY COMPANY (Multi-Tenancy)
+    if (currentUser && currentUser.role !== 'SUPER_ADMIN' && currentUser.company_id) {
+        whereClause.company_id = currentUser.company_id;
+    }
+
     const cadets = await User.findAll({
+      where: whereClause, // <--- Apply Company Filter
       include: [
         { model: Role, as: 'role', where: { name: 'CADET' } },
         {
@@ -60,13 +69,21 @@ export const getCadets = async (req: Request, res: Response) => {
 };
 
 /**
- * CREATE CADET (Updated to support full profile)
+ * CREATE CADET (Updated to support full profile & Multi-Tenancy)
  */
 export const createCadet = async (req: Request, res: Response) => {
   try {
     const data = req.body; // Shortcut for full payload
+    // @ts-ignore
+    const currentUser = req.user;
 
     if (!data.email) return res.status(400).json({ message: "Email is required" });
+
+    // Determine Company ID
+    let companyId = data.companyId;
+    if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
+        companyId = currentUser.company_id;
+    }
 
     // Name Resolution
     let resolvedFirstName = data.first_name;
@@ -91,6 +108,7 @@ export const createCadet = async (req: Request, res: Response) => {
       password_hash: passwordHash,
       role_id: cadetRole.id,
       status: "Ready",
+      company_id: companyId, // <--- Assign Company
       
       // Professional / Maritime
       rank: data.rank || data.traineeType || "Deck Cadet",

@@ -1,5 +1,3 @@
-//keel-backend/src/controllers/vessel.controller.ts
-
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs'; 
 import Vessel from '../models/Vessel';
@@ -11,13 +9,24 @@ const getDefaultPasswordHash = async () => {
   return await bcrypt.hash('Keel@123', 10);
 };
 
-// GET ALL (FIXED: Uses alias 'crew' to match associations.ts)
+// GET ALL (Supports Multi-Tenancy)
 export const getVessels = async (req: Request, res: Response) => {
   try {
+    // @ts-ignore - 'user' is attached by auth middleware
+    const currentUser = req.user; 
+
+    const whereClause: any = {};
+    
+    // If NOT Super Admin, filter by their company
+    if (currentUser && currentUser.role !== 'SUPER_ADMIN' && currentUser.company_id) {
+        whereClause.company_id = currentUser.company_id;
+    }
+
     const vessels = await Vessel.findAll({
+      where: whereClause, // <--- ADDED FILTER
       include: [{
         model: User,
-        as: 'crew', // <--- CORRECTED ALIAS (Was 'users')
+        as: 'crew',
         required: false,
         attributes: ['email', 'rank', 'role_id', 'first_name', 'last_name'] 
       }],
@@ -25,9 +34,7 @@ export const getVessels = async (req: Request, res: Response) => {
     });
 
     const formattedVessels = vessels.map((v: any) => {
-      // Access via the correct alias 'crew'
       const users = v.crew || [];
-      
       const crewEmails = {
         master: users.find((u: any) => u.rank === 'Master')?.email || '',
         ctoDeck: users.find((u: any) => u.rank === 'CTO Deck')?.email || '',
@@ -50,6 +57,14 @@ export const getVessels = async (req: Request, res: Response) => {
 export const createVessel = async (req: Request, res: Response) => {
   try {
     const data = req.body;
+    // @ts-ignore
+    const currentUser = req.user;
+
+    // Determine Company ID: Use payload if Super Admin, otherwise use creator's company
+    let companyId = data.companyId;
+    if (currentUser && currentUser.role !== 'SUPER_ADMIN') {
+        companyId = currentUser.company_id;
+    }
 
     const payload = {
       name: data.name,
@@ -58,7 +73,8 @@ export const createVessel = async (req: Request, res: Response) => {
       flag: data.flag || 'Unknown',
       class_society: data.classSociety || data.class_society,
       status: data.is_active === 'on' || data.is_active === true ? 'Active' : 'Inactive',
-      is_active: data.is_active === 'on' || data.is_active === true
+      is_active: data.is_active === 'on' || data.is_active === true,
+      company_id: companyId // <--- ASSIGN COMPANY
     };
 
     if (!payload.name || !payload.imo_number) {
@@ -95,7 +111,8 @@ export const createVessel = async (req: Request, res: Response) => {
               rank: acc.rank,
               vessel_id: newVessel.id,
               status: 'Onboard',
-              nationality: payload.flag
+              nationality: payload.flag,
+              company_id: companyId // <--- ASSIGN CREW TO SAME COMPANY
             }).catch(err => console.error(`Failed to create user ${acc.email}:`, err.message));
           }
         }
@@ -108,7 +125,7 @@ export const createVessel = async (req: Request, res: Response) => {
   }
 };
 
-// UPDATE (FIXED: Uses alias 'crew')
+// UPDATE (Preserves Company Logic)
 export const updateVessel = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -120,6 +137,10 @@ export const updateVessel = async (req: Request, res: Response) => {
     if (req.body.crewEmails) {
       const { master, ctoDeck, ctoEngine, ctoEto, ctoCatering } = req.body.crewEmails;
       
+      // Fetch vessel to get company_id
+      const vessel = await Vessel.findByPk(id);
+      const companyId = vessel?.company_id;
+
       const defaultPass = await getDefaultPasswordHash();
       const masterRole = await Role.findOne({ where: { name: 'MASTER' } });
       const ctoRole = await Role.findOne({ where: { name: 'CTO' } });
@@ -134,17 +155,14 @@ export const updateVessel = async (req: Request, res: Response) => {
 
       for (const update of updates) {
         if (update.email && update.email.trim() !== '') {
-          // Find existing user by Rank + Vessel
           const user = await User.findOne({ where: { vessel_id: id, rank: update.rank } });
           
           if (user) {
-            // A. UPDATE existing user
             if (user.email !== update.email) {
               user.email = update.email;
               await user.save();
             }
           } else if (update.roleId) {
-            // B. CREATE if missing (e.g. adding a CTO later)
             await User.create({
               email: update.email,
               password_hash: defaultPass,
@@ -153,7 +171,8 @@ export const updateVessel = async (req: Request, res: Response) => {
               role_id: update.roleId,
               rank: update.rank,
               vessel_id: parseInt(id),
-              status: 'Onboard'
+              status: 'Onboard',
+              company_id: companyId // <--- Ensure new users get company_id
             }).catch(err => console.error("Error creating missing user on update:", err.message));
           }
         }
@@ -171,17 +190,11 @@ export const updateVessel = async (req: Request, res: Response) => {
   }
 };
 
-// DELETE (Updated for Strict Cleanup)
 export const deleteVessel = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
-    // 1. Explicitly delete associated Command Users first
     await User.destroy({ where: { vessel_id: id } });
-
-    // 2. Delete the Vessel
     const deleted = await Vessel.destroy({ where: { id } });
-    
     if (deleted) {
       return res.status(200).json({ message: "Vessel and Crew Accounts removed successfully" });
     }

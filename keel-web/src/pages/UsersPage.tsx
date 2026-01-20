@@ -2,23 +2,47 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, Shield, Lock, Edit, Trash2, Plus, 
   Search, Mail, Phone, X, Save, Check, Ban, 
-  Ship, ClipboardList 
+  Ship, ClipboardList, Building 
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getShoreUsers, saveShoreUser, deleteShoreUser, getShoreRoles, saveShoreRoles } from '../services/dataService';
+import { getCompanies } from '../services/companyService';
+import { getCurrentUser } from '../services/authService';
 
 const UsersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'users' | 'roles'>('users');
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
+  
+  // Multi-Tenancy State
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   // Modal State
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   
   useEffect(() => {
+    const user = getCurrentUser();
+    setIsSuperAdmin(user?.role === 'SUPER_ADMIN');
     refreshData();
   }, []);
+
+  // Fetch companies only if Super Admin
+  useEffect(() => {
+    if (isSuperAdmin) {
+      loadCompanies();
+    }
+  }, [isSuperAdmin]);
+
+  const loadCompanies = async () => {
+    try {
+      const data = await getCompanies();
+      setCompanies(data);
+    } catch (error) {
+      console.error("Failed to load companies", error);
+    }
+  };
 
   const refreshData = () => {
     setUsers(getShoreUsers());
@@ -29,6 +53,7 @@ const UsersPage: React.FC = () => {
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
+    
     const userData = {
       id: editingUser ? editingUser.id : Date.now(),
       firstName: formData.get('firstName'),
@@ -37,6 +62,8 @@ const UsersPage: React.FC = () => {
       roleId: formData.get('roleId'),
       phone: formData.get('phone'),
       status: formData.get('status'),
+      // Add Company ID for Super Admin creation flow
+      companyId: formData.get('companyId') || undefined
     };
     
     saveShoreUser(userData);
@@ -288,6 +315,20 @@ const UsersPage: React.FC = () => {
                  <button onClick={() => setIsUserModalOpen(false)}><X size={20} /></button>
               </div>
               <form onSubmit={handleSaveUser} className="space-y-4">
+                 
+                 {/* SUPER ADMIN: Company Selector */}
+                 {isSuperAdmin && !editingUser && (
+                    <div className="space-y-1.5 p-3 bg-muted/50 rounded-lg border border-border mb-4">
+                        <label className="text-xs font-bold text-muted-foreground flex items-center gap-1">
+                            <Building size={12}/> Assign to Company
+                        </label>
+                        <select name="companyId" required className="input-field w-full bg-background">
+                            <option value="">Select Company...</option>
+                            {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </div>
+                 )}
+
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5"><label className="text-xs font-bold text-muted-foreground">First Name</label><input name="firstName" required defaultValue={editingUser?.firstName} className="input-field w-full" /></div>
                     <div className="space-y-1.5"><label className="text-xs font-bold text-muted-foreground">Last Name</label><input name="lastName" required defaultValue={editingUser?.lastName} className="input-field w-full" /></div>

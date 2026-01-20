@@ -117,3 +117,36 @@ export const updateProfile = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Failed to update profile." });
   }
 };
+
+// Add this to your User Controller (e.g., user.controller.ts or auth.controller.ts)
+
+export const createUser = async (req: Request, res: Response) => {
+  try {
+    const data = req.body;
+    // @ts-ignore
+    const currentUser = req.user; // From auth middleware
+
+    // 1. Determine Company ID
+    let targetCompanyId = currentUser.company_id;
+
+    // SUPER ADMIN OVERRIDE: Can specify any company
+    if (currentUser.role === 'SUPER_ADMIN' && data.companyId) {
+        targetCompanyId = data.companyId;
+    }
+
+    // 2. Create User
+    const newUser = await User.create({
+      email: data.email,
+      password_hash: await bcrypt.hash(data.password || 'Keel@123', 10),
+      first_name: data.firstName,
+      last_name: data.lastName,
+      role_id: data.roleId, // Ensure you send the ID for 'ADMIN' or 'SHORE_ADMIN'
+      company_id: targetCompanyId, // <--- CRITICAL ASSIGNMENT
+      status: 'Active'
+    });
+
+    res.status(201).json(newUser);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+};

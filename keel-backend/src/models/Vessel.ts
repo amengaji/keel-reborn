@@ -10,6 +10,7 @@ class Vessel extends Model {
   public class_society!: string; // Matches frontend 'classSociety'
   public status!: string;        // Matches frontend 'status' ('Active'/'Inactive')
   public is_active!: boolean;    // For the checkbox you requested
+  public company_id?: number;
 }
 
 Vessel.init({
@@ -20,7 +21,17 @@ Vessel.init({
   flag: { type: DataTypes.STRING, defaultValue: 'Unknown' },
   class_society: { type: DataTypes.STRING },
   status: { type: DataTypes.STRING, defaultValue: 'Active' },
-  is_active: { type: DataTypes.BOOLEAN, defaultValue: true }
+  is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+  company_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'companies',
+      key: 'id'
+    },
+    onUpdate: 'CASCADE',
+    onDelete: 'SET NULL'
+  }
 }, { sequelize, tableName: 'vessels', underscored: true });
 
 export default Vessel;
