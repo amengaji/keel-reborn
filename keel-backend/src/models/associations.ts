@@ -6,6 +6,7 @@ import Vessel from './Vessel';
 import Task from './Task';
 import Assignment from './Assignment';
 import TraineeAssignment from "./TraineeAssignment";
+import Company from './Company';
 
 TraineeAssignment.belongsTo(User, {
   foreignKey: "trainee_id",
@@ -40,6 +41,13 @@ export const setupAssociations = () => {
   // Officer & Assignment
   User.hasMany(Assignment, { foreignKey: 'officer_id', as: 'officerSignOffs' });
   Assignment.belongsTo(User, { foreignKey: 'officer_id', as: 'officer' });
+
+  // --- NEW: Multi-Tenancy ---
+  Company.hasMany(User, { foreignKey: 'company_id', as: 'employees' });
+  User.belongsTo(Company, { foreignKey: 'company_id', as: 'company' });
+
+  Company.hasMany(Vessel, { foreignKey: 'company_id', as: 'fleet' });
+  Vessel.belongsTo(Company, { foreignKey: 'company_id', as: 'company' });
 
   console.log('✅ MODELS: Associations synchronized with explicit aliases.');
 };

@@ -36,7 +36,7 @@ const SettingsPage: React.FC = () => {
 
       // Check for Admin privileges (Shore Admin or just ADMIN role)
       const roleName = (currentUser.role || '').toUpperCase();
-      setIsAdmin(roleName === 'ADMIN' || roleName === 'SHORE_ADMIN');
+      setIsAdmin(roleName === 'ADMIN' || roleName === 'SHORE_ADMIN'  || roleName === 'SUPER_ADMIN');
     }
 
     // 2. Load Global Settings (Even non-admins might need to see Session Timer)

@@ -1,6 +1,6 @@
 // keel-backend/src/models/User.ts
 
-import { DataTypes, Model } from 'sequelize';
+import { DataTypes, Model, Optional } from 'sequelize';
 import sequelize from '../config/database';
 import Role from './Role';
 import Vessel from './Vessel';
@@ -57,6 +57,9 @@ class User extends Model {
   public coc_number?: string;
   public seaman_book_number?: string; // Standard Seaman Book if different from CDC
   public mfa_enabled?: boolean;
+
+  // --- Multi-Tenancy ---
+  public company_id?: number;
 
   public role?: Role; 
   public vessel?: Vessel;
@@ -148,6 +151,18 @@ User.init(
     coc_number: { type: DataTypes.STRING(50), allowNull: true },
     seaman_book_number: { type: DataTypes.STRING(50), allowNull: true },
     mfa_enabled: { type: DataTypes.BOOLEAN, defaultValue: false },
+
+    // --- Multi-Tenancy ---
+    company_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'companies',
+        key: 'id'
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL'
+    },
   },
   {
     sequelize,

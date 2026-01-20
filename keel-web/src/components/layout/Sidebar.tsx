@@ -4,13 +4,14 @@ import {
   LayoutDashboard, Ship, Users, ClipboardList, 
   ShieldCheck, ChevronDown, ChevronRight, FileCheck, Lock,
   Settings, LogOut, Search, PieChart, FileText, 
-  UserCheck, Archive, Anchor, BookOpen, ClipboardCheck, Award
+  UserCheck, Archive, Anchor, BookOpen, ClipboardCheck, Award,
+  Building, Database
 } from 'lucide-react';
 import { logoutOfficer } from '../../services/authService';
 
 /**
  * Sidebar Component
- * Dynamically renders navigation based on User Role (Master vs CTO vs Shore Admin).
+ * Dynamically renders navigation based on User Role (Master vs CTO vs Shore Admin vs Super Admin).
  * BRANDING: Uses #3194A0 for Vessel/Master Portal primary identity.
  * UI/UX: Maintains exact spacing, sizing, and transitions of the existing build.
  */
@@ -32,11 +33,12 @@ const Sidebar: React.FC = () => {
 
   const isCTO = user?.role === 'CTO';
   const isMaster = user?.role === 'MASTER';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const PRIMARY_COLOR = '#3194A0'; // Your specific brand color
 
   // --- MENU ITEM DEFINITIONS ---
   
-  // Master Specific Navigation (Vessel Command Authority)
+  // 1. Master Specific Navigation (Vessel Command Authority)
   const masterItems = [
     { name: 'Vessel Overview', path: '/master-dashboard', icon: <Anchor size={18} /> },
     { name: 'Certification Hub', path: '/master-certification', icon: <Award size={18} />, badge: 'READY' },
@@ -45,7 +47,7 @@ const Sidebar: React.FC = () => {
     { name: 'Training Progress', path: '/training-progress', icon: <PieChart size={18} /> },
   ];
 
-  // CTO Specific Navigation (Technical Oversight)
+  // 2. CTO Specific Navigation (Technical Oversight)
   const ctoItems = [
     { name: 'Vessel Overview', path: '/cto-dashboard', icon: <Anchor size={18} /> },
     { name: 'Onboard Trainees', path: '/trainees', icon: <Users size={18} /> },
@@ -53,14 +55,21 @@ const Sidebar: React.FC = () => {
     { name: 'Training Progress', path: '/training-progress', icon: <PieChart size={18} /> },
   ];
 
-  // Standard Shore Admin: Command Section
+  // 3. Super Admin (Owner) Navigation - STRICTLY PLATFORM LEVEL
+  const superAdminItems = [
+    { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={18} /> },
+    { name: 'Manage Companies', path: '/companies', icon: <Building size={18} /> },
+    { name: 'TRB Tasks', path: '/tasks', icon: <BookOpen size={18} /> },
+  ];
+
+  // 4. Standard Shore Admin: Command Section
   const commandItems = [
     { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={18} /> },
     { name: 'Fleet', path: '/vessels', icon: <Ship size={18} /> },
     { name: 'Trainees', path: '/trainees', icon: <Users size={18} /> },
   ];
 
-  // Standard Shore Admin: Operations Section
+  // 5. Standard Shore Admin: Operations Section
   const operationItems = [
     { name: 'Assignments', path: '/assignments', icon: <Anchor size={18} /> },
     { name: 'Progress Matrix', path: '/training-progress', icon: <PieChart size={18} /> },
@@ -87,14 +96,14 @@ const Sidebar: React.FC = () => {
           className="h-8 w-8 rounded-lg flex items-center justify-center font-bold text-lg shadow-sm text-white transition-colors duration-300"
           style={{ backgroundColor: getHeaderIconBg() }}
         >
-          {isMaster ? 'M' : isCTO ? 'V' : 'K'}
+          {isMaster ? 'M' : isCTO ? 'V' : isSuperAdmin ? 'O' : 'K'}
         </div>
         <div className="ml-3 flex flex-col justify-center">
           <div className="font-bold text-sm leading-none tracking-tight text-foreground">
-            {isMaster ? 'Master Portal' : isCTO ? 'Vessel Portal' : 'Keel'}
+            {isMaster ? 'Master Portal' : isCTO ? 'Vessel Portal' : isSuperAdmin ? 'Owner Panel' : 'Keel'}
           </div>
           <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5">
-            {isMaster ? 'Commanding Officer' : isCTO ? 'Chief Training Officer' : 'Shore Admin'}
+            {isMaster ? 'Commanding Officer' : isCTO ? 'Chief Training Officer' : isSuperAdmin ? 'Super Admin' : 'Shore Admin'}
           </div>
         </div>
       </div>
@@ -189,6 +198,27 @@ const Sidebar: React.FC = () => {
                 )}
               </NavLink>
             ))}
+          </div>
+        ) : isSuperAdmin ? (
+          /* --- SUPER ADMIN (OWNER) VIEW --- */
+          <div className="space-y-1">
+             <p className="px-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Platform Management</p>
+             {superAdminItems.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={({ isActive }) =>
+                    `group flex items-center space-x-3 px-3 py-2 rounded-md text-sm transition-all ${
+                      isActive 
+                      ? 'bg-primary text-primary-foreground font-medium shadow-sm' 
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    }`
+                  }
+                >
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+             ))}
           </div>
         ) : (
           /* --- SHORE ADMIN VIEW --- */
@@ -311,18 +341,31 @@ const Sidebar: React.FC = () => {
 
         {isConfigOpen && (
           <div className="ml-4 mt-1 pl-3 border-l border-border space-y-1 mb-2 animate-in slide-in-from-top-1 duration-200">
+            {/* COMMON SETTINGS */}
             <NavLink to="/settings" className={({ isActive }) => `flex items-center space-x-2 px-3 py-2 rounded-md text-xs transition-colors ${isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-foreground'}`}>
               <span>General Settings</span>
             </NavLink>
-            {!isCTO && !isMaster && (
-               <NavLink to="/users" className={({ isActive }) => `flex items-center space-x-2 px-3 py-2 rounded-md text-xs transition-colors ${isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-foreground'}`}>
-                <span>User Roles</span>
+
+            {/* SUPER ADMIN SPECIFIC: Constants */}
+            {isSuperAdmin && (
+               <NavLink to="/constants" className={({ isActive }) => `flex items-center space-x-2 px-3 py-2 rounded-md text-xs transition-colors ${isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-foreground'}`}>
+                <Database size={14} />
+                <span>Constants</span>
               </NavLink>
             )}
-            <NavLink to="/tasks" className={({ isActive }) => `flex items-center space-x-2 px-3 py-2 rounded-md text-xs transition-colors ${isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-foreground'}`}>
-              <BookOpen size={14} />
-              <span>TRB Syllabus</span>
-            </NavLink>
+
+            {/* SHORE ADMIN SPECIFIC: User Roles & Syllabus */}
+            {!isCTO && !isMaster && !isSuperAdmin && (
+              <>
+                <NavLink to="/users" className={({ isActive }) => `flex items-center space-x-2 px-3 py-2 rounded-md text-xs transition-colors ${isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-foreground'}`}>
+                  <span>User Roles</span>
+                </NavLink>
+                <NavLink to="/tasks" className={({ isActive }) => `flex items-center space-x-2 px-3 py-2 rounded-md text-xs transition-colors ${isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-foreground'}`}>
+                  <BookOpen size={14} />
+                  <span>TRB Syllabus</span>
+                </NavLink>
+              </>
+            )}
           </div>
         )}
         

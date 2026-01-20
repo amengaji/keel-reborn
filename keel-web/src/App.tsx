@@ -21,9 +21,14 @@ import UsersPage from "./pages/UsersPage";
 import TasksPage from "./pages/TasksPage";
 import TRBViewerPage from './pages/TRBViewerPage';
 
+// Super Admin / Owner Pages
+import CompaniesPage from "./pages/CompaniesPage";
+import ConstantsPage from "./pages/ConstantsPage";
+
 // CTO Specific Pages
 import CTOVesselDashboard from './pages/cto/CTOVesselDashboard';
 import CTOApprovalQueue from './pages/cto/CTOApprovalQueue';
+
 
 export default function App() {
   return (
@@ -31,7 +36,6 @@ export default function App() {
       <Toaster 
         richColors 
         position="bottom-right"
-        // ... (existing Toaster styling remains unchanged)
       />
       
       <Routes>
@@ -41,38 +45,51 @@ export default function App() {
         {/* AUTHENTICATED ROUTES */}
         <Route element={<ProtectedRoute />}>
           
+          {/* ✅ ALL PAGES INSIDE HERE GET THE SIDEBAR */}
           <Route element={<DashboardLayout />}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             
-            {/* GENERAL ACCESS */}
+            {/* COMMON ACCESS (View customized by Role in Component) */}
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/vessels" element={<VesselsPage />} />
-            <Route path="/trainees" element={<CadetsPage />} />
-            <Route path="/assignments" element={<AssignmentsPage />} />
-            <Route path="/training-progress" element={<TrainingProgressPage />} />
-            <Route path="/trb/:cadetName" element={<TRBViewerPage />} />
-            <Route path="/trainee-trb/:id" element={<TRBViewerPage />} />
-            <Route path="/evidence" element={<EvidencePage />} />
             <Route path="/tasks" element={<TasksPage />} />
-
-            {/* CTO VESSEL PORTAL ROUTES */}
-            <Route element={<ProtectedRoute allowedRoles={['CTO']} />}>
-               <Route path="/cto-dashboard" element={<CTOVesselDashboard />} />
-               <Route path="/cto-approvals" element={<CTOApprovalQueue />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            
+            {/* SUPER ADMIN (OWNER) ROUTES */}
+            <Route element={<ProtectedRoute allowedRoles={['SUPER_ADMIN']} />}>
+                <Route path="/companies" element={<CompaniesPage />} />
+                <Route path="/constants" element={<ConstantsPage />} />
             </Route>
 
-            {/* RESTRICTED ACCESS (Admin / Managers Only) */}
-            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'MANAGER', 'SUPERINTENDENT']} />}>
-               <Route path="/approvals" element={<ApprovalsPage />} />
-               <Route path="/reports" element={<ReportsPage />} />
-               <Route path="/audit/locked" element={<LockedTRBPage />} />
+            {/* CTO / MASTER ROUTES */}
+            <Route element={<ProtectedRoute allowedRoles={['CTO', 'MASTER']} />}>
+                <Route path="/cto-dashboard" element={<CTOVesselDashboard />} />
+                <Route path="/cto-approvals" element={<CTOApprovalQueue />} />
             </Route>
 
-            {/* SUPER ADMIN ONLY */}
-            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']} />}>
-               <Route path="/audit/main" element={<AuditLogsPage />} />
-               <Route path="/settings" element={<SettingsPage />} />
-               <Route path="/users" element={<UsersPage />} />
+            {/* OPERATIONAL ROUTES (SHORE ADMIN & MANAGERS) */}
+            {/* Note: Super Admin excluded from operations to keep view clean as requested */}
+            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SHORE_ADMIN', 'MANAGER', 'SUPERINTENDENT', 'SHORE_OFFICER']} />}>
+                <Route path="/vessels" element={<VesselsPage />} />
+                <Route path="/trainees" element={<CadetsPage />} />
+                <Route path="/assignments" element={<AssignmentsPage />} />
+                <Route path="/training-progress" element={<TrainingProgressPage />} />
+                <Route path="/trb/:cadetName" element={<TRBViewerPage />} />
+                <Route path="/trainee-trb/:id" element={<TRBViewerPage />} />
+                <Route path="/evidence" element={<EvidencePage />} />
+            </Route>
+                  
+            {/* HIGH-LEVEL ADMIN ROUTES (Approvals, Reports) */}
+            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SHORE_ADMIN', 'MANAGER']} />}>
+                <Route path="/approvals" element={<ApprovalsPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/audit/locked" element={<LockedTRBPage />} />
+            </Route>
+
+            {/* SYSTEM ADMIN ONLY (User Management & Audit) */}
+            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SHORE_ADMIN', 'SUPER_ADMIN']} />}>
+                <Route path="/audit/main" element={<AuditLogsPage />} />
+                {/* UsersPage is accessible to Super Admin via URL, but hidden from Sidebar */}
+                <Route path="/users" element={<UsersPage />} />
             </Route>
 
           </Route>
@@ -80,6 +97,7 @@ export default function App() {
 
         {/* CATCH ALL */}
         <Route path="*" element={<Navigate to="/login" replace />} />
+
       </Routes>
     </div>
   );

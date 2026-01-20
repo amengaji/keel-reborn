@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "seed": "ts-node src/scripts/seed.ts",
+    "reset-admin": "ts-node src/scripts/resetAdmin.ts"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

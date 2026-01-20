@@ -41,6 +41,7 @@ const startServer = async () => {
   // Inside startServer function in src/index.ts
   await sequelize.sync({ alter: true }); 
   console.log('⚓ DATABASE: Tables recreated successfully.');
+  console.log("⚓ DATABASE: Tables DROPPED and RECREATED.");
   try {
     await connectDB();
     setupAssociations();
