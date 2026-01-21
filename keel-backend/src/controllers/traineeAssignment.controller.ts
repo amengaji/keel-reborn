@@ -1,113 +1,104 @@
-// keel-backend/src/controllers/traineeAssignment.controller.ts
+//keel-backend/src/controllers/traineeAssignment.controller.ts
 
-import { Request, Response } from "express";
-import TraineeAssignment from "../models/TraineeAssignment";
-import User from "../models/User";
-import Vessel from "../models/Vessel";
+import { Request, Response } from 'express';
+import TraineeAssignment from '../models/TraineeAssignment';
+import User from '../models/User';
+import Vessel from '../models/Vessel';
+import { Op } from 'sequelize';
 
-/**
- * GET all ACTIVE trainee-vessel assignments.
- * Includes nested Trainee (User) and Vessel details.
- */
-export const getActiveTraineeAssignments = async (_req: Request, res: Response) => {
+// --- GET ALL ASSIGNMENTS (For Company) ---
+export const getAssignments = async (req: Request, res: Response) => {
   try {
-    const rows = await TraineeAssignment.findAll({
-      where: { status: "ACTIVE" },
+    const companyId = (req as any).user.company_id;
+    
+    // Fetch only ACTIVE assignments (no sign_off_date)
+    const assignments = await TraineeAssignment.findAll({
+      where: { 
+        company_id: companyId,
+        status: 'ACTIVE'
+      },
       include: [
-        {
-          model: User,
-          as: "trainee",
-          attributes: ["id", "first_name", "last_name", "rank", "status"],
-        },
-        {
-          model: Vessel,
-          attributes: ["id", "name", "vessel_type"],
-        },
-      ],
-      order: [["created_at", "DESC"]],
+        { model: User, as: 'trainee', attributes: ['id', 'first_name', 'last_name', 'rank'] },
+        { model: Vessel, as: 'vessel', attributes: ['id', 'name', 'vessel_type'] }
+      ]
     });
 
-    // Helper: Map data to ensure no null trainees cause UI crashes
-    const formattedRows = rows.map(row => {
-      const data = row.toJSON();
-      return {
-        ...data,
-        trainee: data.trainee || { first_name: "Unknown", last_name: "Trainee", rank: "N/A" }
-      };
-    });
-
-    res.json(formattedRows);
+    res.json(assignments);
   } catch (error) {
-    console.error("GET ACTIVE TRAINEE ASSIGNMENTS ERROR:", error);
-    res.status(500).json({ message: "Failed to fetch trainee assignments" });
+    console.error('Fetch Assignments Error:', error);
+    res.status(500).json({ message: 'Failed to fetch assignments' });
   }
 };
 
-/**
- * ASSIGN trainee to vessel.
- * FIXED: Updates User status to 'Onboard' so they leave the Ready Pool.
- */
-export const assignTraineeToVessel = async (req: Request, res: Response) => {
+// --- ASSIGN CADET TO VESSEL ---
+export const assignTrainee = async (req: Request, res: Response) => {
   try {
+    const companyId = (req as any).user.company_id;
     const { trainee_id, vessel_id, sign_on_date } = req.body;
 
-    if (!trainee_id || !vessel_id || !sign_on_date) {
-      return res.status(400).json({ message: "Missing required fields" });
+    // 1. Validation: Is cadet already onboard?
+    const existing = await TraineeAssignment.findOne({
+      where: {
+        trainee_id,
+        status: 'ACTIVE'
+      }
+    });
+
+    if (existing) {
+      return res.status(400).json({ message: 'Trainee is already assigned to a vessel. Sign them off first.' });
     }
 
-    // 1. Create the assignment record in the TraineeAssignments table
+    // 2. Create Assignment
     const assignment = await TraineeAssignment.create({
       trainee_id,
       vessel_id,
-      sign_on_date,
-      status: "ACTIVE",
+      company_id: companyId,
+      sign_on_date: sign_on_date || new Date(),
+      status: 'ACTIVE'
     });
 
-    // 2. Update the Trainee (User) status to 'Onboard'
-    // This removes them from the 'Ready' list in the frontend filter.
-    await User.update(
-      { status: "Onboard" },
-      { where: { id: trainee_id } }
-    );
+    // 3. Update Cadet Status
+    await User.update({ status: 'Onboard' }, { where: { id: trainee_id } });
 
     res.status(201).json(assignment);
+
   } catch (error) {
-    console.error("ASSIGN TRAINEE ERROR:", error);
-    res.status(500).json({ message: "Failed to assign trainee" });
+    console.error('Assign Error:', error);
+    res.status(500).json({ message: 'Failed to assign trainee.' });
   }
 };
 
-/**
- * UNASSIGN trainee (sign-off).
- * FIXED: Updates User status back to 'Ready' so they reappear in the pool.
- */
-export const unassignTrainee = async (req: Request, res: Response) => {
+// --- SIGN OFF (UNASSIGN) ---
+export const signOffTrainee = async (req: Request, res: Response) => {
   try {
-    const { traineeId } = req.params;
+    const { id } = req.params; // trainee_id
+    const { sign_off_date } = req.body;
 
-    // 1. Close the active assignment record
-    await TraineeAssignment.update(
-      {
-        status: "COMPLETED",
-        sign_off_date: new Date().toISOString().split('T')[0],
-      },
-      {
-        where: {
-          trainee_id: traineeId,
-          status: "ACTIVE",
-        },
+    // 1. Find the active assignment
+    const assignment = await TraineeAssignment.findOne({
+      where: {
+        trainee_id: id,
+        status: 'ACTIVE'
       }
-    );
+    });
 
-    // 2. Return the trainee to the 'Ready' pool status
-    await User.update(
-      { status: "Ready" },
-      { where: { id: traineeId } }
-    );
+    if (!assignment) {
+      return res.status(404).json({ message: 'No active assignment found for this trainee.' });
+    }
 
-    res.json({ success: true });
+    // 2. Update Assignment (Close it)
+    await assignment.update({
+      sign_off_date: sign_off_date || new Date(),
+      status: 'COMPLETED'
+    });
+
+    // 3. Update Cadet Status back to Ready
+    await User.update({ status: 'Ready' }, { where: { id } });
+
+    res.json({ message: 'Trainee signed off successfully.' });
+
   } catch (error) {
-    console.error("UNASSIGN TRAINEE ERROR:", error);
-    res.status(500).json({ message: "Failed to unassign trainee" });
+    console.error('Sign Off Error:', error);
+    res.status(500).json({ message: 'Failed to sign off trainee.' });
   }
 };

@@ -1,12 +1,15 @@
+//keel-web/src/pages/ReportsPage.tsx
+
 import React, { useEffect, useState } from 'react';
 import { 
   BarChart3, PieChart, FileText, Download, 
-  Users, Ship, TrendingUp, AlertCircle, Calendar 
+  Users, Ship, TrendingUp, AlertCircle, Calendar, Loader2
 } from 'lucide-react';
 import { 
-  getCadets, getVessels, getAllProgress, getSyllabus, 
+  getCadets, getVessels, getSyllabus, 
   calculateProgressStats, getApprovalQueue 
 } from '../services/dataService';
+import { downloadFleetPDF, downloadFleetExcel } from '../services/reportService';
 import { toast } from 'sonner';
 
 const ReportsPage: React.FC = () => {
@@ -22,6 +25,7 @@ const ReportsPage: React.FC = () => {
   const [vesselStats, setVesselStats] = useState<any[]>([]);
   const [statusDist, setStatusDist] = useState<any>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     loadAnalytics();
@@ -29,10 +33,11 @@ const ReportsPage: React.FC = () => {
 
   const loadAnalytics = () => {
     setIsLoading(true);
+    // Note: Eventually we will replace these with a backend /analytics/company endpoint
     const cadets = getCadets();
     const vessels = getVessels();
     const syllabus = getSyllabus();
-    const approvalQueue = getApprovalQueue(); // Reuse existing logic for backlog count
+    const approvalQueue = getApprovalQueue();
 
     // 1. BASIC COUNTS
     const totalCadets = cadets.length;
@@ -51,17 +56,14 @@ const ReportsPage: React.FC = () => {
     let cadetsWithProgress = 0;
 
     cadets.forEach((cadet: any) => {
-      // Calculate individual progress
       const stats = calculateProgressStats(String(cadet.id), syllabus);
       const progress = stats.globalPercent || 0;
 
-      // Global Accumulator
       if (progress > 0) {
         totalSystemProgress += progress;
         cadetsWithProgress++;
       }
 
-      // Vessel Accumulator (Only if onboard)
       if (cadet.status === 'Onboard' && cadet.vessel) {
         if (!vesselMap[cadet.vessel]) {
           vesselMap[cadet.vessel] = { count: 0, totalProgress: 0 };
@@ -75,12 +77,11 @@ const ReportsPage: React.FC = () => {
       ? Math.round(totalSystemProgress / cadetsWithProgress) 
       : 0;
 
-    // Format Vessel Data for Table
     const formattedVesselStats = Object.keys(vesselMap).map(vName => ({
       name: vName,
       cadets: vesselMap[vName].count,
       avgProgress: Math.round(vesselMap[vName].totalProgress / vesselMap[vName].count)
-    })).sort((a, b) => b.avgProgress - a.avgProgress); // Top performers first
+    })).sort((a, b) => b.avgProgress - a.avgProgress);
 
     setMetrics({
       totalCadets,
@@ -96,8 +97,24 @@ const ReportsPage: React.FC = () => {
     setIsLoading(false);
   };
 
-  const handleExport = (type: 'csv' | 'pdf') => {
-    toast.success(`Generating ${type.toUpperCase()} report... Download will start shortly.`);
+  // --- NEW EXPORT LOGIC ---
+  const handleExport = async (type: 'excel' | 'pdf') => {
+    setIsDownloading(true);
+    try {
+      if (type === 'pdf') {
+        toast.info('Generating PDF Report...');
+        await downloadFleetPDF();
+      } else {
+        toast.info('Generating Excel Roster...');
+        await downloadFleetExcel();
+      }
+      toast.success('Download started.');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to download report.');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   if (isLoading) return <div className="p-10 text-center text-muted-foreground">Loading analytics...</div>;
@@ -112,11 +129,21 @@ const ReportsPage: React.FC = () => {
           <p className="text-muted-foreground text-sm">Performance metrics and fleet-wide training insights.</p>
         </div>
         <div className="flex gap-2">
-           <button onClick={() => handleExport('pdf')} className="bg-card hover:bg-muted text-foreground border border-input px-4 py-2 rounded-lg flex items-center space-x-2 shadow-sm text-sm font-medium">
-             <FileText size={16} /><span>Export PDF</span>
+           <button 
+             onClick={() => handleExport('pdf')} 
+             disabled={isDownloading}
+             className="bg-card hover:bg-muted text-foreground border border-input px-4 py-2 rounded-lg flex items-center space-x-2 shadow-sm text-sm font-medium disabled:opacity-50"
+           >
+             {isDownloading ? <Loader2 size={16} className="animate-spin"/> : <FileText size={16} />}
+             <span>Export PDF</span>
            </button>
-           <button onClick={() => handleExport('csv')} className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center space-x-2 shadow-sm text-sm font-medium">
-             <Download size={16} /><span>Download CSV</span>
+           <button 
+             onClick={() => handleExport('excel')} 
+             disabled={isDownloading}
+             className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg flex items-center space-x-2 shadow-sm text-sm font-medium disabled:opacity-50"
+           >
+             {isDownloading ? <Loader2 size={16} className="animate-spin"/> : <Download size={16} />}
+             <span>Download Excel</span>
            </button>
         </div>
       </div>
@@ -170,7 +197,7 @@ const ReportsPage: React.FC = () => {
               <h3 className="font-bold text-foreground flex items-center gap-2">
                  <Ship size={16} className="text-muted-foreground" /> Vessel Training Performance
               </h3>
-              <button className="text-xs text-primary font-bold hover:underline">View Full Report</button>
+              <button onClick={() => handleExport('pdf')} className="text-xs text-primary font-bold hover:underline">View Full Report</button>
            </div>
            <div className="overflow-auto max-h-100">
               <table className="w-full text-left text-sm">

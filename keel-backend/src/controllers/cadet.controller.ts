@@ -1,4 +1,4 @@
-// keel-backend/src/controllers/cadet.controller.ts
+//keel-backend/src/controllers/cadet.controller.ts
 
 import { Request, Response } from 'express';
 import User from '../models/User';
@@ -32,8 +32,14 @@ export const getCadets = async (req: Request, res: Response) => {
           model: TraineeAssignment,
           as: 'assignments',
           where: { status: 'ACTIVE' },
-          required: false,
-          include: [{ model: Vessel, attributes: ['name'] }]
+          required: false, // Left Join (get cadet even if not assigned)
+          include: [
+            { 
+              model: Vessel, 
+              as: 'vessel', // <--- FIX: Matches the alias defined in associations.ts
+              attributes: ['name'] 
+            }
+          ]
         },
         {
           model: Assignment, 
@@ -50,10 +56,13 @@ export const getCadets = async (req: Request, res: Response) => {
       const activeAssignment = plainCadet.assignments?.[0];
       const completedTasksCount = plainCadet.taskAssignments ? plainCadet.taskAssignments.length : 0;
 
+      // Safe check for vessel name using the alias structure
+      const vesselName = activeAssignment?.vessel?.name || null;
+
       return {
         ...plainCadet,
         name: `${plainCadet.first_name || ''} ${plainCadet.last_name || ''}`.trim(),
-        vessel: activeAssignment?.Vessel ? activeAssignment.Vessel.name : null, // Fixed: Return simple string name
+        vessel: vesselName, 
         sign_on_date: activeAssignment?.sign_on_date || null,
         completed_tasks_count: completedTasksCount,
         total_tasks_count: totalTasksCount,
@@ -244,7 +253,10 @@ export const updateCadet = async (req: Request, res: Response) => {
 export const deleteCadet = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    // Clean up assignments before deleting user to avoid foreign key constraints
     await TraineeAssignment.destroy({ where: { trainee_id: id } });
+    await Assignment.destroy({ where: { user_id: id } }); // Also clear TRB tasks
+
     const deletedCount = await User.destroy({ where: { id } });
 
     if (deletedCount === 0) return res.status(404).json({ message: 'Trainee not found in database' });

@@ -1,34 +1,27 @@
-// keel-backend/src/models/TraineeAssignment.ts
-//
-// PURPOSE:
-// - Track vessel assignments for trainees
-// - Preserve assignment history (sign-on / sign-off)
-// - STRICTLY separate from TRB task assignments
-//
-// DOMAIN:
-// - Trainee ↔ Vessel
-//
-// SAFETY:
-// - No deletes (status-based lifecycle)
-// - Audit-safe
-//
+//keel-backend/src/models/TraineeAssignment.ts
 
-import { DataTypes, Model } from "sequelize";
-import sequelize from "../config/database";
+import { Model, DataTypes } from 'sequelize';
+import sequelize from '../config/database';
+import User from './User';
+import Vessel from './Vessel';
+import Company from './Company';
 
 class TraineeAssignment extends Model {
   public id!: number;
-
   public trainee_id!: number;
   public vessel_id!: number;
-
-  public sign_on_date!: string;
-  public sign_off_date?: string | null;
-
-  public status!: "ACTIVE" | "COMPLETED";
-
+  public company_id!: number; // <--- NEW FIELD
+  public sign_on_date!: Date;
+  public sign_off_date!: Date | null;
+  public status!: string;
+  
+  // Timestamps
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
+
+  // Associations
+  public trainee?: User;
+  public vessel?: Vessel;
 }
 
 TraineeAssignment.init(
@@ -38,49 +31,48 @@ TraineeAssignment.init(
       autoIncrement: true,
       primaryKey: true,
     },
-
     trainee_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      references: {
+        model: User,
+        key: 'id',
+      },
     },
-
     vessel_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      references: {
+        model: Vessel,
+        key: 'id',
+      },
     },
-
-    sign_on_date: {
-      type: DataTypes.DATEONLY,
+    company_id: { // <--- NEW COLUMN DEFINITION
+      type: DataTypes.INTEGER,
       allowNull: false,
+      references: {
+        model: Company,
+        key: 'id',
+      },
     },
-
+    sign_on_date: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
     sign_off_date: {
-      type: DataTypes.DATEONLY,
+      type: DataTypes.DATE,
       allowNull: true,
     },
-
     status: {
-      type: DataTypes.ENUM("ACTIVE", "COMPLETED"),
-      allowNull: false,
-      defaultValue: "ACTIVE",
+      type: DataTypes.ENUM('ACTIVE', 'COMPLETED', 'CANCELLED'),
+      defaultValue: 'ACTIVE',
     },
   },
   {
     sequelize,
-    tableName: "trainee_assignments",
-    timestamps: true,
-    createdAt: "created_at",
-    updatedAt: "updated_at",
-    indexes: [
-      {
-        name: "idx_trainee_active_assignment",
-        fields: ["trainee_id", "status"],
-      },
-      {
-        name: "idx_vessel_active_assignments",
-        fields: ["vessel_id", "status"],
-      },
-    ],
+    tableName: 'trainee_assignments',
+    underscored: true, // Ensures columns are snake_case in DB
   }
 );
 

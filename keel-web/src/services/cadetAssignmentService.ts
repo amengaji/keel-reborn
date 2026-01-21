@@ -1,53 +1,51 @@
-// keel-web/src/services/cadetAssignmentService.ts
+//keel-web/src/services/cadetAssignmentService.ts
 
-const API_URL = 'http://localhost:5000/api/trainee-assignments';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('keel_token');
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
+const handleResponse = async (res: Response) => {
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || `Request failed with status ${res.status}`);
+  }
+  return res.json();
 };
 
 export const cadetAssignmentService = {
-  // GET ACTIVE ASSIGNMENTS
+  // Get all active assignments for the company
   getActive: async () => {
-    const res = await fetch(API_URL, {
-      headers: getAuthHeaders()
+    const token = localStorage.getItem('keel_token');
+    const res = await fetch(`${API_URL}/trainee-assignments`, {
+      headers: { Authorization: `Bearer ${token}` }
     });
-
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.message || 'Failed to fetch assignments');
-    return json;
+    return handleResponse(res);
   },
 
-  // ASSIGN TRAINEE TO VESSEL
-  // We use trainee_id here to match your Backend Controller
-  assign: async (payload: {
-    trainee_id: number;
-    vessel_id: number;
-    sign_on_date: string;
-  }) => {
-    const res = await fetch(API_URL, {
+  // Assign a cadet to a vessel
+  assign: async (data: { trainee_id: number; vessel_id: number; sign_on_date: string }) => {
+    const token = localStorage.getItem('keel_token');
+    const res = await fetch(`${API_URL}/trainee-assignments`, {
       method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(payload)
+      headers: { 
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}` 
+      },
+      body: JSON.stringify(data)
     });
-
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.message || 'Assignment failed');
-    return json;
+    return handleResponse(res);
   },
 
-  // UNASSIGN TRAINEE (SIGN-OFF)
+  // Sign off a cadet (Unassign)
   unassign: async (traineeId: number) => {
-    const res = await fetch(`${API_URL}/${traineeId}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders()
+    const token = localStorage.getItem('keel_token');
+    const res = await fetch(`${API_URL}/trainee-assignments/${traineeId}/sign-off`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}` 
+      },
+      // Sign-off date defaults to today if not provided
+      body: JSON.stringify({ sign_off_date: new Date().toISOString() })
     });
-
-    if (!res.ok) throw new Error('Unassign failed');
-    return true;
+    return handleResponse(res);
   }
 };

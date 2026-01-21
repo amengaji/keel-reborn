@@ -243,7 +243,7 @@ const AssignmentsPage: React.FC = () => {
                   onDragOver={(e) => handleDragOver(e, vessel.id)}
                   onDragLeave={() => setDragOverVesselId(null)}
                   onDrop={(e) => handleDrop(e, vessel)}
-                  className={`border rounded-xl p-4 flex flex-col transition-all duration-300 min-h-[140px] shadow-sm ${
+                  className={`border rounded-xl p-4 flex flex-col transition-all duration-300 min-h-35 shadow-sm ${
                     isDragOver 
                       ? 'border-dashed border-2 border-primary bg-primary/5 scale-[1.01]' 
                       : 'bg-background border-border'

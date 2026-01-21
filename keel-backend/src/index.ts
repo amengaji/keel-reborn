@@ -20,6 +20,7 @@ import traineeAssignmentRoutes from "./routes/traineeAssignment.routes";
 import analyticsRoutes from './routes/analytics.routes';
 import companyRoutes from './routes/company.routes';
 import importRoutes from './routes/import.routes'; // <--- NEW IMPORT
+import reportsRoutes from './routes/reports.routes'; // <--- NEW IMPORT
 
 // Models
 import Task from './models/Task';
@@ -53,6 +54,7 @@ app.use("/api/trainee-assignments", traineeAssignmentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/import', importRoutes); // <--- NEW ROUTE REGISTERED
+app.use('/api/reports', reportsRoutes);
 
 const startServer = async () => {
   await sequelize.sync({ alter: true }); 
