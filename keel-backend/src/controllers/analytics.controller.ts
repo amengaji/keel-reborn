@@ -1,12 +1,12 @@
 //keel-backend/src/controllers/analytics.controller.ts
 
 import { Request, Response } from 'express';
-import { QueryTypes } from 'sequelize'; // <--- FIX 1: Import QueryTypes directly
+import { QueryTypes } from 'sequelize'; 
 import sequelize from '../config/database';
 import Company from '../models/Company';
 import Subscription from '../models/Subscription';
 import User from '../models/User';
-import Role from '../models/Role'; // Helper for TypeScript
+import Role from '../models/Role'; 
 
 /**
  * ============================================================
@@ -44,13 +44,13 @@ export const getPlatformStats = async (req: Request, res: Response) => {
     });
 
     // 4. "Most Active" Leaderboard
-    // FIX 2: Use 'QueryTypes.SELECT' instead of 'sequelize.QueryTypes.SELECT'
+    // FIXED: Changed 'COMPLETED' to 'Completed' to match Enum definition
     const activityLeaderboard = await sequelize.query(`
       SELECT c.name as company_name, COUNT(a.id) as tasks_completed
       FROM companies c
       JOIN users u ON u.company_id = c.id
       JOIN assignments a ON a.user_id = u.id
-      WHERE a.status = 'COMPLETED'
+      WHERE a.status = 'Completed' 
       GROUP BY c.id, c.name
       ORDER BY tasks_completed DESC
       LIMIT 5

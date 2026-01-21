@@ -17,10 +17,11 @@ import cadetRoutes from './routes/cadet.routes';
 import taskRoutes from './routes/task.routes';
 import assignmentRoutes from './routes/assignment.routes';
 import traineeAssignmentRoutes from "./routes/traineeAssignment.routes";
-import analyticsRoutes from './routes/analytics.routes'; // <--- NEW IMPORT
-import companyRoutes from './routes/company.routes'; // <--- NEW IMPORT
+import analyticsRoutes from './routes/analytics.routes';
+import companyRoutes from './routes/company.routes';
+import importRoutes from './routes/import.routes'; // <--- NEW IMPORT
 
-// Models (Imported to ensure Sequelize registers them)
+// Models
 import Task from './models/Task';
 
 dotenv.config();
@@ -28,40 +29,32 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 
-// --- MIDDLEWARE CONFIGURATION ---
-// UI/UX Note: We enable CORS so the Vite dev server can reach this API
+// --- MIDDLEWARE ---
 app.use(cors({
-  origin: true, // Your Frontend URL
+  origin: true,
   credentials: true
 }));
 
 app.use(express.json());
 
-// --- 1. PUBLIC ROUTES (No License Check Required) ---
-// Login, Register, and Password Reset must be accessible even if subscription expires
+// --- 1. PUBLIC ROUTES ---
 app.use('/api/auth', authRoutes);
 
-
 // --- 2. GLOBAL SECURITY BARRIER ---
-// All routes below this line require:
-// A) Valid JWT Token (authenticate)
-// B) Active Company Subscription (validateSubscription)
 app.use(authenticate); 
 app.use(validateSubscription);
 
-
-// --- 3. PROTECTED ROUTES (Business Logic) ---
+// --- 3. PROTECTED ROUTES ---
 app.use('/api/vessels', vesselRoutes);
 app.use('/api/trainees', cadetRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use("/api/trainee-assignments", traineeAssignmentRoutes);
-app.use('/api/analytics', analyticsRoutes); // <--- NEW ROUTE (Super Admin Only)
-app.use('/api/companies', companyRoutes); // <--- NEW ROUTE (Super Admin Only)
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/companies', companyRoutes);
+app.use('/api/import', importRoutes); // <--- NEW ROUTE REGISTERED
 
 const startServer = async () => {
-  // Database Synchronization
-  // Note: { alter: true } updates the schema to match models (adds Subscription table)
   await sequelize.sync({ alter: true }); 
   console.log('⚓ DATABASE: Tables synchronized successfully.');
 

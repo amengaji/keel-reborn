@@ -164,7 +164,7 @@ export default function CompaniesPage() {
       </div>
 
       {/* LIST */}
-      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden min-h-[400px]">
+      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden min-h-100">
         {/* Toolbar */}
         <div className="p-4 border-b border-border bg-muted/20 flex items-center gap-4">
           <div className="relative flex-1 max-w-sm">

@@ -37,8 +37,13 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Invalid credentials." });
     }
 
+    // --- FIX: INCLUDE COMPANY ID IN TOKEN ---
     const accessToken = jwt.sign(
-      { id: user.id, role: user.role?.name },
+      { 
+        id: user.id, 
+        role: user.role?.name,
+        company_id: user.company_id // <--- CRITICAL ADDITION
+      },
       process.env.JWT_SECRET || "maritime_secret_key",
       { expiresIn: "8h" }
     );
@@ -51,8 +56,8 @@ export const login = async (req: Request, res: Response) => {
         firstName: user.first_name,
         lastName: user.last_name,
         role: user.role?.name,
+        companyId: user.company_id, // Send to frontend too
         rank: user.rank,
-        // Send extra details for Settings Page
         cocNumber: user.coc_number,
         seamanBookNumber: user.seaman_book_number,
         mfaEnabled: user.mfa_enabled
@@ -85,7 +90,7 @@ export const changePassword = async (req: Request, res: Response) => {
   }
 };
 
-// --- UPDATE PROFILE (CoC, Seaman Book, MFA) ---
+// --- UPDATE PROFILE ---
 export const updateProfile = async (req: Request, res: Response) => {
   const { userId, cocNumber, seamanBookNumber, mfaEnabled } = req.body;
 
@@ -93,7 +98,6 @@ export const updateProfile = async (req: Request, res: Response) => {
     const user = await User.findByPk(userId);
     if (!user) return res.status(404).json({ message: "User not found." });
 
-    // Update fields if provided
     if (cocNumber !== undefined) user.coc_number = cocNumber;
     if (seamanBookNumber !== undefined) user.seaman_book_number = seamanBookNumber;
     if (mfaEnabled !== undefined) user.mfa_enabled = mfaEnabled;
@@ -107,7 +111,7 @@ export const updateProfile = async (req: Request, res: Response) => {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
-        role: user.role?.name || 'Unknown', // Keep existing role in response
+        role: user.role?.name || 'Unknown',
         cocNumber: user.coc_number,
         seamanBookNumber: user.seaman_book_number,
         mfaEnabled: user.mfa_enabled
@@ -118,30 +122,26 @@ export const updateProfile = async (req: Request, res: Response) => {
   }
 };
 
-// Add this to your User Controller (e.g., user.controller.ts or auth.controller.ts)
-
+// --- CREATE USER (Helper) ---
 export const createUser = async (req: Request, res: Response) => {
   try {
     const data = req.body;
     // @ts-ignore
-    const currentUser = req.user; // From auth middleware
+    const currentUser = req.user; 
 
-    // 1. Determine Company ID
     let targetCompanyId = currentUser.company_id;
 
-    // SUPER ADMIN OVERRIDE: Can specify any company
     if (currentUser.role === 'SUPER_ADMIN' && data.companyId) {
         targetCompanyId = data.companyId;
     }
 
-    // 2. Create User
     const newUser = await User.create({
       email: data.email,
       password_hash: await bcrypt.hash(data.password || 'Keel@123', 10),
       first_name: data.firstName,
       last_name: data.lastName,
-      role_id: data.roleId, // Ensure you send the ID for 'ADMIN' or 'SHORE_ADMIN'
-      company_id: targetCompanyId, // <--- CRITICAL ASSIGNMENT
+      role_id: data.roleId, 
+      company_id: targetCompanyId, 
       status: 'Active'
     });
 

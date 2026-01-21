@@ -1,14 +1,15 @@
 //keel-backend/src/controllers/company.controller.ts
 
 import { Request, Response } from 'express';
-import sequelize from '../config/database'; // Needed for transactions
+import sequelize from '../config/database'; 
 import Company from '../models/Company';
 import User from '../models/User';
 import Subscription from '../models/Subscription';
+import Role from '../models/Role'; 
+import bcrypt from 'bcryptjs';    
 
 /**
  * GET /api/companies
- * Fetches all companies with their User Counts and Active Subscription details.
  */
 export const getCompanies = async (req: Request, res: Response) => {
   try {
@@ -17,7 +18,7 @@ export const getCompanies = async (req: Request, res: Response) => {
         { 
           model: User, 
           as: 'employees', 
-          attributes: ['id'] // Optimized: We only need ID to count
+          attributes: ['id'] 
         },
         {
           model: Subscription,
@@ -27,17 +28,15 @@ export const getCompanies = async (req: Request, res: Response) => {
       order: [['created_at', 'DESC']]
     });
     
-    // Transform data for the frontend
     const data = companies.map((c: any) => {
       const sub = c.subscription;
       return {
         ...c.toJSON(),
         user_count: c.employees?.length || 0,
-        // Flatten subscription data for easier table display
         subscription_status: sub?.status || 'INACTIVE',
         valid_until: sub?.valid_until || null,
         cadet_limit: sub?.cadet_limit || 0,
-        price_per_cadet: sub?.price_per_cadet || 500, // <--- RETURNED TO FRONTEND
+        price_per_cadet: sub?.price_per_cadet || 500,
         seats_used: 0 
       };
     });
@@ -51,19 +50,19 @@ export const getCompanies = async (req: Request, res: Response) => {
 
 /**
  * POST /api/companies
- * Transactional creation of Company + Subscription
+ * Transactional creation of Company + Subscription + Admin User
  */
 export const createCompany = async (req: Request, res: Response) => {
   const transaction = await sequelize.transaction();
 
   try {
     const { 
-      name, domain, contact_email, address, // Company Basic Info
-      cadet_limit, price_per_cadet, valid_until, // Subscription Info
+      name, domain, contact_email, address, 
+      cadet_limit, price_per_cadet, valid_until, 
       plan_tier 
     } = req.body;
 
-    // 1. Create the Company Record
+    // 1. Create Company
     const company = await Company.create({
       name,
       domain,
@@ -73,24 +72,52 @@ export const createCompany = async (req: Request, res: Response) => {
       is_active: true
     }, { transaction });
 
-    // 2. Create the Subscription Record
-    // We default to "ACTIVE" and set the Grace Period to 15 days as per your rules
+    // 2. Create Subscription
     await Subscription.create({
       company_id: company.id,
-      cadet_limit: cadet_limit || 5, // Default 5 seats if not specified
+      cadet_limit: cadet_limit || 5,
       price_per_cadet: price_per_cadet || 500.00,
-      valid_until: valid_until, // Must be provided by frontend
+      valid_until: valid_until,
       status: 'ACTIVE',
       grace_period_days: 15
     }, { transaction });
 
-    // 3. Commit Transaction
+    // 3. Create Default Admin User (The "Manager")
+    const adminRole = await Role.findOne({ where: { name: 'ADMIN' } });
+    
+    if (!adminRole) {
+      throw new Error("System Error: 'ADMIN' role not found in database. Please seed roles.");
+    }
+
+    const defaultPassword = 'Keel2024!'; 
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    await User.create({
+      first_name: 'Company',
+      last_name: 'Admin',
+      email: contact_email, 
+      password_hash: hashedPassword, // <--- FIXED: Was 'password', now 'password_hash'
+      role_id: adminRole.id,
+      company_id: company.id,
+      rank: 'Shore Manager',
+      status: 'Ready', // Changed to Ready to match Enum
+      nationality: 'Global'
+    }, { transaction });
+
+    // 4. Commit Transaction
     await transaction.commit();
 
-    res.status(201).json({ message: 'Company and License provisioned successfully.', company });
+    res.status(201).json({ 
+      message: 'Company, License, and Admin Account provisioned successfully.', 
+      company,
+      admin_credentials: {
+        email: contact_email,
+        temporary_password: defaultPassword
+      }
+    });
 
   } catch (error) {
-    await transaction.rollback(); // Undo everything if step 2 fails
+    await transaction.rollback();
     console.error('Create Company Error:', error);
     res.status(500).json({ message: 'Error creating company. Please check inputs.' });
   }
@@ -98,30 +125,26 @@ export const createCompany = async (req: Request, res: Response) => {
 
 /**
  * PUT /api/companies/:id
- * Updates Company Details AND Subscription Limits
  */
 export const updateCompany = async (req: Request, res: Response) => {
   const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
     const { 
-      name, domain, contact_email, is_active, // Company Fields
-      cadet_limit, valid_until, price_per_cadet // Subscription Fields
+      name, domain, contact_email, is_active, 
+      cadet_limit, valid_until, price_per_cadet 
     } = req.body;
 
-    // 1. Update Company Basic Info
     await Company.update({ 
       name, domain, contact_email, is_active 
     }, { where: { id }, transaction });
 
-    // 2. Update Subscription Info (if provided)
     if (cadet_limit || valid_until || price_per_cadet) {
       const updateData: any = {};
       if (cadet_limit) updateData.cadet_limit = cadet_limit;
       if (valid_until) updateData.valid_until = valid_until;
-      if (price_per_cadet) updateData.price_per_cadet = price_per_cadet; // <--- NOW SAVES PRICE UPDATES
+      if (price_per_cadet) updateData.price_per_cadet = price_per_cadet;
 
-      // Find existing subscription or create if missing (self-healing)
       const sub = await Subscription.findOne({ where: { company_id: id } });
       if (sub) {
         await sub.update(updateData, { transaction });
@@ -137,8 +160,6 @@ export const updateCompany = async (req: Request, res: Response) => {
     }
 
     await transaction.commit();
-    
-    // Return the fresh data
     const updated = await Company.findByPk(id, { include: ['subscription'] });
     res.json(updated);
 
@@ -151,7 +172,6 @@ export const updateCompany = async (req: Request, res: Response) => {
 export const deleteCompany = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    // Sequelize CASCADE will automatically delete the Subscription due to our model setup
     await Company.destroy({ where: { id } });
     res.json({ message: 'Company deleted successfully' });
   } catch (error) {
