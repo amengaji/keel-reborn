@@ -12,13 +12,6 @@ import ImportCadetModal from '../components/trainees/ImportCadetModal';
 import AddCadetModal from '../components/trainees/AddCadetModal';
 import { toast } from 'sonner';
 
-/**
- * CadetsPage Component
- * Provides a comprehensive interface for managing trainee (cadet) profiles.
- * FIXED: Optimized for light/dark mode using theme variables.
- * FIXED: Vessel Name display crash (Strict null check added).
- * CTO RESTRICTIONS: Added role-based checks to hide Add/Import/Edit/Delete actions for CTOs.
- */
 const CadetsPage: React.FC = () => {
   // --- ROLE IDENTIFICATION ---
   const userJson = localStorage.getItem('keel_user');
@@ -38,17 +31,14 @@ const CadetsPage: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'first_name', direction: 'asc' });
 
-  /**
-   * 1. LOAD DATA FROM API
-   * Fetches the latest trainee roster from the SQL backend.
-   */
+  // 1. LOAD DATA
   const refreshData = async () => {
     try {
       const data = await cadetService.getAll();
       setCadets(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to load trainees", error);
-      toast.error("Could not load trainee roster from server.");
+      toast.error("Could not load trainee roster.");
     }
   };
 
@@ -56,13 +46,9 @@ const CadetsPage: React.FC = () => {
     refreshData();
   }, []);
 
-  /**
-   * 2. HANDLE SAVE (CREATE / UPDATE)
-   * Processes data for new profiles or existing profile updates.
-   */
+  // 2. SAVE (CREATE / UPDATE)
   const handleSaveCadet = async (cadetData: any) => {
     try {
-      // Ensure naming consistency with backend schema
       const payload = {
         ...cadetData,
         first_name: cadetData.first_name,
@@ -70,25 +56,22 @@ const CadetsPage: React.FC = () => {
       };
 
       if (editingCadet && editingCadet.id) {
-        await cadetService.update(editingCadet.id, payload); // Call update if editing
-        toast.success("Trainee profile updated successfully.");
+        await cadetService.update(editingCadet.id, payload);
+        toast.success("Profile updated successfully.");
       } else {
         await cadetService.create(payload);
-        toast.success("Trainee profile created successfully.");
+        toast.success("Profile created successfully.");
       }
       
       setIsAddOpen(false);
       setEditingCadet(null);
       refreshData();
     } catch (error: any) {
-      toast.error(error.message || "Failed to save cadet profile.");
+      toast.error(error.message || "Failed to save profile.");
     }
   };
 
-  /**
-   * 3. HANDLE IMPORT
-   * Bulk creates trainees from imported file data.
-   */
+  // 3. IMPORT
   const handleImport = async (importedData: any[]) => {
     try {
       let successCount = 0;
@@ -99,7 +82,7 @@ const CadetsPage: React.FC = () => {
         successCount++;
       }
       
-      toast.success(`${successCount} trainees imported successfully.`);
+      toast.success(`${successCount} imported successfully.`);
       setIsImportOpen(false);
       refreshData();
     } catch (error) {
@@ -107,15 +90,12 @@ const CadetsPage: React.FC = () => {
     }
   };
 
-  /**
-   * 4. HANDLE DELETE
-   * Removes a profile using the cascade-delete logic implemented in the backend.
-   */
+  // 4. DELETE
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to remove this profile?')) {
       try {
         await cadetService.delete(id);
-        toast.success("Trainee profile removed.");
+        toast.success("Profile removed.");
         refreshData();
       } catch (error) {
         toast.error("Could not delete trainee.");
@@ -136,19 +116,13 @@ const CadetsPage: React.FC = () => {
     setSortConfig({ key, direction });
   };
 
-  /**
-   * HELPER: Search and Filter logic
-   * Dynamically handles first_name, last_name, and associated Vessel names.
-   */
+  // SEARCH & FILTER
   const processData = () => {
     let filtered = cadets.filter((c: any) => {
-      // Combine names for a comprehensive search experience
       const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
       
-      // FIXED: Safely handle vessel whether it is a string OR an object OR null
       let vesselName = '';
       if (c.vessel) {
-        // Strict check: Is it an object and NOT null?
         if (typeof c.vessel === 'object' && c.vessel !== null) {
            vesselName = c.vessel.name || '';
         } else {
@@ -191,7 +165,7 @@ const CadetsPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col bg-background p-4 transition-colors duration-300">
       
-      {/* HEADER SECTION */}
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 shrink-0">
         <div className="flex flex-col gap-0.5">
           <h1 className="text-2xl font-bold text-foreground">Trainee Management</h1>
@@ -200,7 +174,6 @@ const CadetsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* HIDE ACTIONS FOR CTO */}
         {!isCTO && (
           <div className="flex gap-2">
             <button 
@@ -234,18 +207,18 @@ const CadetsPage: React.FC = () => {
         
         <div className="flex items-center gap-4 w-full md:w-auto">
            <div className="flex items-center gap-2">
-              <Filter size={16} className="text-muted-foreground" />
-              <select 
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-background border border-border text-foreground rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-              >
-                <option value="All">All Status</option>
-                <option value="Ready">Ready</option>
-                <option value="Onboard">Onboard</option>
-                <option value="Leave">Leave</option>
-                <option value="Training">Training</option>
-              </select>
+             <Filter size={16} className="text-muted-foreground" />
+             <select 
+               value={statusFilter}
+               onChange={(e) => setStatusFilter(e.target.value)}
+               className="bg-background border border-border text-foreground rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
+             >
+               <option value="All">All Status</option>
+               <option value="Ready">Ready</option>
+               <option value="Onboard">Onboard</option>
+               <option value="Leave">Leave</option>
+               <option value="Training">Training</option>
+             </select>
            </div>
 
            <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -278,14 +251,14 @@ const CadetsPage: React.FC = () => {
                       { label: '', key: 'actions', width: 'w-12' }
                     ].map((col) => (
                        <th 
-                         key={col.key}
-                         className={`p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-muted/60 transition-colors ${col.width}`}
-                         onClick={() => col.key !== 'actions' && handleSort(col.key)}
+                          key={col.key}
+                          className={`p-4 font-bold text-muted-foreground text-[10px] uppercase tracking-wider cursor-pointer hover:bg-muted/60 transition-colors ${col.width}`}
+                          onClick={() => col.key !== 'actions' && handleSort(col.key)}
                        >
-                         <div className="flex items-center gap-1">
-                            {col.label}
-                            {col.key !== 'actions' && <ArrowUpDown size={12} className={sortConfig.key === col.key ? 'text-primary' : 'opacity-30'} />}
-                         </div>
+                          <div className="flex items-center gap-1">
+                             {col.label}
+                             {col.key !== 'actions' && <ArrowUpDown size={12} className={sortConfig.key === col.key ? 'text-primary' : 'opacity-30'} />}
+                          </div>
                        </th>
                     ))}
                  </tr>
@@ -329,7 +302,6 @@ const CadetsPage: React.FC = () => {
                           <td className="p-4">
                              <div className="flex items-center gap-2">
                                 <Anchor size={14} className="text-muted-foreground/60" />
-                                {/* FIXED: Crash prevention for vessel.name check */}
                                 <span className={!cadet.vessel || cadet.vessel === 'Unassigned' ? 'text-muted-foreground italic text-xs' : 'text-foreground font-bold'}>
                                    {typeof cadet.vessel === 'object' && cadet.vessel !== null ? cadet.vessel.name : (cadet.vessel || 'Not Assigned')}
                                 </span>
@@ -348,7 +320,6 @@ const CadetsPage: React.FC = () => {
                              </div>
                           </td>
                           <td className="p-4 text-right">
-                             {/* HIDE EDIT/DELETE ACTIONS FOR CTO */}
                              {!isCTO && (
                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                                   <button 
@@ -375,7 +346,7 @@ const CadetsPage: React.FC = () => {
            </table>
         </div>
 
-        {/* PAGINATION FOOTER */}
+        {/* PAGINATION */}
         <div className="p-4 border-t border-border bg-muted/20 flex items-center justify-between shrink-0 transition-colors">
            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
               Records {Math.min(processedData.length, (currentPage - 1) * itemsPerPage + 1)} - {Math.min(processedData.length, currentPage * itemsPerPage)} of {processedData.length}
@@ -391,17 +362,25 @@ const CadetsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL COMPONENTS */}
+      {/* IMPORT MODAL */}
       {!isCTO && isImportOpen && (
         <ImportCadetModal 
           isOpen={isImportOpen} 
           onClose={() => setIsImportOpen(false)} 
-          onImport={handleImport} 
+          // @ts-ignore - Ignoring mismatched type temporarily
+          onImport={() => {
+             // 1. Close Modal
+             setIsImportOpen(false);
+             // 2. Refresh List from DB
+             refreshData();
+          }} 
         />
       )}
 
+      {/* ADD/EDIT MODAL - KEY ADDED TO FIX POPULATION BUG */}
       {!isCTO && isAddOpen && (
         <AddCadetModal
+          key={editingCadet ? editingCadet.id : 'new-cadet'}
           isOpen={isAddOpen}
           onClose={() => { setIsAddOpen(false); setEditingCadet(null); }}
           onSave={handleSaveCadet}

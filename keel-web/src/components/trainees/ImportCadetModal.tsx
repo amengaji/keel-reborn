@@ -1,7 +1,7 @@
-//keel-web/src/components/trainees/ImportCadetModal.tsx
+// keel-web/src/components/trainees/ImportCadetModal.tsx
 
 import React, { useRef, useState } from 'react';
-import { X, Upload, FileSpreadsheet, Download, AlertTriangle, ChevronLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Upload, FileSpreadsheet, Download, AlertTriangle, ChevronLeft, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -13,7 +13,7 @@ import { importCadetsBulk, ImportSummary } from '../../services/importService';
 interface ImportCadetModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImport: () => void; // Changed: Parent just needs to refresh
+  onImport: () => void;
 }
 
 const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, onImport }) => {
@@ -29,7 +29,25 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
 
   if (!isOpen) return null;
 
-  // --- 1. TEMPLATE GENERATION (Unchanged) ---
+  // --- HELPER: FORMAT DATE ---
+  const formatDate = (val: any) => {
+    if (!val) return '';
+    if (val instanceof Date) return val.toISOString().split('T')[0];
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+  };
+
+  const getValue = (row: any, targetKeys: string[]) => {
+    const normalize = (k: string) => String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const rowKeys = Object.keys(row);
+    for (const target of targetKeys) {
+      const foundKey = rowKeys.find(k => normalize(k) === normalize(target));
+      if (foundKey) return row[foundKey];
+    }
+    return null;
+  };
+
+  // --- 1. DOWNLOAD TEMPLATE ---
   const downloadTemplate = async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Cadets');
@@ -52,9 +70,17 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
       { header: 'Emergency Email', key: 'kinEmail', width: 25 },
       { header: 'Passport No', key: 'passportNo', width: 18 },
       { header: 'Nationality', key: 'nationality', width: 20 },
+      { header: 'Passport Issue Date', key: 'passportIssue', width: 15 },
+      { header: 'Passport Expiry Date', key: 'passportExpiry', width: 15 },
+      { header: 'Passport Place', key: 'passportPlace', width: 15 },
+      { header: 'CDC No', key: 'cdcNo', width: 15 },
+      { header: 'CDC Country', key: 'cdcCountry', width: 15 },
+      { header: 'CDC Issue Date', key: 'cdcIssue', width: 15 },
+      { header: 'CDC Expiry Date', key: 'cdcExpiry', width: 15 },
+      { header: 'INDoS No', key: 'indos', width: 15 },
+      { header: 'SID No', key: 'sid', width: 15 },
       { header: 'Trainee Type', key: 'traineeType', width: 20 },
       { header: 'Date of Joining', key: 'doj', width: 18 },
-      { header: 'TRB Applicable (YES / NO)', key: 'trbApplicable', width: 22 },
     ];
 
     const headerRow = worksheet.getRow(1);
@@ -69,15 +95,13 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
     BLOOD_GROUPS.forEach((b, i) => refSheet.getCell(`B${i + 1}`).value = b);
     RELATIONSHIPS.forEach((r, i) => refSheet.getCell(`C${i + 1}`).value = r);
     TRAINEE_TYPES.forEach((t, i) => refSheet.getCell(`D${i + 1}`).value = t);
-    ['YES', 'NO'].forEach((v, i) => refSheet.getCell(`E${i + 1}`).value = v);
 
     for (let i = 2; i <= 500; i++) {
       worksheet.getCell(`C${i}`).dataValidation = { type: 'list', formulae: ['"Male,Female,Other"'] };
-      worksheet.getCell(`L${i}`).dataValidation = { type: 'list', formulae: [`RefData!$B$1:$B$${BLOOD_GROUPS.length}`] };
-      worksheet.getCell(`N${i}`).dataValidation = { type: 'list', formulae: [`RefData!$C$1:$C$${RELATIONSHIPS.length}`] };
-      worksheet.getCell(`R${i}`).dataValidation = { type: 'list', formulae: [`RefData!$A$1:$A$${countries.length}`] };
+      worksheet.getCell(`K${i}`).dataValidation = { type: 'list', formulae: [`RefData!$B$1:$B$${BLOOD_GROUPS.length}`] };
+      worksheet.getCell(`M${i}`).dataValidation = { type: 'list', formulae: [`RefData!$C$1:$C$${RELATIONSHIPS.length}`] };
+      worksheet.getCell(`Q${i}`).dataValidation = { type: 'list', formulae: [`RefData!$A$1:$A$${countries.length}`] };
       worksheet.getCell(`AA${i}`).dataValidation = { type: 'list', formulae: [`RefData!$D$1:$D$${TRAINEE_TYPES.length}`] };
-      worksheet.getCell(`AC${i}`).dataValidation = { type: 'list', formulae: ['RefData!$E$1:$E$2'] };
     }
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -85,26 +109,20 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
     toast.success('Smart Template downloaded.');
   };
 
-  const getValue = (row: any, targetKeys: string[]) => {
-    const normalize = (k: string) => String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const rowKeys = Object.keys(row);
-    for (const target of targetKeys) {
-      const foundKey = rowKeys.find(k => normalize(k) === normalize(target));
-      if (foundKey) return row[foundKey];
-    }
-    return null;
-  };
-
-  // --- 2. FILE HANDLING ---
+  // --- 2. FILE PROCESSING ---
   const handleFile = async (file: File) => {
     setIsProcessing(true);
-    setFileToUpload(file); // Store file for backend upload
+    setFileToUpload(file); 
 
     try {
       const data = await file.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(data), { type: 'array' });
+      // 🔥 FIX: Move cellDates: true to read()
+      const wb = XLSX.read(new Uint8Array(data), { 
+        type: 'array',
+        cellDates: true 
+      });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws);
+      const json = XLSX.utils.sheet_to_json(ws); // No options here
 
       if (json.length === 0) {
         toast.error("File is empty.");
@@ -112,16 +130,15 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
         return;
       }
 
-      const mappedData = json.map((row: any) => ({
-        fullName: getValue(row, ['Full Name', 'fullName', 'Name', 'Candidate Name']),
+      const previewMap = json.map((row: any) => ({
+        fullName: getValue(row, ['Full Name', 'fullName', 'Name']),
         email: getValue(row, ['Email', 'Email Address']),
-        rank: getValue(row, ['Trainee Type', 'Rank', 'Role', 'Designation', 'Position', 'traineeType']),
+        rank: getValue(row, ['Trainee Type', 'Rank']),
         nationality: getValue(row, ['Nationality']),
-        indosNo: getValue(row, ['INDoS No', 'INDoS']),
       }));
 
-      const cleanData = mappedData.filter(d => d.email);
-      setPreviewData(cleanData);
+      const cleanPreview = previewMap.filter(d => d.email);
+      setPreviewData(cleanPreview);
     } catch (e) {
       toast.error("Failed to parse Excel file");
     } finally {
@@ -129,17 +146,82 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
     }
   };
 
-  // --- 3. CONFIRM & UPLOAD ---
+  // --- 3. TRANSFORM & UPLOAD ---
   const handleConfirmImport = async () => {
     if (!fileToUpload) return;
     
     setIsUploading(true);
     try {
-      const result = await importCadetsBulk(fileToUpload);
+      const data = await fileToUpload.arrayBuffer();
+      // 🔥 FIX: Move cellDates: true to read() here too
+      const wb = XLSX.read(new Uint8Array(data), { 
+        type: 'array',
+        cellDates: true 
+      });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws);
+
+      const transformedData = json.map((row: any) => {
+        const fullName = getValue(row, ['Full Name', 'fullName', 'Name']) || '';
+        const nameParts = fullName.trim().split(/\s+/);
+
+        return {
+          first_name: nameParts[0] || '',
+          last_name: nameParts.slice(1).join(' ') || '',
+          email: getValue(row, ['Email']),
+          
+          dob: formatDate(getValue(row, ['Date of Birth', 'dob'])),
+          sign_on_date: formatDate(getValue(row, ['Date of Joining', 'DOJ'])),
+          passport_issue_date: formatDate(getValue(row, ['Passport Issue Date'])),
+          passport_expiry_date: formatDate(getValue(row, ['Passport Expiry Date'])),
+          cdc_issue_date: formatDate(getValue(row, ['CDC Issue Date'])),
+          cdc_expiry_date: formatDate(getValue(row, ['CDC Expiry Date'])),
+
+          gender: getValue(row, ['Gender']),
+          address: getValue(row, ['Address']),
+          country: getValue(row, ['Country', 'Country (ISO)']),
+          state: getValue(row, ['State', 'State (ISO)']),
+          city: getValue(row, ['City']),
+          pincode: getValue(row, ['Pin Code', 'pincode']),
+          phone: getValue(row, ['Mobile', 'Phone', 'Cell']),
+          blood_group: getValue(row, ['Blood Group']),
+          
+          kin_name: getValue(row, ['Emergency Contact Name', 'Kin Name']),
+          kin_relation: getValue(row, ['Relation', 'Kin Relation']),
+          kin_mobile: getValue(row, ['Emergency Mobile', 'Kin Mobile']),
+          kin_email: getValue(row, ['Emergency Email', 'Kin Email']),
+          
+          passport_number: getValue(row, ['Passport No', 'Passport Number']),
+          nationality: getValue(row, ['Nationality']),
+          passport_place: getValue(row, ['Passport Place']),
+          
+          cdc_number: getValue(row, ['CDC No', 'CDC Number']),
+          cdc_country: getValue(row, ['CDC Country']),
+          
+          indos_number: getValue(row, ['INDoS No', 'INDoS']),
+          sid_number: getValue(row, ['SID No', 'SID']),
+          rank: getValue(row, ['Trainee Type', 'Rank']),
+          
+          status: 'Ready',
+          password: 'password123'
+        };
+      });
+
+      const newSheet = XLSX.utils.json_to_sheet(transformedData);
+      const newWb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(newWb, newSheet, "CleanData");
+      const wbOut = XLSX.write(newWb, { bookType: 'xlsx', type: 'array' });
+      const cleanBlob = new Blob([wbOut], { type: "application/octet-stream" });
+      const cleanFile = new File([cleanBlob], "upload_clean.xlsx");
+
+      const result = await importCadetsBulk(cleanFile);
+      
       setImportResult(result.summary);
-      onImport(); // Refresh parent list in background
+      onImport(); 
       toast.success("Import processing complete");
+
     } catch (error: any) {
+      console.error("IMPORT ERROR:", error);
       toast.error(error.message || "Import failed");
     } finally {
       setIsUploading(false);
@@ -176,7 +258,7 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
              </button>
           </div>
           
-          {/* VIEW 1: RESULTS SUMMARY (NEW) */}
+          {/* RESULTS SUMMARY */}
           {importResult ? (
              <div className="p-6 space-y-6">
                 <div className="grid grid-cols-2 gap-4">
@@ -214,7 +296,7 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
              </div>
           ) : (
             
-            /* VIEW 2: UPLOAD & PREVIEW (EXISTING UI) */
+            /* UPLOAD & PREVIEW */
             !previewData ? (
                <div className="p-6 space-y-6 bg-card">
                    <div className="bg-primary/10 border border-primary/20 p-4 rounded-xl flex items-start space-x-3">
@@ -252,10 +334,7 @@ const ImportCadetModal: React.FC<ImportCadetModalProps> = ({ isOpen, onClose, on
             ) : (
                <div className="flex flex-col h-125 bg-card">
                   <div className="p-4 bg-muted/30 border-b border-border flex justify-between items-center">
-                     <div className="flex flex-col gap-0.5">
-                        <h3 className="font-bold text-foreground">Preview {previewData.length} Trainees</h3>
-                        <p className="text-xs text-muted-foreground font-medium">Confirm data accuracy before finalizing.</p>
-                     </div>
+                     <h3 className="font-bold text-foreground">Preview {previewData.length} Trainees</h3>
                      <button onClick={() => { setPreviewData(null); setFileToUpload(null); }} className="text-xs font-bold text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg flex items-center gap-1 border border-primary/20">
                         <ChevronLeft size={14} /> Re-upload
                      </button>

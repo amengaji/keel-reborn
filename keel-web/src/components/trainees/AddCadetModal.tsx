@@ -2,116 +2,140 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Save, User, Phone, Globe, Book, Briefcase } from 'lucide-react';
-import { Country, State, City }  from 'country-state-city';
+import { Country, State, City } from 'country-state-city';
 import { BLOOD_GROUPS, RELATIONSHIPS, TRAINEE_TYPES, toProperCase, toSentenceCase } from '../../constants/cadetData';
 
 interface AddCadetModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: any) => void;
-  initialData?: any; 
+  initialData?: any;
 }
 
 const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, initialData }) => {
   const [activeTab, setActiveTab] = useState('personal');
+  
+  // Independent state for dropdowns
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedState, setSelectedState] = useState('');
 
-  // Form State
-  const [formData, setFormData] = useState<any>({
-    country: '', state: '', city: '',
-    trbApplicable: true
-  });
+  const [formData, setFormData] = useState<any>({});
 
-  // Effect to populate data on open
+  // --- HELPER: SAFE DATE PARSING ---
+  const safeDate = (dateVal: any) => {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+  };
+
+  // --- POPULATE DATA ---
+  // ✅ FIX: Added [initialData] dependency so it updates every time you open a different user
   useEffect(() => {
-    if (isOpen) {
-      if (initialData) {
-        // --- 1. SMART RESOLVE COUNTRY & STATE ---
-        // Fix: If backend returns "India", we need to find "IN" for the dropdown to work.
-        const allCountries = Country.getAllCountries();
-        const rawCountry = initialData.country || '';
-        
-        let countryCode = '';
-        const resolvedCountry = allCountries.find(c => 
-          c.isoCode === rawCountry || c.name.toLowerCase() === rawCountry.toLowerCase()
+    if (initialData && isOpen) {
+      console.log("🛠️ EDIT MODE - Incoming Data:", initialData);
+
+      // 1. Resolve Location Codes
+      const rawCountry = initialData.country || '';
+      const rawNationality = initialData.nationality || '';
+      let countryCode = '';
+      
+      const allCountries = Country.getAllCountries();
+
+      // Try exact match or name match for Address Country
+      const foundCountry = allCountries.find(c => 
+        c.isoCode === rawCountry || c.name.toLowerCase() === rawCountry.toLowerCase()
+      );
+      if (foundCountry) countryCode = foundCountry.isoCode;
+
+      // ✅ FIX: Fuzzy Match Nationality (e.g. DB says "Indian", Dropdown has "India")
+      let matchedNationality = '';
+      if (rawNationality) {
+        // First try to find "India" if DB says "Indian"
+        const fuzzyMatch = allCountries.find(c => 
+            c.name.toLowerCase() === rawNationality.toLowerCase() || 
+            (rawNationality.toLowerCase() === 'indian' && c.name === 'India') ||
+            (rawNationality.toLowerCase() === 'american' && c.name === 'United States')
         );
-        if (resolvedCountry) countryCode = resolvedCountry.isoCode;
-
-        // Resolve State based on the found Country
-        let stateCode = '';
-        if (countryCode && initialData.state) {
-           const allStates = State.getStatesOfCountry(countryCode);
-           const rawState = initialData.state;
-           const resolvedState = allStates.find(s => 
-             s.isoCode === rawState || s.name.toLowerCase() === rawState.toLowerCase()
-           );
-           if (resolvedState) stateCode = resolvedState.isoCode;
-        }
-
-        // --- 2. MAP BACKEND DATA TO FORM ---
-        setFormData({
-          ...initialData,
-          // Basic & Personal
-          fullName: initialData.name || `${initialData.first_name || ''} ${initialData.last_name || ''}`.trim(),
-          email: initialData.email,
-          mobile: initialData.phone, 
-          dob: initialData.dob ? new Date(initialData.dob).toISOString().split('T')[0] : '',
-          gender: initialData.gender,
-          bloodGroup: initialData.blood_group,
-
-          // Address (Use Resolved ISO Codes)
-          address: initialData.address,
-          country: countryCode, 
-          state: stateCode,
-          city: initialData.city,
-          pincode: initialData.pincode,
-
-          // Emergency
-          kinName: initialData.kin_name,
-          kinRelation: initialData.kin_relation,
-          kinMobile: initialData.kin_mobile,
-          kinEmail: initialData.kin_email,
-
-          // Passport
-          passportNo: initialData.passport_number,
-          nationality: initialData.nationality,
-          passportIssueDate: initialData.passport_issue_date ? new Date(initialData.passport_issue_date).toISOString().split('T')[0] : '',
-          passportExpiryDate: initialData.passport_expiry_date ? new Date(initialData.passport_expiry_date).toISOString().split('T')[0] : '',
-          passportPlace: initialData.passport_place,
-
-          // CDC
-          cdcNo: initialData.cdc_number,
-          cdcCountry: initialData.cdc_country,
-          cdcIssueDate: initialData.cdc_issue_date ? new Date(initialData.cdc_issue_date).toISOString().split('T')[0] : '',
-          cdcExpiryDate: initialData.cdc_expiry_date ? new Date(initialData.cdc_expiry_date).toISOString().split('T')[0] : '',
-          indosNo: initialData.indos_number,
-          sidNo: initialData.sid_number,
-
-          // Roles
-          traineeType: initialData.rank,
-          doj: initialData.sign_on_date ? new Date(initialData.sign_on_date).toISOString().split('T')[0] : '',
-        });
-        
-        // Sync Dropdowns with resolved codes
-        setSelectedCountry(countryCode);
-        setSelectedState(stateCode);
-
-      } else {
-        // Add Mode: Reset form
-        setFormData({
-          country: '', state: '', city: '',
-          trbApplicable: true
-        });
-        setSelectedCountry('');
-        setSelectedState('');
-        setActiveTab('personal');
+        matchedNationality = fuzzyMatch ? fuzzyMatch.name : rawNationality;
       }
+
+      let stateCode = '';
+      if (countryCode && initialData.state) {
+          const rawState = initialData.state;
+          const foundState = State.getStatesOfCountry(countryCode).find(s => 
+            s.isoCode === rawState || s.name.toLowerCase() === rawState.toLowerCase()
+          );
+          if (foundState) stateCode = foundState.isoCode;
+      }
+
+      // 2. EXPLICIT MAPPING
+      setFormData({
+        id: initialData.id,
+        
+        // Personal
+        fullName: initialData.name || `${initialData.first_name || ''} ${initialData.last_name || ''}`.trim(),
+        email: initialData.email || '',
+        mobile: initialData.phone || initialData.mobile || '',
+        dob: safeDate(initialData.dob),
+        gender: initialData.gender || '',
+        bloodGroup: initialData.blood_group || '',
+
+        // Address
+        address: initialData.address || '',
+        country: countryCode, 
+        state: stateCode,
+        city: initialData.city || '',
+        pincode: initialData.pincode || '',
+
+        // Emergency
+        kinName: initialData.kin_name || '',
+        kinRelation: initialData.kin_relation || '',
+        kinMobile: initialData.kin_mobile || '',
+        kinEmail: initialData.kin_email || '',
+
+        // Passport
+        passportNo: initialData.passport_number || '',
+        nationality: matchedNationality, // Use the fixed nationality
+        passportIssueDate: safeDate(initialData.passport_issue_date),
+        passportExpiryDate: safeDate(initialData.passport_expiry_date),
+        passportPlace: initialData.passport_place || '',
+
+        // CDC
+        cdcNo: initialData.cdc_number || '',
+        cdcCountry: initialData.cdc_country || '',
+        cdcIssueDate: safeDate(initialData.cdc_issue_date),
+        cdcExpiryDate: safeDate(initialData.cdc_expiry_date),
+        
+        // Other Docs
+        indosNo: initialData.indos_number || initialData.indos || '',
+        sidNo: initialData.sid_number || '',
+
+        // Employment
+        // Ensure Rank matches dropdown options, or pass it raw if not found
+        traineeType: initialData.rank || '', 
+        doj: safeDate(initialData.sign_on_date),
+        trbApplicable: true
+      });
+
+      setSelectedCountry(countryCode);
+      setSelectedState(stateCode);
+
+    } else if (isOpen) {
+      // Add Mode Defaults
+      setFormData({
+        country: '', state: '', city: '',
+        trbApplicable: true,
+        nationality: '', gender: '', bloodGroup: '',
+        kinRelation: '', cdcCountry: '', traineeType: ''
+      });
+      setSelectedCountry('');
+      setSelectedState('');
     }
-  }, [isOpen, initialData]);
+  }, [initialData, isOpen]); // ✅ UPDATES WHENEVER DATA CHANGES
 
   if (!isOpen) return null;
 
+  // --- HANDLERS ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
@@ -140,33 +164,36 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Parse Full Name back into First/Last for the backend
     const nameParts = (formData.fullName || '').trim().split(/\s+/);
+    
     const payload = {
         ...formData,
         first_name: nameParts[0],
         last_name: nameParts.slice(1).join(' ') || '',
+        
+        // Map back to DB keys
         rank: formData.traineeType,
         phone: formData.mobile,
         indos_number: formData.indosNo,
-        
-        // Explicit mapping to DB columns
         blood_group: formData.bloodGroup,
+        
         kin_name: formData.kinName,
         kin_relation: formData.kinRelation,
         kin_mobile: formData.kinMobile,
         kin_email: formData.kinEmail,
+        
         passport_number: formData.passportNo,
-        passport_issue_date: formData.passportIssueDate,
-        passport_expiry_date: formData.passportExpiryDate,
+        passport_issue_date: formData.passportIssueDate || null,
+        passport_expiry_date: formData.passportExpiryDate || null,
         passport_place: formData.passportPlace,
+        
         cdc_number: formData.cdcNo,
         cdc_country: formData.cdcCountry,
-        cdc_issue_date: formData.cdcIssueDate,
-        cdc_expiry_date: formData.cdcExpiryDate,
+        cdc_issue_date: formData.cdcIssueDate || null,
+        cdc_expiry_date: formData.cdcExpiryDate || null,
+        
         sid_number: formData.sidNo,
-        sign_on_date: formData.doj
+        sign_on_date: formData.doj || null
     };
 
     onSave(payload);
@@ -219,10 +246,10 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
 
             {/* A) PERSONAL DETAILS */}
             {activeTab === 'personal' && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-1 space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Full Name (Proper Case)</label>
-                  <input name="fullName" required value={formData.fullName || ''} onChange={handleChange} className="input-field" placeholder="John Doe" />
+                  <input name="fullName" required value={formData.fullName || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Date of Birth</label>
@@ -239,10 +266,10 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
 
                 <div className="md:col-span-3 space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Home Address</label>
-                  <input name="address" value={formData.address || ''} onChange={handleChange} className="input-field" placeholder="Flat/House No, Street, Landmark" />
+                  <input name="address" value={formData.address || ''} onChange={handleChange} className="input-field" />
                 </div>
 
-                {/* LOCATION DROPDOWNS */}
+                {/* LOCATIONS */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Country</label>
                   <select name="country" value={selectedCountry} onChange={handleCountryChange} className="input-field">
@@ -293,9 +320,9 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
               </div>
             )}
 
-            {/* B) EMERGENCY CONTACT */}
+            {/* B) EMERGENCY */}
             {activeTab === 'emergency' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Name of Contact</label>
                   <input name="kinName" value={formData.kinName || ''} onChange={handleChange} className="input-field" />
@@ -318,9 +345,9 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
               </div>
             )}
 
-            {/* C) PASSPORT DETAILS */}
+            {/* C) PASSPORT */}
             {activeTab === 'passport' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Passport Number</label>
                   <input name="passportNo" value={formData.passportNo || ''} onChange={handleChange} className="input-field uppercase" />
@@ -351,7 +378,7 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
 
             {/* D) SEAMAN BOOK (CDC) */}
             {activeTab === 'seaman' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Seaman Book (CDC) No.</label>
                   <input name="cdcNo" value={formData.cdcNo || ''} onChange={handleChange} className="input-field uppercase" />
@@ -377,11 +404,11 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
                 <div className="col-span-2 border-t border-border my-2"></div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-muted-foreground">INDoS Number (Indian Nationals)</label>
-                  <input name="indosNo" value={formData.indosNo || ''} onChange={handleChange} className="input-field uppercase" placeholder="Mandatory for Indian Flag" />
+                  <label className="text-xs font-bold text-muted-foreground">INDoS Number</label>
+                  <input name="indosNo" value={formData.indosNo || ''} onChange={handleChange} className="input-field uppercase" />
                 </div>
                  <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-muted-foreground">Seaman ID / SID (Optional)</label>
+                  <label className="text-xs font-bold text-muted-foreground">Seaman ID / SID</label>
                   <input name="sidNo" value={formData.sidNo || ''} onChange={handleChange} className="input-field" />
                 </div>
               </div>
@@ -389,16 +416,21 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
 
             {/* E) ROLES */}
             {activeTab === 'roles' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Type of Trainee</label>
+                  {/* Manually added 'value' to show rank even if not in list */}
                   <select name="traineeType" required value={formData.traineeType || ''} onChange={handleChange} className="input-field">
                     <option value="">Select...</option>
                     {TRAINEE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    {/* Fallback option if DB value isn't in TRAINEE_TYPES */}
+                    {formData.traineeType && !TRAINEE_TYPES.includes(formData.traineeType) && (
+                      <option value={formData.traineeType}>{formData.traineeType}</option>
+                    )}
                   </select>
                 </div>
                  <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-muted-foreground">Date of Joining Company</label>
+                  <label className="text-xs font-bold text-muted-foreground">Date of Joining</label>
                   <input name="doj" type="date" value={formData.doj || ''} onChange={handleChange} className="input-field" />
                 </div>
                 <div className="col-span-2 pt-4">
@@ -412,7 +444,7 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
                     />
                     <div>
                         <p className="text-sm font-bold text-foreground">TRB Applicable</p>
-                        <p className="text-xs text-muted-foreground">Enable digital Training Record Book for this user.</p>
+                        <p className="text-xs text-muted-foreground">Enable digital Training Record Book.</p>
                     </div>
                   </div>
                 </div>

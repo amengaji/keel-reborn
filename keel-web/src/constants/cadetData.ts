@@ -12,7 +12,9 @@ export const TRAINEE_TYPES = [
   "Engine Cadet (BTech)",
   "Electrical Cadet (ETO)",
   "Trainee OS",
-  "Trainee Wiper"
+  "Trainee Wiper",
+  "Trainee Messman",
+  "Trainee Cook"
 ];
 
 // Utility for Text Casing

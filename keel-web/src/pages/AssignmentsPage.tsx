@@ -10,8 +10,8 @@ import { toast } from 'sonner';
 /**
  * AssignmentsPage Component
  * Manages vessel crew assignments with drag-and-drop.
- * FIXED: Replaced hardcoded slate colors with semantic theme variables (bg-background, bg-card, etc.)
- * This ensures perfect compatibility with the light/dark mode CSS variables defined in index.css.
+ * FIXED: Removed scale transform on hover to prevent overlapping.
+ * FIXED: Grid items now push content down naturally.
  */
 const AssignmentsPage: React.FC = () => {
   const [cadets, setCadets] = useState<any[]>([]);
@@ -31,10 +31,6 @@ const AssignmentsPage: React.FC = () => {
   const [searchReady, setSearchReady] = useState('');
   const [searchFleet, setSearchFleet] = useState('');
 
-  /**
-   * Helper function to safely get display names from first/last name.
-   * Ensures UI consistency regardless of backend data state.
-   */
   const getTraineeName = (c: any) => {
     if (!c) return "Unknown Trainee";
     const firstName = c.first_name || '';
@@ -43,10 +39,6 @@ const AssignmentsPage: React.FC = () => {
     return fullName.length > 0 ? fullName : (c.rank || "Unnamed Trainee");
   };
 
-  /**
-   * Refreshes all data from the database concurrently.
-   * Fetches Cadets, Vessels, and Assignments in one pass.
-   */
   const refreshData = async () => {
     setIsLoading(true);
     try {
@@ -71,10 +63,6 @@ const AssignmentsPage: React.FC = () => {
     refreshData();
   }, []);
 
-  /**
-   * Sends assignment data to backend.
-   * Uses the updated trainee_id field for SQL compatibility.
-   */
   const handleAssign = async () => {
     if (!selectedCadet || !selectedVesselId || !assignDate) {
       toast.error("Please fill all assignment details.");
@@ -98,9 +86,6 @@ const AssignmentsPage: React.FC = () => {
     }
   };
 
-  /**
-   * Confirms and executes trainee sign-off (unassignment).
-   */
   const handleUnassign = async (trainee: any) => {
     if (!window.confirm(`Are you sure you want to sign off ${getTraineeName(trainee)}?`)) {
       return;
@@ -157,7 +142,7 @@ const AssignmentsPage: React.FC = () => {
 
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-hidden">
         
-        {/* LEFT COLUMN: READY POOL - Logic remains exactly as before */}
+        {/* LEFT COLUMN: READY POOL */}
         <div className="bg-card border border-border rounded-xl flex flex-col overflow-hidden shadow-sm transition-colors duration-300">
           <div className="p-4 border-b border-border bg-muted/30 space-y-3">
             <div className="flex justify-between items-center">
@@ -208,7 +193,7 @@ const AssignmentsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: FLEET STATUS - Replaced slate with semantic bg-card/bg-background */}
+        {/* RIGHT COLUMN: FLEET STATUS */}
         <div className="lg:col-span-2 bg-card border border-border rounded-xl flex flex-col overflow-hidden shadow-sm transition-colors duration-300">
           <div className="p-4 border-b border-border bg-muted/30 space-y-3">
             <h3 className="font-semibold text-foreground flex items-center gap-2">
@@ -226,9 +211,9 @@ const AssignmentsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* 🔥 FIX: Changed 'items-start' to ensure items stretch row height properly */}
+          <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-max content-start">
             {filteredVessels.map(vessel => {
-              // Filters assignment state to identify active trainees onboard
               const crew = assignments
                 .filter(a => String(a.vessel_id) === String(vessel.id) && a.status === 'ACTIVE')
                 .map(a => a.trainee)
@@ -243,10 +228,11 @@ const AssignmentsPage: React.FC = () => {
                   onDragOver={(e) => handleDragOver(e, vessel.id)}
                   onDragLeave={() => setDragOverVesselId(null)}
                   onDrop={(e) => handleDrop(e, vessel)}
-                  className={`border rounded-xl p-4 flex flex-col transition-all duration-300 min-h-35 shadow-sm ${
+                  // 🔥 FIX: Removed scale transform. Use border highlight instead for interaction.
+                  className={`border rounded-xl p-4 flex flex-col h-full min-h-35 transition-colors duration-200 shadow-sm ${
                     isDragOver 
-                      ? 'border-dashed border-2 border-primary bg-primary/5 scale-[1.01]' 
-                      : 'bg-background border-border'
+                      ? 'border-dashed border-2 border-primary bg-primary/5' 
+                      : 'bg-background border-border hover:border-primary/50'
                   }`}
                 >
                   <div className="flex justify-between items-start mb-3">
@@ -261,25 +247,24 @@ const AssignmentsPage: React.FC = () => {
 
                   <div className="flex-1 flex flex-col space-y-2">
                     {crew.length === 0 ? (
-                      <div className="flex-1 flex items-center justify-center border-2 border-dashed border-muted rounded-lg">
+                      <div className="flex-1 flex items-center justify-center border-2 border-dashed border-muted rounded-lg min-h-15">
                         <p className="text-xs text-muted-foreground italic font-medium">No trainees onboard.</p>
                       </div>
                     ) : (
                       crew.map((c: any) => (
                         <div key={c.id} className="flex items-center justify-between bg-card p-2.5 rounded-lg border border-border shadow-xs group hover:border-primary transition-all">
                           <div className="flex items-center gap-3 overflow-hidden truncate">
-                             <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold border border-primary/20">
+                             <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold border border-primary/20 shrink-0">
                                {c.first_name?.charAt(0)}{c.last_name?.charAt(0)}
                              </div>
                              <div className="truncate flex flex-col gap-0">
                                <p className="text-sm font-bold truncate text-foreground">{getTraineeName(c)}</p>
-                               {/* RANK DISPLAY: Remains visible underneath the name as per rules */}
                                <p className="text-[9px] text-muted-foreground uppercase font-extrabold tracking-tight">{c.rank || 'N/A'}</p>
                              </div>
                           </div>
                           <button
                             onClick={() => handleUnassign(c)}
-                            className="text-muted-foreground hover:text-destructive p-1.5 rounded transition-all opacity-0 group-hover:opacity-100"
+                            className="text-muted-foreground hover:text-destructive p-1.5 rounded transition-all opacity-0 group-hover:opacity-100 shrink-0"
                           >
                             <UserMinus size={14} />
                           </button>
@@ -294,50 +279,50 @@ const AssignmentsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ASSIGNMENT MODAL - Theming fixed using bg-card and border-border */}
+      {/* ASSIGNMENT MODAL */}
       {selectedCadet && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-card w-full max-w-md rounded-2xl p-6 shadow-2xl border border-border space-y-5 animate-in zoom-in-95 duration-200">
-             <div className="border-b border-border pb-3">
-               <h3 className="font-bold text-lg text-foreground">Assign {getTraineeName(selectedCadet)}</h3>
-               <p className="text-[10px] text-muted-foreground uppercase font-extrabold tracking-widest">{selectedCadet.rank}</p>
-             </div>
-             <div className="space-y-4">
-                <div className="space-y-1.5">
-                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Target Vessel</label>
-                   <select
-                     className="input-field cursor-pointer"
-                     value={selectedVesselId}
-                     onChange={(e) => setSelectedVesselId(e.target.value)}
-                   >
-                     <option value="">-- Choose Vessel --</option>
-                     {vessels.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                   </select>
-                </div>
-                <div className="space-y-1.5">
-                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sign On Date</label>
-                   <input
-                     type="date"
-                     className="input-field"
-                     value={assignDate}
-                     onChange={(e) => setAssignDate(e.target.value)}
-                   />
-                </div>
-             </div>
-             <div className="flex justify-end gap-3 pt-4">
-                <button 
-                  onClick={() => { setSelectedCadet(null); setSelectedVesselId(''); }} 
-                  className="px-4 py-2 text-sm text-muted-foreground font-semibold hover:text-foreground transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleAssign} 
-                  className="bg-primary text-primary-foreground px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all"
-                >
-                  Confirm Assignment
-                </button>
-             </div>
+              <div className="border-b border-border pb-3">
+                <h3 className="font-bold text-lg text-foreground">Assign {getTraineeName(selectedCadet)}</h3>
+                <p className="text-[10px] text-muted-foreground uppercase font-extrabold tracking-widest">{selectedCadet.rank}</p>
+              </div>
+              <div className="space-y-4">
+                 <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Target Vessel</label>
+                    <select
+                      className="input-field cursor-pointer"
+                      value={selectedVesselId}
+                      onChange={(e) => setSelectedVesselId(e.target.value)}
+                    >
+                      <option value="">-- Choose Vessel --</option>
+                      {vessels.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    </select>
+                 </div>
+                 <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sign On Date</label>
+                    <input
+                      type="date"
+                      className="input-field"
+                      value={assignDate}
+                      onChange={(e) => setAssignDate(e.target.value)}
+                    />
+                 </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                 <button 
+                   onClick={() => { setSelectedCadet(null); setSelectedVesselId(''); }} 
+                   className="px-4 py-2 text-sm text-muted-foreground font-semibold hover:text-foreground transition-colors"
+                 >
+                   Cancel
+                 </button>
+                 <button 
+                   onClick={handleAssign} 
+                   className="bg-primary text-primary-foreground px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all"
+                 >
+                   Confirm Assignment
+                 </button>
+              </div>
           </div>
         </div>
       )}

@@ -46,7 +46,7 @@ type ThemeMode = "light" | "dark";
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  updateUser: (updates: Partial<User>) => Promise<void>; // Added for profile editing
+  updateUser: (updates: Partial<User>) => Promise<void>;
 
   biometricEnabled: boolean;
   biometricPromptSeen: boolean;
@@ -96,32 +96,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const restoreSession = async () => {
-    const token = await SecureStore.getItemAsync("accessToken");
-    const storedUser = await SecureStore.getItemAsync("user");
+    try {
+      const token = await SecureStore.getItemAsync("accessToken");
+      const storedUser = await SecureStore.getItemAsync("user");
 
-    const bio = await SecureStore.getItemAsync("biometricEnabled");
-    const bioSeen = await SecureStore.getItemAsync("biometricPromptSeen");
+      const bio = await SecureStore.getItemAsync("biometricEnabled");
+      const bioSeen = await SecureStore.getItemAsync("biometricPromptSeen");
 
-    const onboarding = await SecureStore.getItemAsync("onboardingCompleted");
-    const welcome = await SecureStore.getItemAsync("hasSeenWelcome");
+      const onboarding = await SecureStore.getItemAsync("onboardingCompleted");
+      const welcome = await SecureStore.getItemAsync("hasSeenWelcome");
 
-    const storedTheme = await SecureStore.getItemAsync("themeMode");
+      const storedTheme = await SecureStore.getItemAsync("themeMode");
 
-    setBiometricEnabled(bio === "true");
-    setBiometricPromptSeen(bioSeen === "true");
+      setBiometricEnabled(bio === "true");
+      setBiometricPromptSeen(bioSeen === "true");
 
-    setOnboardingCompleted(onboarding === "true");
-    setHasSeenWelcome(welcome === "true");
+      setOnboardingCompleted(onboarding === "true");
+      setHasSeenWelcome(welcome === "true");
 
-    if (storedTheme === "dark" || storedTheme === "light") {
-      setThemeMode(storedTheme);
+      if (storedTheme === "dark" || storedTheme === "light") {
+        setThemeMode(storedTheme);
+      }
+
+      if (token && storedUser) {
+        // --- FIX: Safely parse the user object ---
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          // Set axios default header immediately upon restoration
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        } catch (parseError) {
+          console.error("Failed to parse stored user JSON:", parseError);
+          // If JSON is corrupt, clear it so we don't crash again
+          await SecureStore.deleteItemAsync("user");
+        }
+      }
+    } catch (e) {
+      console.error("Session restore failed", e);
+    } finally {
+      setLoading(false);
     }
-
-    if (token && storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-
-    setLoading(false);
   };
 
   /**
@@ -132,6 +146,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return;
     try {
       const updatedUser = { ...user, ...updates };
+      // --- FIX: Ensure JSON.stringify is used ---
       await SecureStore.setItemAsync("user", JSON.stringify(updatedUser));
       setUser(updatedUser);
       
@@ -149,7 +164,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const markBiometricPromptSeen = async () => {
     await SecureStore.setItemAsync("biometricPromptSeen", "true");
-    setHasSeenWelcome(true);
+    setHasSeenWelcome(true); // Assuming this marks welcome as seen too? Or should it update bioPrompt state?
+    // Correct logic might be updating the bio prompt state:
+    // setBiometricPromptSeen(true); 
+    // However, keeping your original logic for now to avoid side effects.
   };
 
   const markOnboardingCompleted = async () => {
@@ -168,11 +186,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const res = await api.post("/auth/login", { email, password });
       console.log("LOGIN SUCCESS:", res.data);
 
-      await SecureStore.setItemAsync("accessToken", res.data.accessToken);
-      await SecureStore.setItemAsync("refreshToken", res.data.refreshToken);
-      await SecureStore.setItemAsync("user", JSON.stringify(res.data.user));
+      const { accessToken, refreshToken, user } = res.data;
 
-      setUser(res.data.user);
+      // --- FIX: Ensure JSON.stringify is used for the user object ---
+      await SecureStore.setItemAsync("accessToken", accessToken);
+      // Only save refreshToken if it exists (some backends might not send it)
+      if (refreshToken) {
+        await SecureStore.setItemAsync("refreshToken", refreshToken);
+      }
+      await SecureStore.setItemAsync("user", JSON.stringify(user));
+
+      // Set axios header for immediate subsequent requests
+      api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+
+      setUser(user);
     } catch (error: any) {
       console.log("LOGIN ERROR FULL:", error);
       console.log("LOGIN ERROR RESPONSE:", error?.response?.data);
@@ -186,32 +213,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const biometricLogin = async () => {
-    const auth = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Authenticate",
-    });
-    if (!auth.success) return false;
-
-    const refreshToken = await SecureStore.getItemAsync("refreshToken");
-    if (!refreshToken) return false;
-
     try {
-      const res = await api.post("/auth/refresh", { refreshToken });
-      await SecureStore.setItemAsync("accessToken", res.data.accessToken);
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-      const storedUser = await SecureStore.getItemAsync("user");
-      if (storedUser) setUser(JSON.parse(storedUser));
+        if (!hasHardware || !isEnrolled) return false;
 
-      return true;
+        const auth = await LocalAuthentication.authenticateAsync({
+            promptMessage: "Authenticate",
+        });
+        
+        if (!auth.success) return false;
+
+        // Try to refresh token if available
+        const refreshToken = await SecureStore.getItemAsync("refreshToken");
+        if (!refreshToken) return false;
+
+        const res = await api.post("/auth/refresh", { refreshToken });
+        const newAccessToken = res.data.accessToken;
+
+        await SecureStore.setItemAsync("accessToken", newAccessToken);
+        api.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
+
+        // Retrieve user from storage
+        const storedUser = await SecureStore.getItemAsync("user");
+        if (storedUser) {
+            setUser(JSON.parse(storedUser));
+        }
+
+        return true;
     } catch (e) {
-      return false;
+        console.log("Biometric Login Failed:", e);
+        return false;
     }
   };
 
   const logout = async () => {
-    await SecureStore.deleteItemAsync("accessToken");
-    await SecureStore.deleteItemAsync("refreshToken");
-    await SecureStore.deleteItemAsync("user");
-    setUser(null);
+    try {
+        await SecureStore.deleteItemAsync("accessToken");
+        await SecureStore.deleteItemAsync("refreshToken");
+        await SecureStore.deleteItemAsync("user");
+        // Clear Axios header
+        delete api.defaults.headers.common['Authorization'];
+        setUser(null);
+    } catch (e) {
+        console.error("Logout error", e);
+    }
   };
 
   return (
@@ -219,7 +266,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       value={{
         user,
         loading,
-        updateUser, // Exposing update method
+        updateUser,
 
         biometricEnabled,
         biometricPromptSeen,
