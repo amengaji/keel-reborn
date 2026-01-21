@@ -2,6 +2,7 @@
 
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database';
+import Company from './Company'; // Import Company to link the Foreign Key
 
 class Task extends Model {
   public id!: number;
@@ -12,6 +13,11 @@ class Task extends Model {
   
   // --- NEW: STCW Reference Column ---
   public stcw_code!: string; 
+
+  // --- NEW: Ownership Column ---
+  // NULL = Global Task (Visible to everyone, created by Super Admin)
+  // ID = Private Task (Visible only to that Company)
+  public company_id!: number | null;
 
   public department!: string;
   public category!: string;
@@ -51,10 +57,19 @@ Task.init(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    // --- NEW FIELD ---
     stcw_code: {
       type: DataTypes.STRING(50),
       allowNull: true,
+    },
+    // --- OWNERSHIP LOGIC ---
+    company_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true, // Allow NULL for Global Tasks (Super Admin)
+      references: {
+        model: Company,
+        key: 'id',
+      },
+      onDelete: 'CASCADE',
     },
     department: {
       type: DataTypes.STRING(50),
@@ -100,5 +115,8 @@ Task.init(
     timestamps: true,
   }
 );
+
+// Define Association
+Task.belongsTo(Company, { foreignKey: 'company_id', as: 'company' });
 
 export default Task;

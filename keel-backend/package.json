@@ -7,7 +7,8 @@
     "dev": "ts-node src/index.ts",
     "build": "tsc",
     "seed": "ts-node src/scripts/seed.ts",
-    "reset-admin": "ts-node src/scripts/resetAdmin.ts"
+    "reset-admin": "ts-node src/scripts/resetAdmin.ts",
+    "setup-db": "ts-node src/scripts/setupDatabase.ts"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

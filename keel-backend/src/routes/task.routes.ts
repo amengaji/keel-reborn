@@ -1,18 +1,50 @@
+// keel-backend/src/routes/task.routes.ts
+
 import { Router } from 'express';
 import * as TaskController from '../controllers/task.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { checkRole } from '../middleware/role.middleware';
-import { deleteAllTasks } from '../controllers/task.controller';
 
 const router = Router();
 
-// Everyone (Cadets, Officers, Admins) can SEE the tasks
+// 1. GET TASKS
+// Everyone (Cadets, Officers, Admins, Super Admins) can SEE the tasks available to them.
 router.get('/', authenticate, TaskController.getTasks);
 
-// Only Admins can EDIT the Master Task List
-router.post('/', authenticate, checkRole(['ADMIN']), TaskController.createTask);
-router.put('/:id', authenticate, checkRole(['ADMIN']), TaskController.updateTask);
-router.delete('/:id', authenticate, checkRole(['ADMIN']), TaskController.deleteTask);
-router.delete('/', authenticate, checkRole(['ADMIN']), TaskController.deleteAllTasks);
+// 2. CREATE TASK
+// Super Admins (Global) + Company Admins/Managers (Private) can create tasks.
+router.post(
+  '/', 
+  authenticate, 
+  checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), 
+  TaskController.createTask
+);
+
+// 3. UPDATE TASK
+// Access allowed for Admins/Managers, but Controller enforces ownership strictness.
+router.put(
+  '/:id', 
+  authenticate, 
+  checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), 
+  TaskController.updateTask
+);
+
+// 4. DELETE SINGLE TASK
+// Access allowed for Admins/Managers, but Controller enforces ownership strictness.
+router.delete(
+  '/:id', 
+  authenticate, 
+  checkRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']), 
+  TaskController.deleteTask
+);
+
+// 5. BULK DELETE
+// Dangerous operation: Only Super Admins or Company Admins (for their own data) should do this.
+router.delete(
+  '/', 
+  authenticate, 
+  checkRole(['SUPER_ADMIN', 'ADMIN']), 
+  TaskController.deleteAllTasks
+);
 
 export default router;

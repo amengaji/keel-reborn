@@ -1,7 +1,7 @@
 // keel-web/src/pages/TasksPage.tsx
 
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Upload, ChevronRight, AlertTriangle, Trash2, Plus, Edit, Copy, Search, Filter } from 'lucide-react';
+import { BookOpen, Upload, ChevronRight, AlertTriangle, Trash2, Plus, Edit, Copy, Search, Filter, Lock, Globe, Building } from 'lucide-react';
 import { toast } from 'sonner';
 import ImportTaskModal from '../components/trb/ImportTaskModal';
 import TaskFormModal from '../components/trb/TaskFormModal';
@@ -20,15 +20,17 @@ const STCW_MAP: Record<string, string> = {
 /**
  * TasksPage Component
  * Manages the Master Task List (STCW Compliant).
- * UPDATED: Optimized for CTO/Master Portal with Department Filtering and #3194A0 branding.
+ * UPDATED: Added visibility logic for Global vs Private Tasks.
  */
 const TasksPage: React.FC = () => {
   // --- ROLE & DEPARTMENT IDENTIFICATION ---
   const userJson = localStorage.getItem('keel_user');
   const user = userJson ? JSON.parse(userJson) : null;
-  const isCTO = user?.role === 'CTO';
-  const isMaster = user?.role === 'MASTER';
-  const isVesselUser = isCTO || isMaster;
+  
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isCTO = user?.role === 'CTO' || user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const isVesselUser = user?.role === 'MASTER' || user?.role === 'CHIEF_ENGINEER'; // Only viewers
+  
   const userDept = user?.department || 'Deck';
   const BRAND_COLOR = '#3194A0';
 
@@ -49,15 +51,14 @@ const TasksPage: React.FC = () => {
     loadData();
   }, []);
 
-  // --- 1. LOAD DATA (FROM DATABASE) ---
+  // --- 1. LOAD DATA ---
   const loadData = async () => {
     try {
       const data = await taskService.getAll(); 
       
-      // STEP 4: DEPARTMENT FILTERING FOR CTO
-      // If CTO, only show tasks belonging to their department (Deck/Engine/etc.)
+      // DEPT FILTERING (For Vessel Users)
       let processedData = data;
-      if (isCTO) {
+      if (isVesselUser) {
         processedData = data.map((func: any) => ({
           ...func,
           topics: func.topics?.map((topic: any) => ({
@@ -88,11 +89,10 @@ const TasksPage: React.FC = () => {
     setExpandedTopics(newSet);
   };
 
-  // --- 2. IMPORT (TO DATABASE) ---
+  // --- 2. ACTIONS ---
   const handleImport = async (flatData: any[]) => {
     try {
       let count = 0;
-
       for (const item of flatData) {
         await taskService.create({
           code: item.stcw_reference,
@@ -100,12 +100,9 @@ const TasksPage: React.FC = () => {
           description: item.description,
           instructions: item.instructions,
           stcw: item.stcw || null,
-
-
           department: item.department || 'Deck',
           section: item.category || 'General',
           partNum: item.function_code || '1',
-
           trainee_type: item.trainee_type,
           safety_level: item.safety_level,
           frequency: item.frequency,
@@ -115,7 +112,6 @@ const TasksPage: React.FC = () => {
         });
         count++;
       }
-
       toast.success(`Imported ${count} tasks successfully.`);
       loadData();
       setIsImportOpen(false);
@@ -124,15 +120,8 @@ const TasksPage: React.FC = () => {
     }
   };
 
-
-  // --- 3. DELETE (FROM DATABASE) ---
   const handleDeleteAll = async () => {
-    const confirmed = window.confirm(
-      "⚠️ This will permanently delete ALL TRB tasks.\n\nThis action cannot be undone.\n\nProceed?"
-    );
-
-    if (!confirmed) return;
-
+    if (!window.confirm("⚠️ This will permanently delete ALL TRB tasks. Proceed?")) return;
     try {
       await taskService.deleteAll();
       toast.success("All tasks deleted successfully.");
@@ -143,8 +132,7 @@ const TasksPage: React.FC = () => {
     }
   };
 
-
-  const deleteTask = async (funcId: string, topicId: string, taskId: number) => {
+  const deleteTask = async (taskId: number) => {
     if (!window.confirm("Delete this task?")) return;
     try {
       await taskService.delete(taskId);
@@ -155,8 +143,7 @@ const TasksPage: React.FC = () => {
     }
   };
 
-  // --- 4. CLONE (IN DATABASE) ---
-  const cloneTask = async (funcId: string, topicId: string, task: any) => {
+  const cloneTask = async (funcId: string, task: any) => {
     try {
       await taskService.create({
         code: `${task.code}-COPY-${Math.floor(Math.random() * 1000)}`,
@@ -173,15 +160,12 @@ const TasksPage: React.FC = () => {
     }
   };
 
-  // --- 5. SAVE/UPDATE (TO DATABASE) ---
   const handleSaveTask = async (formData: any) => {
     try {
       if (formData.id) {
-        // ✅ UPDATE EXISTING TASK
         await taskService.update(formData.id, formData);
         toast.success("Task updated.");
       } else {
-        // ✅ CREATE NEW TASK
         await taskService.create(formData);
         toast.success("New task created.");
       }
@@ -198,46 +182,31 @@ const TasksPage: React.FC = () => {
     }
   };
 
-
   const openEdit = (task: any, funcId: string, sectionTitle: string) => {
     setEditingTask({
-      // PRIMARY
       id: task.id,
-
-      // HIERARCHY
       function_code: funcId.replace('FUNC-', ''),
       category: sectionTitle,
       stcw: task.stcw || '',
-
-      // CONTENT
       title: task.title,
       description: task.description || '',
       instructions: task.instructions || '',
-
-      // METADATA
       department: task.dept || 'Deck',
       trainee_type: task.trainee_type || 'DECK_CADET',
-
-      // REQUIREMENTS
       safety_level: task.safety || 'None',
       frequency: task.frequency || 'ONCE',
       mandatory: task.mandatory ?? true,
-
-      // VERIFICATION
       evidence_type: task.evidence_type || 'DOCUMENT/PHOTO',
       verification_method: task.verification_method || 'OBSERVATION',
     });
-
     setIsTaskFormOpen(true);
   };
-
 
   const getFunctionLabel = (funcId: string) => {
     const num = funcId.replace('FUNC-', '');
     const name = STCW_MAP[num] || 'General';
     return `Function ${num}: ${name}`;
   };
-
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 h-[calc(100vh-100px)] flex flex-col">
@@ -249,7 +218,7 @@ const TasksPage: React.FC = () => {
           </p>
         </div>
         
-        {/* HIDE ACTIONS FOR VESSEL USERS (CTO/MASTER) */}
+        {/* HIDE ACTIONS FOR VESSEL USERS */}
         {!isVesselUser && (
           <div className="flex gap-2">
             {syllabus.length > 0 && (
@@ -291,12 +260,11 @@ const TasksPage: React.FC = () => {
                     key={func.id}
                     onClick={() => setActiveFunction(func.id)}
                     style={{ 
-                      borderColor: activeFunction === func.id && isVesselUser ? BRAND_COLOR : '',
-                      backgroundColor: activeFunction === func.id && isVesselUser ? `${BRAND_COLOR}10` : '',
-                      color: activeFunction === func.id && isVesselUser ? BRAND_COLOR : ''
+                      borderColor: activeFunction === func.id ? BRAND_COLOR : '',
+                      backgroundColor: activeFunction === func.id ? `${BRAND_COLOR}10` : '',
+                      color: activeFunction === func.id ? BRAND_COLOR : ''
                     }}
                     className={`w-full text-left p-3 rounded-lg text-sm font-medium flex justify-between items-center transition-all ${
-                      activeFunction === func.id && !isVesselUser ? 'bg-primary/10 text-primary border border-primary/20 shadow-sm' : 
                       activeFunction === func.id ? 'shadow-sm border' : 'text-muted-foreground hover:bg-muted'
                     }`}
                   >
@@ -307,7 +275,7 @@ const TasksPage: React.FC = () => {
              </div>
           </div>
 
-          {/* RIGHT: CONTENT (COMPETENCIES & TASKS) */}
+          {/* RIGHT: CONTENT */}
           <div className="flex-1 bg-card border border-border rounded-xl flex flex-col overflow-hidden shadow-sm">
              <div className="p-3 border-b border-border bg-muted/30 flex flex-col sm:flex-row gap-3 items-center justify-between">
                 <div className="font-bold text-xs text-muted-foreground uppercase flex items-center gap-2">
@@ -364,7 +332,7 @@ const TasksPage: React.FC = () => {
                                <div className="flex items-center gap-3">
                                  <div 
                                    className={`p-1 rounded-full transition-transform duration-200 ${isExpanded ? 'rotate-90 text-white' : 'text-muted-foreground'}`}
-                                   style={{ backgroundColor: isExpanded && isVesselUser ? BRAND_COLOR : isExpanded ? 'var(--primary)' : 'transparent' }}
+                                   style={{ backgroundColor: isExpanded ? BRAND_COLOR : 'transparent' }}
                                  >
                                      <ChevronRight size={16} />
                                  </div>
@@ -380,55 +348,87 @@ const TasksPage: React.FC = () => {
                                   {filteredTasks.length === 0 ? (
                                      <p className="text-xs text-muted-foreground italic text-center py-2">No matching tasks found.</p>
                                   ) : (
-                                     filteredTasks.map((task: any) => (
-                                      <div key={task.id} className="group bg-background border border-border p-4 rounded-lg hover:border-primary/40 transition-all relative">
-                                          <div className="flex justify-between items-start pr-20">
-                                             <h4 className="font-medium text-sm text-foreground">{task.title}</h4>
-                                          </div>
-                                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{task.description}</p>
-                                          
-                                          <div className="flex flex-wrap gap-2 mt-3 items-center">
-                                             <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground border border-border">
-                                                {task.stcw || 'NO STCW REF'}
-                                             </span>
-                                             {task.dept && <span className="text-[10px] border border-border px-2 py-0.5 rounded text-muted-foreground">{task.dept}</span>}
-                                             {task.safety && task.safety !== 'Green' && (
-                                                <span className={`text-[10px] bg-red-500/10 text-red-600 px-2 py-0.5 rounded border border-red-500/20 flex items-center gap-1`}>
-                                                   <AlertTriangle size={10} /> {task.safety}
-                                                </span>
-                                             )}
-                                          </div>
+                                     filteredTasks.map((task: any) => {
+                                      // --- PERMISSION LOGIC ---
+                                      const isGlobal = task.is_global; // From Backend
+                                      const isOwner = task.company_id === user?.company_id; // Check ownership
+                                      const canEdit = isSuperAdmin || (isCTO && isOwner); // Only owner or super admin can edit
+                                      
+                                      return (
+                                       <div 
+                                         key={task.id} 
+                                         className={`group bg-background border border-border p-4 rounded-lg hover:border-primary/40 transition-all relative ${
+                                            !isGlobal ? 'border-l-4 border-l-green-500' : '' 
+                                         }`}
+                                       >
+                                           <div className="flex justify-between items-start pr-20">
+                                              <div className="flex items-center gap-2">
+                                                {isGlobal ? (
+                                                  <div className="bg-blue-500/10 text-blue-600 p-1 rounded border border-blue-500/20" title="Global Standard Task">
+                                                    <Globe size={12} />
+                                                  </div>
+                                                ) : (
+                                                  <div className="bg-green-500/10 text-green-600 p-1 rounded border border-green-500/20" title="Company Custom Task">
+                                                    <Building size={12} />
+                                                  </div>
+                                                )}
+                                                <h4 className="font-medium text-sm text-foreground">{task.title}</h4>
+                                              </div>
+                                           </div>
+                                           <p className="text-xs text-muted-foreground mt-1 line-clamp-2 pl-7">{task.description}</p>
+                                           
+                                           <div className="flex flex-wrap gap-2 mt-3 items-center pl-7">
+                                              <span className="text-[10px] font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground border border-border">
+                                                 {task.stcw || 'NO STCW REF'}
+                                              </span>
+                                              {task.dept && <span className="text-[10px] border border-border px-2 py-0.5 rounded text-muted-foreground">{task.dept}</span>}
+                                              {task.safety && task.safety !== 'Green' && (
+                                                 <span className={`text-[10px] bg-red-500/10 text-red-600 px-2 py-0.5 rounded border border-red-500/20 flex items-center gap-1`}>
+                                                    <AlertTriangle size={10} /> {task.safety}
+                                                 </span>
+                                              )}
+                                           </div>
 
-                                          {/* HIDE ACTION BUTTONS FOR VESSEL USERS */}
-                                          {!isVesselUser && (
-                                            <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border rounded-md shadow-sm p-1">
-                                               <button 
-                                                 onClick={() => cloneTask(func.id, topic.id, task)}
-                                                 className="p-1.5 text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
-                                                 title="Duplicate"
-                                               >
-                                                 <Copy size={14} />
-                                               </button>
-                                               <div className="w-px h-3 bg-border mx-0.5"></div>
-                                               <button 
-                                                 onClick={() => openEdit(task, func.id, topic.title)}
-                                                 className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded"
-                                                 title="Edit"
-                                               >
-                                                 <Edit size={14} />
-                                               </button>
-                                               <div className="w-px h-3 bg-border mx-0.5"></div>
-                                               <button 
-                                                 onClick={() => deleteTask(func.id, topic.id, task.id)}
-                                                 className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
-                                                 title="Delete"
-                                               >
-                                                 <Trash2 size={14} />
-                                               </button>
-                                            </div>
-                                          )}
-                                      </div>
-                                     ))
+                                           {/* ACTION BUTTONS (Hidden if permission denied) */}
+                                           {!isVesselUser && (
+                                              <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border rounded-md shadow-sm p-1">
+                                                {canEdit ? (
+                                                  <>
+                                                    <button 
+                                                      onClick={() => cloneTask(func.id, task)}
+                                                      className="p-1.5 text-muted-foreground hover:text-blue-500 hover:bg-blue-50 rounded"
+                                                      title="Duplicate"
+                                                    >
+                                                      <Copy size={14} />
+                                                    </button>
+                                                    <div className="w-px h-3 bg-border mx-0.5"></div>
+                                                    <button 
+                                                      onClick={() => openEdit(task, func.id, topic.title)}
+                                                      className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded"
+                                                      title="Edit"
+                                                    >
+                                                      <Edit size={14} />
+                                                    </button>
+                                                    <div className="w-px h-3 bg-border mx-0.5"></div>
+                                                    <button 
+                                                      onClick={() => deleteTask(task.id)}
+                                                      className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded"
+                                                      title="Delete"
+                                                    >
+                                                      <Trash2 size={14} />
+                                                    </button>
+                                                  </>
+                                                ) : (
+                                                  <div className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground bg-muted rounded cursor-not-allowed">
+                                                    <Lock size={12} />
+                                                    <span className="text-[10px] font-bold">LOCKED</span>
+                                                  </div>
+                                                )}
+                                              </div>
+                                           )}
+                                       </div>
+                                      );
+                                     })
                                   )}
                                </div>
                              )}

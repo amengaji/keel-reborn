@@ -1,6 +1,7 @@
 // keel-backend/src/controllers/task.controller.ts
 
 import { Request, Response } from 'express';
+import { Op } from 'sequelize';
 import Task from '../models/Task';
 import sequelize from '../config/database';
 
@@ -14,11 +15,36 @@ const STCW_MAP: Record<string, string> = {
   'Function 7': 'Radio Communications'
 };
 
-// GET ALL TASKS
+// GET ALL TASKS (With Visibility Filter)
 export const getTasks = async (req: Request, res: Response) => {
   try {
-    const tasks = await Task.findAll({ order: [['function_code', 'ASC'], ['code', 'ASC']] });
+    // @ts-ignore
+    const user = req.user;
     
+    let whereClause = {};
+
+    // LOGIC: Visibility Filter
+    if (user.role === 'SUPER_ADMIN') {
+      // Super Admin sees EVERYTHING
+      whereClause = {}; 
+    } else {
+      // Companies/Trainees see:
+      // 1. Global Tasks (company_id IS NULL)
+      // 2. Their Own Company Tasks (company_id matches user's company)
+      whereClause = {
+        [Op.or]: [
+          { company_id: null },
+          { company_id: user.company_id }
+        ]
+      };
+    }
+
+    const tasks = await Task.findAll({ 
+      where: whereClause,
+      order: [['function_code', 'ASC'], ['code', 'ASC']] 
+    });
+    
+    // --- TRANSFORM TO TREE STRUCTURE (Same as before) ---
     const tree: any[] = [];
 
     tasks.forEach((task: any) => {
@@ -54,10 +80,12 @@ export const getTasks = async (req: Request, res: Response) => {
         title: task.title,
         description: task.description || '',
         instructions: task.instructions || '',
-        
-        // FIXED: Return the stored STCW code
         stcw: task.stcw_code || '', 
         
+        // Return ownership info so frontend can show badges/lock buttons
+        company_id: task.company_id, 
+        is_global: task.company_id === null,
+
         function_code: task.function_code,
         category: task.category,
         department: task.department,
@@ -77,9 +105,12 @@ export const getTasks = async (req: Request, res: Response) => {
   }
 };
 
-// CREATE TASK
+// CREATE TASK (With Ownership Assignment)
 export const createTask = async (req: Request, res: Response) => {
   try {
+    // @ts-ignore
+    const user = req.user;
+    
     const { 
       code, stcw, title, description, instructions, instruction,
       department, dept, section, category, partNum, function_code, 
@@ -88,12 +119,20 @@ export const createTask = async (req: Request, res: Response) => {
       evidence_type, evidence, verification_method, verification
     } = req.body;
 
+    // LOGIC: Determine Ownership
+    let companyIdToSet = null;
+    if (user.role === 'SUPER_ADMIN') {
+        companyIdToSet = null; // Global Task
+    } else {
+        if (!user.company_id) return res.status(400).json({ message: 'User not linked to a company' });
+        companyIdToSet = user.company_id; // Private Company Task
+    }
+
     const payload = {
       code: code || `TRB-${Date.now()}`, 
-      
-      // FIXED: Store STCW Reference specifically
       stcw_code: stcw || '', 
-      
+      company_id: companyIdToSet, // <--- Set the owner
+
       title: title,
       description: description,
       instructions: instructions || instruction,
@@ -121,14 +160,30 @@ export const createTask = async (req: Request, res: Response) => {
   }
 };
 
-// UPDATE TASK
+// UPDATE TASK (With Permission Checks)
 export const updateTask = async (req: Request, res: Response) => {
   try {
+    // @ts-ignore
+    const user = req.user;
     const { id } = req.params;
+    
+    const task = await Task.findByPk(id);
+    if (!task) return res.status(404).json({ message: 'Task not found' });
+
+    // LOGIC: Security Check
+    // 1. If Global Task, ONLY Super Admin can edit
+    if (task.company_id === null && user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ message: 'Forbidden: Cannot edit Global Standard Tasks.' });
+    }
+    // 2. If Private Task, ONLY owner company (or Super Admin) can edit
+    if (task.company_id !== null && task.company_id !== user.company_id && user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ message: 'Forbidden: This task belongs to another company.' });
+    }
+
     const body = req.body;
     const payload = {
       title: body.title,
-      stcw_code: body.stcw, // Map form 'stcw' to DB 'stcw_code'
+      stcw_code: body.stcw,
       description: body.description,
       instructions: body.instruction || body.instructions,
       category: body.section || body.category,
@@ -143,45 +198,82 @@ export const updateTask = async (req: Request, res: Response) => {
     };
     
     Object.keys(payload).forEach(key => (payload as any)[key] === undefined && delete (payload as any)[key]);
-    await Task.update(payload, { where: { id } });
-    const updated = await Task.findByPk(id);
-    res.json(updated);
+    
+    await task.update(payload);
+    res.json(task);
   } catch (error: any) {
     res.status(500).json({ message: 'Error updating task', error: error.message });
   }
 };
 
-// DELETE TASK
+// DELETE TASK (With Permission Checks)
 export const deleteTask = async (req: Request, res: Response) => {
   try {
-    await Task.destroy({ where: { id: req.params.id } });
+    // @ts-ignore
+    const user = req.user;
+    const { id } = req.params;
+
+    const task = await Task.findByPk(id);
+    if (!task) return res.status(404).json({ message: 'Task not found' });
+
+    // LOGIC: Security Check
+    // 1. If Global Task, ONLY Super Admin can delete
+    if (task.company_id === null && user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ message: 'Forbidden: Cannot delete Global Standard Tasks.' });
+    }
+    // 2. If Private Task, ONLY owner company (or Super Admin) can delete
+    if (task.company_id !== null && task.company_id !== user.company_id && user.role !== 'SUPER_ADMIN') {
+        return res.status(403).json({ message: 'Forbidden: This task belongs to another company.' });
+    }
+
+    await task.destroy();
     res.json({ message: 'Task deleted' });
   } catch (error: any) {
     res.status(500).json({ message: 'Error deleting task', error: error.message });
   }
 };
 
-// BULK DELETE
+// BULK DELETE (Safe Scope)
 export const deleteAllTasks = async (req: Request, res: Response) => {
   const t = await sequelize.transaction();
-
   try {
-    // 1️⃣ Delete dependent records FIRST
-    // ⚠️ Adjust table/model names if yours differ
+    // @ts-ignore
+    const user = req.user;
 
-    await sequelize.query(`DELETE FROM assignments`, { transaction: t });
-    // If you have more FK tables, add them here in correct order:
-    // await sequelize.query(`DELETE FROM cadet_tasks`, { transaction: t });
+    // LOGIC: Bulk Delete Scope
+    let whereClause = {};
+    if (user.role === 'SUPER_ADMIN') {
+        // Super Admin deletes everything (Full Reset)
+        whereClause = {}; 
+    } else {
+        // Company Admin ONLY deletes their own tasks
+        whereClause = { company_id: user.company_id };
+    }
 
-    // 2️⃣ Delete tasks (NO TRUNCATE)
-    await Task.destroy({
-      where: {},
-      truncate: false,
-      transaction: t,
-    });
+    // 1️⃣ Delete dependent records FIRST (Only for tasks we are about to delete)
+    // NOTE: This raw query deletes ALL assignments if whereClause is empty. 
+    // If whereClause matches specific company, we should ideally join tables, but for safety:
+    
+    if (user.role !== 'SUPER_ADMIN') {
+        // If not super admin, we fetch IDs first to only delete relevant assignments
+        const tasksToDelete = await Task.findAll({ attributes: ['id'], where: whereClause, transaction: t });
+        const ids = tasksToDelete.map(task => task.id);
+        
+        if (ids.length > 0) {
+            await sequelize.query(`DELETE FROM assignments WHERE task_id IN (:ids)`, { 
+                replacements: { ids }, 
+                transaction: t 
+            });
+            await Task.destroy({ where: { id: ids }, transaction: t });
+        }
+    } else {
+        // Super Admin wipe
+        await sequelize.query(`DELETE FROM assignments`, { transaction: t });
+        await Task.destroy({ where: {}, truncate: false, transaction: t });
+    }
 
     await t.commit();
-    res.json({ message: 'All tasks deleted successfully.' });
+    res.json({ message: 'Tasks deleted successfully based on your permission level.' });
 
   } catch (error: any) {
     await t.rollback();
