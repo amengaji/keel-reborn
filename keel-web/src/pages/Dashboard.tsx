@@ -1,15 +1,19 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿//keel-web/src/pages/Dashboard.tsx
+
+import React, { useEffect, useState } from 'react';
 import { 
   Users, User, Ship, Anchor, CheckCircle2, AlertCircle, 
   Clock, TrendingUp, Activity, Bell,
-  FileText, Calendar, Plus, Building, Server, Database
+  FileText, Calendar, Plus, Building, Server, Database,
+  DollarSign, BarChart3
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { 
   getCadets, getVessels, getApprovalQueue, 
-  getSyllabus, calculateProgressStats, getSettings
+  getSyllabus, calculateProgressStats
 } from '../services/dataService';
 import { getCurrentUser } from '../services/authService';
+import { getPlatformStats, PlatformStats } from '../services/analyticsService'; // <--- NEW SERVICE
 
 // --- COMPONENTS: MINI CHARTS (Pure CSS/SVG) ---
 const SimplePieChart: React.FC<{ data: { label: string; value: number; color: string }[] }> = ({ data }) => {
@@ -47,6 +51,11 @@ const Dashboard: React.FC = () => {
     totalCadets: 0, activeOnboard: 0, readyPool: 0, totalVessels: 0,
     pendingApprovals: 0, avgProgress: 0, alerts: 2
   });
+  
+  // New State for Super Admin Analytics
+  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
   const [approvalQueue, setApprovalQueue] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [crewStats, setCrewStats] = useState<any[]>([]);
@@ -55,14 +64,28 @@ const Dashboard: React.FC = () => {
     loadDashboardData();
   }, []);
 
-  const loadDashboardData = () => {
-    // COMMON DATA LOAD
+  const loadDashboardData = async () => {
+    // 1. SUPER ADMIN DATA LOAD
+    if (isSuperAdmin) {
+      setLoadingStats(true);
+      try {
+        const stats = await getPlatformStats();
+        setPlatformStats(stats);
+      } catch (error) {
+        console.error("Failed to load platform stats", error);
+      } finally {
+        setLoadingStats(false);
+      }
+      return; // Super Admin view doesn't need the Shore Admin calculation loop below
+    }
+
+    // 2. SHORE ADMIN / COMMON DATA LOAD
     const cadets = getCadets();
     const vessels = getVessels();
     const queue = getApprovalQueue();
     const syllabus = getSyllabus();
 
-    // 1. METRICS CALCULATION
+    // Metrics Calculation
     const activeOnboard = cadets.filter((c: any) => c.status === 'Onboard').length;
     const readyPool = cadets.filter((c: any) => c.status === 'Ready').length;
 
@@ -81,7 +104,7 @@ const Dashboard: React.FC = () => {
       totalVessels: vessels.length,
       pendingApprovals: queue.length,
       avgProgress,
-      alerts: isSuperAdmin ? 0 : 2
+      alerts: 2
     });
 
     setApprovalQueue(queue.slice(0, 5));
@@ -112,7 +135,7 @@ const Dashboard: React.FC = () => {
   );
 
   // ==================================================================================
-  // VIEW 1: SUPER ADMIN (OWNER) DASHBOARD
+  // VIEW 1: SUPER ADMIN (OWNER) DASHBOARD - UPDATED WITH LIVE ANALYTICS
   // ==================================================================================
   if (isSuperAdmin) {
     return (
@@ -133,30 +156,50 @@ const Dashboard: React.FC = () => {
 
         {/* OWNER METRICS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          
+          {/* CARD 1: COMPANIES */}
           <div className="bg-card p-5 rounded-xl border border-border shadow-sm relative overflow-hidden">
              <div className="absolute right-0 top-0 p-4 opacity-10"><Building size={64} /></div>
              <p className="text-xs font-bold text-muted-foreground uppercase">Total Companies</p>
-             <h3 className="text-3xl font-bold text-foreground mt-2">12</h3>
+             <h3 className="text-3xl font-bold text-foreground mt-2">
+               {loadingStats ? "..." : platformStats?.overview.total_companies || 0}
+             </h3>
              <div className="mt-4 flex gap-2">
-                <span className="text-xs bg-green-500/10 text-green-600 px-2 py-1 rounded font-medium">8 Active</span>
-                <span className="text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded font-medium">4 Trial</span>
+                <span className="text-xs bg-green-500/10 text-green-600 px-2 py-1 rounded font-medium">
+                  {loadingStats ? "-" : platformStats?.overview.active_companies || 0} Active
+                </span>
+                <span className="text-xs bg-gray-500/10 text-gray-600 px-2 py-1 rounded font-medium">
+                  {loadingStats ? "-" : (platformStats?.overview.total_companies || 0) - (platformStats?.overview.active_companies || 0)} Inactive
+                </span>
              </div>
           </div>
+
+          {/* CARD 2: USERS */}
           <div className="bg-card p-5 rounded-xl border border-border shadow-sm relative overflow-hidden">
              <div className="absolute right-0 top-0 p-4 opacity-10"><Users size={64} /></div>
              <p className="text-xs font-bold text-muted-foreground uppercase">Total Users</p>
-             <h3 className="text-3xl font-bold text-foreground mt-2">{metrics.totalCadets + 50}</h3>
-             <p className="text-xs text-muted-foreground mt-4">Across all tenants</p>
+             <h3 className="text-3xl font-bold text-foreground mt-2">
+                {loadingStats ? "..." : platformStats?.overview.total_users || 0}
+             </h3>
+             <p className="text-xs text-muted-foreground mt-4">
+                {loadingStats ? "..." : platformStats?.overview.total_cadets || 0} Cadets Enrolled
+             </p>
           </div>
+
+          {/* CARD 3: REVENUE (NEW) */}
           <div className="bg-card p-5 rounded-xl border border-border shadow-sm relative overflow-hidden">
-             <div className="absolute right-0 top-0 p-4 opacity-10"><Database size={64} /></div>
-             <p className="text-xs font-bold text-muted-foreground uppercase">System Status</p>
-             <h3 className="text-3xl font-bold text-green-600 mt-2 flex items-center gap-2"><CheckCircle2/> Healthy</h3>
-             <p className="text-xs text-muted-foreground mt-4">DB Latency: 24ms</p>
+             <div className="absolute right-0 top-0 p-4 opacity-10 text-green-500"><DollarSign size={64} /></div>
+             <p className="text-xs font-bold text-muted-foreground uppercase">Projected MRR</p>
+             <h3 className="text-3xl font-bold text-green-600 mt-2 flex items-center gap-2">
+                ${loadingStats ? "..." : platformStats?.financials.projected_monthly_revenue.toLocaleString() || "0"}
+             </h3>
+             <p className="text-xs text-muted-foreground mt-4">
+                {loadingStats ? "..." : platformStats?.financials.seat_utilization || 0}% Seat Utilization
+             </p>
           </div>
         </div>
 
-        {/* OWNER QUICK ACTIONS */}
+        {/* OWNER QUICK ACTIONS & LEADERBOARD */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
            <div className="bg-card border border-border rounded-xl shadow-sm p-5">
               <h3 className="font-bold text-foreground mb-4 text-sm uppercase">Platform Management</h3>
@@ -184,11 +227,33 @@ const Dashboard: React.FC = () => {
               </div>
            </div>
            
-           <div className="bg-card border border-border rounded-xl shadow-sm p-5 flex flex-col justify-center items-center text-center">
-              <div className="p-4 bg-muted rounded-full mb-3"><Activity size={32} className="text-muted-foreground"/></div>
-              <h3 className="font-bold text-foreground">Recent Signups</h3>
-              <p className="text-sm text-muted-foreground mb-4">No new company signups in the last 24 hours.</p>
-              <button className="text-xs text-primary font-bold hover:underline">View All Companies</button>
+           {/* TOP COMPANIES LEADERBOARD */}
+           <div className="bg-card border border-border rounded-xl shadow-sm p-5 flex flex-col">
+              <div className="flex items-center gap-2 mb-4">
+                 <BarChart3 size={18} className="text-primary"/>
+                 <h3 className="font-bold text-foreground text-sm uppercase">Most Active Companies</h3>
+              </div>
+              
+              {platformStats?.leaderboard && platformStats.leaderboard.length > 0 ? (
+                <div className="space-y-3">
+                   {platformStats.leaderboard.map((comp, idx) => (
+                      <div key={idx} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
+                         <div className="flex items-center gap-3">
+                            <span className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">
+                              {idx + 1}
+                            </span>
+                            <span className="font-medium text-sm text-foreground">{comp.company_name}</span>
+                         </div>
+                         <span className="text-xs font-bold text-muted-foreground">{comp.tasks_completed} Tasks</span>
+                      </div>
+                   ))}
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col justify-center items-center text-center py-8">
+                   <div className="p-4 bg-muted rounded-full mb-3"><Activity size={32} className="text-muted-foreground"/></div>
+                   <p className="text-sm text-muted-foreground">Not enough data to generate leaderboard.</p>
+                </div>
+              )}
            </div>
         </div>
       </div>
@@ -196,7 +261,7 @@ const Dashboard: React.FC = () => {
   }
 
   // ==================================================================================
-  // VIEW 2: SHORE ADMIN (FLEET MANAGER) DASHBOARD - (Original Code)
+  // VIEW 2: SHORE ADMIN (FLEET MANAGER) DASHBOARD - (UNCHANGED)
   // ==================================================================================
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
@@ -345,7 +410,7 @@ const Dashboard: React.FC = () => {
                        <div className="absolute -left-1.25 top-0 w-2.5 h-2.5 rounded-full bg-muted border-2 border-background ring-1 ring-border" />
                        <div>
                           <p className="text-xs text-foreground"><span className="font-bold">{log.user}</span> {log.action} <span className="font-medium text-primary">{log.target}</span></p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">{log.time}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{log.time}</p>
                        </div>
                     </div>
                  ))}

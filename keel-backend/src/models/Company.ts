@@ -1,16 +1,24 @@
+//keel-backend/src/models/Company.ts
+
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/database';
+import Subscription from './Subscription';
+import User from './User'; // <--- FIX 1: Import User for type definition
 
 class Company extends Model {
   public id!: number;
   public name!: string;
-  public domain?: string; // e.g., "maersk.com" for auto-detection
+  public domain?: string;
   public plan_tier!: 'TRIAL' | 'STANDARD' | 'ENTERPRISE';
   public address?: string;
   public contact_email?: string;
   public logo_url?: string;
   public is_active!: boolean;
   
+  // Association Type Hints
+  public subscription?: Subscription;
+  public employees?: User[]; // <--- FIX 2: Declare the association property
+
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 }

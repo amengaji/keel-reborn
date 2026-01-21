@@ -1,4 +1,4 @@
-// keel-reborn/keel-backend/src/models/associations.ts
+//keel-backend/src/models/associations.ts
 
 import User from './User';
 import Role from './Role';
@@ -7,7 +7,9 @@ import Task from './Task';
 import Assignment from './Assignment';
 import TraineeAssignment from "./TraineeAssignment";
 import Company from './Company';
+import Subscription from './Subscription';
 
+// Define TraineeAssignment associations globally
 TraineeAssignment.belongsTo(User, {
   foreignKey: "trainee_id",
   as: "trainee",
@@ -48,6 +50,11 @@ export const setupAssociations = () => {
 
   Company.hasMany(Vessel, { foreignKey: 'company_id', as: 'fleet' });
   Vessel.belongsTo(Company, { foreignKey: 'company_id', as: 'company' });
+
+  // --- NEW: Subscriptions & Licensing ---
+  // A Company has one Subscription record (Active or Expired)
+  Company.hasOne(Subscription, { foreignKey: 'company_id', as: 'subscription' });
+  Subscription.belongsTo(Company, { foreignKey: 'company_id', as: 'company' });
 
   console.log('✅ MODELS: Associations synchronized with explicit aliases.');
 };
