@@ -1,3 +1,4 @@
+//keel-web/src/App.tsx
 import React from 'react';
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
@@ -28,6 +29,11 @@ import ConstantsPage from "./pages/ConstantsPage";
 // CTO Specific Pages
 import CTOVesselDashboard from './pages/cto/CTOVesselDashboard';
 import CTOApprovalQueue from './pages/cto/CTOApprovalQueue';
+
+// Master Specific Pages (New Imports)
+import MasterDashboard from './pages/master/MasterDashboard';
+import MasterCertificationHub from './pages/master/MasterCertificationHub';
+import MasterApprovalQueue from './pages/master/MasterApprovalQueue';
 
 
 export default function App() {
@@ -60,15 +66,23 @@ export default function App() {
                 <Route path="/constants" element={<ConstantsPage />} />
             </Route>
 
-            {/* CTO / MASTER ROUTES */}
-            <Route element={<ProtectedRoute allowedRoles={['CTO', 'MASTER']} />}>
+            {/* CTO ROUTES */}
+            <Route element={<ProtectedRoute allowedRoles={['CTO']} />}>
                 <Route path="/cto-dashboard" element={<CTOVesselDashboard />} />
                 <Route path="/cto-approvals" element={<CTOApprovalQueue />} />
             </Route>
 
+            {/* MASTER ROUTES (FIXED) */}
+            <Route element={<ProtectedRoute allowedRoles={['MASTER']} />}>
+                <Route path="/master-dashboard" element={<MasterDashboard />} />
+                <Route path="/master-certification" element={<MasterCertificationHub />} />
+                <Route path="/master-approvals" element={<MasterApprovalQueue />} />
+            </Route>
+
             {/* OPERATIONAL ROUTES (SHORE ADMIN & MANAGERS) */}
             {/* Note: Super Admin excluded from operations to keep view clean as requested */}
-            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SHORE_ADMIN', 'MANAGER', 'SUPERINTENDENT', 'SHORE_OFFICER']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'SHORE_ADMIN', 'MANAGER', 'SUPERINTENDENT', 'SHORE_OFFICER', 'MASTER', 'CTO']} />}>
+                {/* Master & CTO also need access to these for drill-down */}
                 <Route path="/vessels" element={<VesselsPage />} />
                 <Route path="/trainees" element={<CadetsPage />} />
                 <Route path="/assignments" element={<AssignmentsPage />} />

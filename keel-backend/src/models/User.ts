@@ -13,6 +13,7 @@ class User extends Model {
   public password_hash!: string;
   public role_id!: number;
   public company_id!: number;
+  public vessel_id!: number | null;
   public rank!: string | null;
   public status!: string;
   public nationality!: string | null;
@@ -99,6 +100,11 @@ User.init(
       type: DataTypes.INTEGER,
       allowNull: true, // Super Admin has no company
       references: { model: 'companies', key: 'id' }
+    },
+    vessel_id: { 
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: 'vessels', key: 'id' }
     },
     rank: {
       type: DataTypes.STRING,
