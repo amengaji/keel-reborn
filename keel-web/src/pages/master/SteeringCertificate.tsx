@@ -24,7 +24,7 @@ const SteeringCertificate: React.FC<SteeringCertificateProps> = ({
   const BRAND_COLOR = '#3194A0';
 
   return (
-    <div className="bg-white text-slate-900 p-12 border-[12px] border-double shadow-2xl mx-auto w-[210mm] min-h-[297mm]" 
+    <div className="bg-white text-slate-900 p-12 border-12 border-double shadow-2xl mx-auto w-[210mm] min-h-[297mm]" 
          style={{ borderColor: BRAND_COLOR }}>
       
       {/* 1. DOCUMENT HEADER */}
@@ -103,13 +103,13 @@ const SteeringCertificate: React.FC<SteeringCertificateProps> = ({
       {/* 4. SIGNATURE SECTION */}
       <div className="mt-24 grid grid-cols-2 gap-20 px-12">
         <div className="text-center border-t border-slate-300 pt-4">
-          <div className="h-12 flex items-center justify-center italic text-[#3194A0] font-serif">
+          <div className="h-12 flex items-center justify-center italic text-primary font-serif">
             Verified Digital Record
           </div>
           <p className="font-bold text-xs uppercase">Technical Officer / CTO</p>
         </div>
         <div className="text-center border-t border-slate-300 pt-4 relative">
-          <ShieldCheck className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-10 text-[#3194A0]" size={80} />
+          <ShieldCheck className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-10 text-primary" size={80} />
           <div className="h-12 flex items-center justify-center">
              {/* Signature Placeholder */}
           </div>

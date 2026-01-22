@@ -60,5 +60,15 @@ export const cadetService = {
     });
     if (!res.ok) throw new Error('Failed to remove trainee');
     return true;
+  },
+
+  // DELETE ALL cadet profiles
+  deleteAll: async () => {
+    const res = await fetch(`${API_URL}/all`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to delete all trainees');
+    return true;
   }
 };

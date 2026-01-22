@@ -1,137 +1,161 @@
 // keel-web/src/components/trainees/AddCadetModal.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X, Save, User, Phone, Globe, Book, Briefcase } from 'lucide-react';
 import { Country, State, City } from 'country-state-city';
-import { BLOOD_GROUPS, RELATIONSHIPS, TRAINEE_TYPES, toProperCase, toSentenceCase } from '../../constants/cadetData';
+import { BLOOD_GROUPS, RELATIONSHIPS, TRAINEE_TYPES, DEPARTMENTS, toProperCase, toSentenceCase } from '../../constants/cadetData';
 
 interface AddCadetModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: any) => void;
+  editData?: any;
   initialData?: any;
 }
 
-const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, initialData }) => {
+const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, editData, initialData }) => {
   const [activeTab, setActiveTab] = useState('personal');
   
-  // Independent state for dropdowns
-  const [selectedCountry, setSelectedCountry] = useState('');
-  const [selectedState, setSelectedState] = useState('');
-
-  const [formData, setFormData] = useState<any>({});
+  // Resolve the data source immediately
+  const incomingData = editData || initialData;
 
   // --- HELPER: SAFE DATE PARSING ---
   const safeDate = (dateVal: any) => {
     if (!dateVal) return '';
-    const d = new Date(dateVal);
-    return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return '';
+      return d.toISOString().split('T')[0];
+    } catch (e) {
+      return '';
+    }
   };
 
-  // --- POPULATE DATA ---
-  // ✅ FIX: Added [initialData] dependency so it updates every time you open a different user
-  useEffect(() => {
-    if (initialData && isOpen) {
-      console.log("🛠️ EDIT MODE - Incoming Data:", initialData);
-
-      // 1. Resolve Location Codes
-      const rawCountry = initialData.country || '';
-      const rawNationality = initialData.nationality || '';
-      let countryCode = '';
-      
-      const allCountries = Country.getAllCountries();
-
-      // Try exact match or name match for Address Country
-      const foundCountry = allCountries.find(c => 
-        c.isoCode === rawCountry || c.name.toLowerCase() === rawCountry.toLowerCase()
-      );
-      if (foundCountry) countryCode = foundCountry.isoCode;
-
-      // ✅ FIX: Fuzzy Match Nationality (e.g. DB says "Indian", Dropdown has "India")
-      let matchedNationality = '';
-      if (rawNationality) {
-        // First try to find "India" if DB says "Indian"
-        const fuzzyMatch = allCountries.find(c => 
-            c.name.toLowerCase() === rawNationality.toLowerCase() || 
-            (rawNationality.toLowerCase() === 'indian' && c.name === 'India') ||
-            (rawNationality.toLowerCase() === 'american' && c.name === 'United States')
-        );
-        matchedNationality = fuzzyMatch ? fuzzyMatch.name : rawNationality;
-      }
-
-      let stateCode = '';
-      if (countryCode && initialData.state) {
-          const rawState = initialData.state;
-          const foundState = State.getStatesOfCountry(countryCode).find(s => 
-            s.isoCode === rawState || s.name.toLowerCase() === rawState.toLowerCase()
-          );
-          if (foundState) stateCode = foundState.isoCode;
-      }
-
-      // 2. EXPLICIT MAPPING
-      setFormData({
-        id: initialData.id,
-        
-        // Personal
-        fullName: initialData.name || `${initialData.first_name || ''} ${initialData.last_name || ''}`.trim(),
-        email: initialData.email || '',
-        mobile: initialData.phone || initialData.mobile || '',
-        dob: safeDate(initialData.dob),
-        gender: initialData.gender || '',
-        bloodGroup: initialData.blood_group || '',
-
-        // Address
-        address: initialData.address || '',
-        country: countryCode, 
-        state: stateCode,
-        city: initialData.city || '',
-        pincode: initialData.pincode || '',
-
-        // Emergency
-        kinName: initialData.kin_name || '',
-        kinRelation: initialData.kin_relation || '',
-        kinMobile: initialData.kin_mobile || '',
-        kinEmail: initialData.kin_email || '',
-
-        // Passport
-        passportNo: initialData.passport_number || '',
-        nationality: matchedNationality, // Use the fixed nationality
-        passportIssueDate: safeDate(initialData.passport_issue_date),
-        passportExpiryDate: safeDate(initialData.passport_expiry_date),
-        passportPlace: initialData.passport_place || '',
-
-        // CDC
-        cdcNo: initialData.cdc_number || '',
-        cdcCountry: initialData.cdc_country || '',
-        cdcIssueDate: safeDate(initialData.cdc_issue_date),
-        cdcExpiryDate: safeDate(initialData.cdc_expiry_date),
-        
-        // Other Docs
-        indosNo: initialData.indos_number || initialData.indos || '',
-        sidNo: initialData.sid_number || '',
-
-        // Employment
-        // Ensure Rank matches dropdown options, or pass it raw if not found
-        traineeType: initialData.rank || '', 
-        doj: safeDate(initialData.sign_on_date),
-        trbApplicable: true
-      });
-
-      setSelectedCountry(countryCode);
-      setSelectedState(stateCode);
-
-    } else if (isOpen) {
-      // Add Mode Defaults
-      setFormData({
+  // --- DATA INITIALIZATION ---
+  const getInitialState = () => {
+    // 1. DEFAULT EMPTY STATE
+    const emptyState = {
+      formData: {
         country: '', state: '', city: '',
         trbApplicable: true,
         nationality: '', gender: '', bloodGroup: '',
-        kinRelation: '', cdcCountry: '', traineeType: ''
-      });
-      setSelectedCountry('');
-      setSelectedState('');
+        kinRelation: '', cdcCountry: '', traineeType: '', department: ''
+      },
+      country: '',
+      state: ''
+    };
+
+    if (!incomingData) {
+      return emptyState;
     }
-  }, [initialData, isOpen]); // ✅ UPDATES WHENEVER DATA CHANGES
+
+    // --- HELPER: ROBUST KEY FINDER ---
+    // Checks multiple keys to find a value (handles snake_case vs camelCase mismatches)
+    const getValue = (keys: string[]) => {
+        for (const key of keys) {
+            const val = incomingData[key];
+            if (val !== undefined && val !== null && val !== '') return val;
+        }
+        return '';
+    };
+
+    console.log("🛠️ EDIT MODE - Incoming Data Keys:", Object.keys(incomingData));
+
+    // 2. PARSE INCOMING DATA
+    const rawCountry = (getValue(['country', 'address_country']) || '').trim();
+    const rawNationality = (getValue(['nationality', 'citizenship']) || '').trim();
+    
+    // Resolve Country Code
+    let countryCode = '';
+    const allCountries = Country.getAllCountries();
+    const foundCountry = allCountries.find(c => 
+      c.isoCode === rawCountry || c.name.toLowerCase() === rawCountry.toLowerCase()
+    );
+    if (foundCountry) countryCode = foundCountry.isoCode;
+
+    // Resolve Nationality (Fuzzy Match)
+    let matchedNationality = '';
+    if (rawNationality) {
+      const fuzzyMatch = allCountries.find(c => 
+          c.name.toLowerCase() === rawNationality.toLowerCase() || 
+          (rawNationality.toLowerCase() === 'indian' && c.name === 'India') ||
+          (rawNationality.toLowerCase() === 'american' && c.name === 'United States')
+      );
+      matchedNationality = fuzzyMatch ? fuzzyMatch.name : rawNationality;
+    }
+
+    // Resolve State Code
+    let stateCode = '';
+    if (countryCode) {
+        const rawState = (getValue(['state', 'province']) || '').trim();
+        if (rawState) {
+            const foundState = State.getStatesOfCountry(countryCode).find(s => 
+              s.isoCode === rawState || s.name.toLowerCase() === rawState.toLowerCase()
+            );
+            if (foundState) stateCode = foundState.isoCode;
+        }
+    }
+
+    // 3. RETURN PARSED STATE (WITH AGGRESSIVE MAPPING)
+    return {
+      country: countryCode,
+      state: stateCode,
+      formData: {
+        id: incomingData.id,
+        
+        // Personal
+        fullName: getValue(['name', 'fullName']) || `${getValue(['first_name', 'firstName'])} ${getValue(['last_name', 'lastName'])}`.trim(),
+        email: getValue(['email', 'email_address']),
+        mobile: getValue(['phone', 'mobile', 'contact_number', 'phoneNumber']), // Checked: DB uses 'phone'
+        dob: safeDate(getValue(['dob', 'date_of_birth'])),
+        gender: getValue(['gender', 'sex']),
+        bloodGroup: getValue(['blood_group', 'bloodGroup']),
+
+        // Address
+        address: getValue(['address', 'home_address']),
+        country: countryCode, 
+        state: stateCode,
+        city: getValue(['city']),
+        pincode: getValue(['pincode', 'zip', 'postal_code']),
+
+        // Emergency
+        kinName: getValue(['kin_name', 'kinName', 'next_of_kin']),
+        kinRelation: getValue(['kin_relation', 'kinRelation']),
+        kinMobile: getValue(['kin_mobile', 'kinMobile', 'kin_phone']),
+        kinEmail: getValue(['kin_email', 'kinEmail']),
+
+        // Passport
+        passportNo: getValue(['passport_number', 'passportNo', 'passportNumber']),
+        nationality: matchedNationality,
+        passportIssueDate: safeDate(getValue(['passport_issue_date', 'passportIssueDate'])),
+        passportExpiryDate: safeDate(getValue(['passport_expiry_date', 'passportExpiryDate'])),
+        passportPlace: getValue(['passport_place', 'passportPlace']),
+
+        // CDC
+        cdcNo: getValue(['cdc_number', 'cdcNo', 'cdcNumber', 'seaman_book_number']),
+        cdcCountry: getValue(['cdc_country', 'cdcCountry']),
+        cdcIssueDate: safeDate(getValue(['cdc_issue_date', 'cdcIssueDate'])),
+        cdcExpiryDate: safeDate(getValue(['cdc_expiry_date', 'cdcExpiryDate'])),
+        
+        // Other Docs
+        indosNo: getValue(['indos_number', 'indosNo', 'indos']),
+        sidNo: getValue(['sid_number', 'sidNo', 'sid']),
+
+        // Employment
+        traineeType: getValue(['rank', 'traineeType', 'designation']), // Checked: DB uses 'rank'
+        department: getValue(['department', 'dept']),
+        doj: safeDate(getValue(['sign_on_date', 'doj', 'date_of_joining'])),
+        trbApplicable: incomingData.trb_applicable !== undefined ? incomingData.trb_applicable : true
+      }
+    };
+  };
+
+  // --- INITIALIZE STATE ---
+  const [initialState] = useState(getInitialState);
+
+  const [formData, setFormData] = useState<any>(initialState.formData);
+  const [selectedCountry, setSelectedCountry] = useState(initialState.country);
+  const [selectedState, setSelectedState] = useState(initialState.state);
 
   if (!isOpen) return null;
 
@@ -171,8 +195,9 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
         first_name: nameParts[0],
         last_name: nameParts.slice(1).join(' ') || '',
         
-        // Map back to DB keys
+        // Map back to DB keys (Sending snake_case to backend)
         rank: formData.traineeType,
+        department: formData.department,
         phone: formData.mobile,
         indos_number: formData.indosNo,
         blood_group: formData.bloodGroup,
@@ -193,7 +218,8 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
         cdc_expiry_date: formData.cdcExpiryDate || null,
         
         sid_number: formData.sidNo,
-        sign_on_date: formData.doj || null
+        sign_on_date: formData.doj || null,
+        trb_applicable: formData.trbApplicable
     };
 
     onSave(payload);
@@ -215,7 +241,7 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
         {/* HEADER */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h2 className="font-bold text-lg text-foreground">
-            {initialData ? 'Edit Cadet Profile' : 'Register New Cadet'}
+            {incomingData ? 'Edit Cadet Profile' : 'Register New Cadet'}
           </h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X size={20} />
@@ -275,7 +301,7 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
                   <select name="country" value={selectedCountry} onChange={handleCountryChange} className="input-field">
                     <option value="">Select Country</option>
                     {Country.getAllCountries().map((c) => (
-                      <option key={c.isoCode} value={c.isoCode}>{c.name}</option>
+                      <option key={c.isoCode} value={c.name}>{c.name}</option>
                     ))}
                   </select>
                 </div>
@@ -414,25 +440,36 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
               </div>
             )}
 
-            {/* E) ROLES */}
+            {/* E) ROLES (ADDED DEPARTMENT) */}
             {activeTab === 'roles' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Department Dropdown */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-muted-foreground">Department</label>
+                  <select name="department" required value={formData.department || ''} onChange={handleChange} className="input-field">
+                    <option value="">Select...</option>
+                    {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+
+                {/* Rank Dropdown */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Type of Trainee</label>
-                  {/* Manually added 'value' to show rank even if not in list */}
                   <select name="traineeType" required value={formData.traineeType || ''} onChange={handleChange} className="input-field">
                     <option value="">Select...</option>
                     {TRAINEE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    {/* Fallback option if DB value isn't in TRAINEE_TYPES */}
                     {formData.traineeType && !TRAINEE_TYPES.includes(formData.traineeType) && (
                       <option value={formData.traineeType}>{formData.traineeType}</option>
                     )}
                   </select>
                 </div>
+
                  <div className="space-y-1.5">
                   <label className="text-xs font-bold text-muted-foreground">Date of Joining</label>
                   <input name="doj" type="date" value={formData.doj || ''} onChange={handleChange} className="input-field" />
                 </div>
+
                 <div className="col-span-2 pt-4">
                   <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-lg border border-border">
                     <input 
@@ -461,7 +498,7 @@ const AddCadetModal: React.FC<AddCadetModalProps> = ({ isOpen, onClose, onSave, 
           </button>
           <button form="cadetForm" type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 shadow-sm">
             <Save size={16} />
-            <span>{initialData ? 'Update Profile' : 'Create Cadet Profile'}</span>
+            <span>{incomingData ? 'Update Profile' : 'Create Cadet Profile'}</span>
           </button>
         </div>
       </div>

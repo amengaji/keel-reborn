@@ -10,6 +10,7 @@ import {
 import { cadetService } from '../services/cadetService'; 
 import ImportCadetModal from '../components/trainees/ImportCadetModal';
 import AddCadetModal from '../components/trainees/AddCadetModal';
+import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import { toast } from 'sonner';
 
 const CadetsPage: React.FC = () => {
@@ -27,6 +28,12 @@ const CadetsPage: React.FC = () => {
   const [isAddOpen, setIsAddOpen] = useState(false); 
   const [editingCadet, setEditingCadet] = useState<any>(null); 
   
+  // --- DELETE MODAL STATE ---
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null); // 'ALL' or cadet object
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Pagination & Sorting
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'first_name', direction: 'asc' });
@@ -90,16 +97,34 @@ const CadetsPage: React.FC = () => {
     }
   };
 
-  // 4. DELETE
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to remove this profile?')) {
-      try {
-        await cadetService.delete(id);
+  // 4. DELETE LOGIC (UPDATED)
+  const confirmDelete = (cadet: any) => {
+    setDeleteTarget(cadet);
+    setIsDeleteOpen(true);
+  };
+
+  const confirmDeleteAll = () => {
+    if (cadets.length === 0) return;
+    setDeleteTarget('ALL');
+    setIsDeleteOpen(true);
+  };
+
+  const executeDelete = async () => {
+    setIsDeleting(true);
+    try {
+      if (deleteTarget === 'ALL') {
+        await cadetService.deleteAll(); 
+        toast.success("All trainee profiles removed.");
+      } else if (deleteTarget?.id) {
+        await cadetService.delete(deleteTarget.id);
         toast.success("Profile removed.");
-        refreshData();
-      } catch (error) {
-        toast.error("Could not delete trainee.");
       }
+      refreshData();
+      setIsDeleteOpen(false);
+    } catch (error) {
+      toast.error("Delete operation failed.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -176,6 +201,16 @@ const CadetsPage: React.FC = () => {
 
         {!isCTO && (
           <div className="flex gap-2">
+            {/* DELETE ALL BUTTON (NEW) */}
+            {cadets.length > 0 && (
+                <button 
+                onClick={confirmDeleteAll}
+                className="bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/20 px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-sm active:scale-95"
+                >
+                <Trash2 size={18} /><span>Delete All</span>
+                </button>
+            )}
+
             <button 
               onClick={() => setIsImportOpen(true)}
               className="bg-card hover:bg-muted text-foreground border border-border px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-sm active:scale-95"
@@ -330,7 +365,7 @@ const CadetsPage: React.FC = () => {
                                     <Edit size={16} />
                                   </button>
                                   <button 
-                                     onClick={() => handleDelete(cadet.id)}
+                                     onClick={() => confirmDelete(cadet)}
                                      className="p-2 bg-background hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive border border-border shadow-xs transition-colors"
                                      title="Delete Profile"
                                   >
@@ -387,6 +422,20 @@ const CadetsPage: React.FC = () => {
           initialData={editingCadet}
         />
       )}
+
+      {/* NEW DELETE MODAL */}
+      <DeleteConfirmationModal
+        isOpen={isDeleteOpen}
+        onClose={() => setIsDeleteOpen(false)}
+        onConfirm={executeDelete}
+        isDeleting={isDeleting}
+        isDeleteAll={deleteTarget === 'ALL'}
+        title={deleteTarget === 'ALL' ? "Delete All Trainees?" : "Remove Trainee?"}
+        description={deleteTarget === 'ALL' 
+            ? "Are you strictly sure? This will permanently delete ALL trainee profiles, service records, and assignment history. This action is irreversible." 
+            : "This will remove the trainee and their associated records from the database."}
+        itemName={deleteTarget === 'ALL' ? undefined : `${deleteTarget?.first_name} ${deleteTarget?.last_name}`}
+      />
     </div>
   );
 };

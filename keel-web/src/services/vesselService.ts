@@ -1,3 +1,5 @@
+//keel-web/src/services/vesselService.ts
+
 const API_URL = 'http://localhost:5000/api/vessels';
 
 const getAuthHeaders = () => {
@@ -40,13 +42,35 @@ export const vesselService = {
     return res.json();
   },
 
-  // DELETE vessel
+  // DELETE single vessel
   delete: async (id: string | number) => {
     const res = await fetch(`${API_URL}/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
     if (!res.ok) throw new Error('Failed to remove vessel');
+    return true;
+  },
+
+  // DELETE ALL vessels (Batch Operation)
+  deleteAll: async (ids: (string | number)[]) => {
+    if (ids.length === 0) return true;
+    
+    // We execute these in parallel for speed
+    const deletePromises = ids.map(id => 
+      fetch(`${API_URL}/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      })
+    );
+    
+    const results = await Promise.all(deletePromises);
+    const failed = results.filter(r => !r.ok);
+    
+    if (failed.length > 0) {
+      throw new Error(`Failed to delete ${failed.length} vessels. They might be in use.`);
+    }
+    
     return true;
   }
 };

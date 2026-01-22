@@ -1,8 +1,11 @@
+//keel-backend/src/controllers/vessel.controller.ts
+
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs'; 
 import Vessel from '../models/Vessel';
 import User from '../models/User';
 import Role from '../models/Role';
+import TraineeAssignment from '../models/TraineeAssignment'; // <--- ADDED IMPORT
 
 // Helper: Standardized Password Hash
 const getDefaultPasswordHash = async () => {
@@ -23,7 +26,7 @@ export const getVessels = async (req: Request, res: Response) => {
     }
 
     const vessels = await Vessel.findAll({
-      where: whereClause, // <--- ADDED FILTER
+      where: whereClause,
       include: [{
         model: User,
         as: 'crew',
@@ -74,7 +77,7 @@ export const createVessel = async (req: Request, res: Response) => {
       class_society: data.classSociety || data.class_society,
       status: data.is_active === 'on' || data.is_active === true ? 'Active' : 'Inactive',
       is_active: data.is_active === 'on' || data.is_active === true,
-      company_id: companyId // <--- ASSIGN COMPANY
+      company_id: companyId
     };
 
     if (!payload.name || !payload.imo_number) {
@@ -112,7 +115,7 @@ export const createVessel = async (req: Request, res: Response) => {
               vessel_id: newVessel.id,
               status: 'Onboard',
               nationality: payload.flag,
-              company_id: companyId // <--- ASSIGN CREW TO SAME COMPANY
+              company_id: companyId
             }).catch(err => console.error(`Failed to create user ${acc.email}:`, err.message));
           }
         }
@@ -131,13 +134,12 @@ export const updateVessel = async (req: Request, res: Response) => {
     const { id } = req.params;
     
     // 1. Update Vessel Details
-    const [updated] = await Vessel.update(req.body, { where: { id } });
+    await Vessel.update(req.body, { where: { id } });
     
     // 2. Update Associated Users if crewEmails provided
     if (req.body.crewEmails) {
       const { master, ctoDeck, ctoEngine, ctoEto, ctoCatering } = req.body.crewEmails;
       
-      // Fetch vessel to get company_id
       const vessel = await Vessel.findByPk(id);
       const companyId = vessel?.company_id;
 
@@ -172,7 +174,7 @@ export const updateVessel = async (req: Request, res: Response) => {
               rank: update.rank,
               vessel_id: parseInt(id),
               status: 'Onboard',
-              company_id: companyId // <--- Ensure new users get company_id
+              company_id: companyId
             }).catch(err => console.error("Error creating missing user on update:", err.message));
           }
         }
@@ -190,16 +192,26 @@ export const updateVessel = async (req: Request, res: Response) => {
   }
 };
 
+// DELETE VESSEL (FIXED: Handles Foreign Key Constraints)
 export const deleteVessel = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+
+    // 1. Delete associated Trainee Assignments FIRST (Fixes the FK Error)
+    await TraineeAssignment.destroy({ where: { vessel_id: id } });
+
+    // 2. Delete Crew Accounts associated with this vessel (Users table)
     await User.destroy({ where: { vessel_id: id } });
+
+    // 3. Finally, delete the Vessel
     const deleted = await Vessel.destroy({ where: { id } });
+    
     if (deleted) {
-      return res.status(200).json({ message: "Vessel and Crew Accounts removed successfully" });
+      return res.status(200).json({ message: "Vessel, Crew, and Assignments removed successfully" });
     }
     throw new Error("Vessel not found");
   } catch (error: any) {
+    console.error("Delete Vessel Error:", error);
     res.status(500).json({ message: error.message });
   }
 };

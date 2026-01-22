@@ -29,6 +29,14 @@ router.put(
   CadetController.updateCadet
 );
 
+// --- NEW: DELETE ALL ROUTE (Must be before /:id) ---
+router.delete(
+  '/all', 
+  authenticate, 
+  checkRole(['ADMIN']), // Only Admins (not Managers) should perform bulk delete
+  CadetController.deleteAllCadets
+);
+
 // Delete cadet (Admin only)
 router.delete(
   '/:id', 

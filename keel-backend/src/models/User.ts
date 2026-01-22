@@ -3,21 +3,23 @@
 import { Model, DataTypes } from 'sequelize';
 import sequelize from '../config/database';
 import Role from './Role';
-import Company from './Company'; // <--- Import Company
+import Company from './Company';
+import Vessel from './Vessel';
 
 class User extends Model {
   public id!: number;
   public first_name!: string;
   public last_name!: string;
-  public email!: string;
+  public email!: string; // Acts as Username/Login ID
   public password_hash!: string;
   public role_id!: number;
   public company_id!: number;
   public vessel_id!: number | null;
   public rank!: string | null;
+  public department!: string | null; // <--- ADDED
   public status!: string;
   public nationality!: string | null;
-  public avatar_url!: string | null; // <--- Added TS Property
+  public avatar_url!: string | null;
   
   // Professional / Documents
   public indos_number!: string | null;
@@ -61,9 +63,10 @@ class User extends Model {
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
 
-  // Associations (TypeScript Types)
+  // Associations
   public readonly role?: Role;
-  public readonly company?: Company; // <--- Added TS Property
+  public readonly company?: Company;
+  public readonly vessel?: Vessel;
 }
 
 User.init(
@@ -85,7 +88,7 @@ User.init(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
-      validate: { isEmail: true },
+      // REMOVED "validate: { isEmail: true }" to allow "ctodeck.99999"
     },
     password_hash: {
       type: DataTypes.STRING,
@@ -98,15 +101,19 @@ User.init(
     },
     company_id: {
       type: DataTypes.INTEGER,
-      allowNull: true, // Super Admin has no company
+      allowNull: true,
       references: { model: 'companies', key: 'id' }
     },
-    vessel_id: { 
+    vessel_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: { model: 'vessels', key: 'id' }
     },
     rank: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    department: { // <--- ADDED COLUMN
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -118,7 +125,7 @@ User.init(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    avatar_url: { // <--- Added Database Column
+    avatar_url: {
       type: DataTypes.STRING,
       allowNull: true,
     },

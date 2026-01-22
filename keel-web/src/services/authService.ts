@@ -8,7 +8,18 @@ export interface UserProfile {
   firstName: string;
   lastName: string;
   role: string;
+  
+  rank?: string;       
+  department?: string; 
+  status?: string;
+  companyId?: number;
+  companyName?: string;
+  avatar?: string;
+
+  // ✅ ADDED VESSEL INFO
   vesselId?: number;
+  vesselName?: string;
+
   cocNumber?: string;
   seamanBookNumber?: string;
   mfaEnabled?: boolean;
@@ -21,7 +32,6 @@ export interface LoginResponse {
   user: UserProfile;
 }
 
-// Helper to get current logged in user from storage
 export const getCurrentUser = (): UserProfile | null => {
   try {
     const data = localStorage.getItem('keel_user');
@@ -59,7 +69,7 @@ export const logoutOfficer = () => {
   window.location.href = '/login';
 };
 
-// --- NEW METHODS FOR SETTINGS PAGE ---
+// --- SETTINGS METHODS ---
 
 export const changePassword = async (userId: number | string, currentPassword: string, newPassword: string) => {
   const response = await fetch(`${API_URL}/change-password`, {
@@ -86,7 +96,6 @@ export const updateProfile = async (userId: number | string, data: { cocNumber?:
   }
   
   const result = await response.json();
-  // Update local storage with new profile data
   if (result.user) {
     const currentUser = getCurrentUser() || {};
     const updatedUser = { ...currentUser, ...result.user };

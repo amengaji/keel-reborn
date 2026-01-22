@@ -5,39 +5,44 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import User from "../models/User";
 import Role from "../models/Role";
-import Company from "../models/Company"; // Added for better data return
+import Company from "../models/Company";
+import Vessel from "../models/Vessel"; // <--- ADDED IMPORT
 
 /**
  * Authentication Controller
- * Handles Login, Password Management, and Profile Updates.
+ * Handles Login for Emails (Admins/Master) AND IDs (CTOs: ctodeck.IMO)
  */
 
 // --- LOGIN ---
 export const login = async (req: Request, res: Response) => {
-  const rawEmail = req.body?.email;
+  // Use 'email' field from body, but treat it as a generic Login ID
+  const rawId = req.body?.email; 
   const rawPassword = req.body?.password;
-  const email = String(rawEmail || "").trim().toLowerCase();
+  
+  const loginId = String(rawId || "").trim().toLowerCase(); 
   const password = String(rawPassword || "").trim();
 
   try {
-    console.log(`🔐 Login Attempt: ${email}`);
+    console.log(`🔐 Login Attempt: ${loginId}`);
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required." });
+    if (!loginId || !password) {
+      return res.status(400).json({ message: "Login ID and password are required." });
     }
 
     // 1. Find User
-    // CRITICAL FIX: We explicitly ask for 'password_hash' because the model usually hides it.
     const user = await User.findOne({
-      where: { email },
+      where: { email: loginId }, // Matches 'ctodeck.123' OR 'capt@gmail.com'
       include: [
         { model: Role, as: "role" },
-        { model: Company, as: "company" }
+        { model: Company, as: "company" },
+        { model: Vessel, as: "vessel", attributes: ['id', 'name'] } // <--- FETCH VESSEL INFO
       ],
       attributes: [
         'id', 'email', 'password_hash', 'first_name', 'last_name', 
         'role_id', 'company_id', 'rank', 'status', 'avatar_url',
-        'coc_number', 'seaman_book_number', 'mfa_enabled'
+        'coc_number', 'seaman_book_number', 'mfa_enabled',
+        'department', 
+        'vessel_id' // <--- CRITICAL: Fetch Vessel ID
       ] 
     });
 
@@ -47,8 +52,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     if (!user.password_hash) {
-      console.log('❌ Login Failed: Password hash missing in DB.');
-      return res.status(401).json({ message: "Account setup incomplete. Contact Admin." });
+      return res.status(401).json({ message: "Account setup incomplete." });
     }
 
     // 2. Verify Password
@@ -64,27 +68,36 @@ export const login = async (req: Request, res: Response) => {
         id: user.id, 
         email: user.email,
         role: user.role?.name,
-        company_id: user.company_id 
+        company_id: user.company_id,
+        department: user.department,
+        vessel_id: user.vessel_id // <--- CRITICAL: Add to Token
       },
       process.env.JWT_SECRET || "maritime_secret_key",
       { expiresIn: "12h" }
     );
 
-    console.log(`✅ Login Success: ${user.email} (${user.role?.name})`);
+    console.log(`✅ Login Success: ${user.email} (${user.role?.name}) -> Vessel: ${user.vessel?.name || 'Shore'}`);
 
     // 4. Send Response
     return res.status(200).json({
-      accessToken, // Matches frontend expectation (was 'token' in some versions, kept 'accessToken' as per your file)
+      accessToken,
       user: {
         id: user.id,
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
         role: user.role?.name,
+        department: user.department,
         companyId: user.company_id,
         companyName: user.company?.name || 'Keel Platform',
         rank: user.rank,
         status: user.status,
+        
+        // --- VESSEL CONTEXT ---
+        vesselId: user.vessel_id,     // <--- Send ID to frontend
+        vesselName: user.vessel?.name,// <--- Send Name to frontend
+        // ----------------------
+
         avatar: user.avatar_url,
         cocNumber: user.coc_number,
         seamanBookNumber: user.seaman_book_number,
@@ -108,13 +121,19 @@ export const getMe = async (req: Request, res: Response) => {
       attributes: { exclude: ['password_hash'] },
       include: [
         { model: Role, as: 'role' },
-        { model: Company, as: 'company' }
+        { model: Company, as: 'company' },
+        { model: Vessel, as: 'vessel', attributes: ['id', 'name'] } // <--- FETCH VESSEL INFO
       ]
     });
 
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    res.json(user);
+    // Return normalized object
+    res.json({
+        ...user.toJSON(),
+        vesselId: user.vessel_id,     // <--- Ensure consistent property names
+        vesselName: user.vessel?.name
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server Error' });
   }
@@ -125,7 +144,6 @@ export const changePassword = async (req: Request, res: Response) => {
   const { userId, currentPassword, newPassword } = req.body;
 
   try {
-    // We need the password_hash here too
     const user = await User.findByPk(userId, { attributes: ['id', 'password_hash'] });
     if (!user) return res.status(404).json({ message: "User not found." });
 
@@ -138,7 +156,6 @@ export const changePassword = async (req: Request, res: Response) => {
 
     res.json({ message: "Password updated successfully." });
   } catch (error) {
-    console.error("CHANGE PASSWORD ERROR:", error);
     res.status(500).json({ message: "Failed to update password." });
   }
 };
@@ -167,7 +184,9 @@ export const updateProfile = async (req: Request, res: Response) => {
         role: user.role?.name || 'Unknown',
         cocNumber: user.coc_number,
         seamanBookNumber: user.seaman_book_number,
-        mfaEnabled: user.mfa_enabled
+        mfaEnabled: user.mfa_enabled,
+        department: user.department,
+        vessel_id: user.vessel_id
       }
     });
   } catch (error) {
@@ -195,7 +214,9 @@ export const createUser = async (req: Request, res: Response) => {
       last_name: data.lastName,
       role_id: data.roleId, 
       company_id: targetCompanyId, 
-      status: 'Active'
+      status: 'Active',
+      department: data.department, // Allow setting department on manual create
+      vessel_id: data.vesselId // Allow setting vessel on manual create
     });
 
     res.status(201).json(newUser);

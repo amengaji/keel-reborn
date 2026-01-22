@@ -267,3 +267,45 @@ export const deleteCadet = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Error removing cadet', error: error.message });
   }
 };
+
+/**
+ * DELETE ALL CADETS (Bulk Action)
+ */
+export const deleteAllCadets = async (req: Request, res: Response) => {
+  try {
+    // @ts-ignore
+    const currentUser = req.user;
+    const whereClause: any = {};
+
+    // Safety: Only SUPER_ADMIN can wipe everything. 
+    // Regular Admins only wipe their company's cadets.
+    if (currentUser && currentUser.role !== 'SUPER_ADMIN' && currentUser.company_id) {
+        whereClause.company_id = currentUser.company_id;
+    }
+
+    // 1. Find all target IDs first to clean associations
+    const cadetsToDelete = await User.findAll({
+        where: whereClause,
+        include: [{ model: Role, as: 'role', where: { name: 'CADET' } }],
+        attributes: ['id']
+    });
+
+    const ids = cadetsToDelete.map((c: any) => c.id);
+
+    if (ids.length === 0) {
+        return res.status(200).json({ message: 'No trainees found to delete.' });
+    }
+
+    // 2. Clean up Associations (Foreign Keys)
+    await TraineeAssignment.destroy({ where: { trainee_id: ids } });
+    await Assignment.destroy({ where: { user_id: ids } }); 
+
+    // 3. Delete Users
+    await User.destroy({ where: { id: ids } });
+
+    res.json({ message: `Successfully deleted ${ids.length} trainee profiles.` });
+  } catch (error: any) {
+    console.error("DELETE ALL CADETS ERROR:", error);
+    res.status(500).json({ message: 'Error deleting all cadets', error: error.message });
+  }
+};

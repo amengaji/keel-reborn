@@ -4,40 +4,46 @@ import React, { useEffect, useState } from 'react';
 import { 
   Ship, Plus, Search, Upload, Edit, Trash2, 
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, 
-  ArrowUpDown, Users 
+  ArrowUpDown, Users, AlertCircle 
 } from 'lucide-react';
 import { cadetService } from '../services/cadetService'; 
 import { vesselService } from '../services/vesselService'; 
 import ImportVesselModal from '../components/vessels/ImportVesselModal';
 import AddVesselModal from '../components/vessels/AddVesselModal';
+import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal'; // New Import
 import { toast } from 'sonner';
 
 /**
  * VesselsPage Component
  * Manages display and CRUD for the Fleet.
- * UPDATED: Wires up the 'crewEmails' payload to ensure Command Team accounts are created.
+ * UPDATED: Uses custom glassmorphic Delete Modal and adds "Delete All" capability.
  */
 const VesselsPage: React.FC = () => {
-  // State management for Fleet and Trainees from SQL database
+  // State management
   const [vessels, setVessels] = useState<any[]>([]);
   const [trainees, setTrainees] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // UI State for modals and searching
+  // UI State
   const [searchQuery, setSearchQuery] = useState('');
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingVessel, setEditingVessel] = useState<any>(null); 
   
-  // Pagination and Sorting State
+  // Delete Modal State
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    type: 'single' | 'all';
+    id?: string;
+    name?: string;
+    isDeleting?: boolean;
+  }>({ isOpen: false, type: 'single' });
+
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
 
-  /**
-   * Fetches fresh data from SQL Backend.
-   * Calls both vessels and trainees concurrently using Promise.all for performance.
-   */
   const refreshData = async () => {
     setIsLoading(true);
     try {
@@ -45,8 +51,6 @@ const VesselsPage: React.FC = () => {
         vesselService.getAll(),
         cadetService.getAll()
       ]);
-
-      // Normalize data arrays to prevent mapping crashes
       setVessels(Array.isArray(fleet) ? fleet : []);
       setTrainees(Array.isArray(crew) ? crew : []);
     } catch (error) {
@@ -57,35 +61,22 @@ const VesselsPage: React.FC = () => {
     }
   };
 
-  // Trigger data fetch on initial mount
   useEffect(() => {
     refreshData();
   }, []);
 
-  /**
-   * Calculates cadet count by matching the Vessel ID.
-   * Looks at direct vessel_id property or nested assignments array from the SQL response.
-   */
   const getCadetCount = (vesselId: number) => {
     return trainees.filter((t: any) => {
-      // 1. Ensure the trainee is currently marked as 'Onboard'
       const isOnboard = t.status === 'Onboard';
-      
-      // 2. Check direct property OR nested assignments array
       const directMatch = Number(t.vessel_id) === Number(vesselId);
       const associationMatch = t.assignments?.some((a: any) => Number(a.vessel_id) === Number(vesselId) && a.status === 'ACTIVE');
-      
       return isOnboard && (directMatch || associationMatch);
     }).length;
   };
 
-  /**
-   * Handles both Creating and Updating vessel records.
-   * UPDATED: Includes crewEmails in the payload for Account Creation.
-   */
+  // --- SAVE / UPDATE ---
   const handleSaveVessel = async (data: any) => {
     try {
-      // Construct Payload - Added crewEmails to support command team creation
       const vesselPayload = {
         name: data.name,
         imo_number: data.imo || data.imo_number,
@@ -93,15 +84,13 @@ const VesselsPage: React.FC = () => {
         flag: data.flag,
         class_society: data.class_society,
         is_active: data.is_active === undefined ? true : data.is_active,
-        crewEmails: data.crewEmails // <--- IMPORTANT: Passes the emails to the backend
+        crewEmails: data.crewEmails
       };
 
       if (editingVessel && editingVessel.id) {
-        // Edit Mode: Update existing record
         await vesselService.update(editingVessel.id, vesselPayload);
         toast.success('Vessel records updated.');
       } else {
-        // Add Mode: Create new record
         await vesselService.create(vesselPayload);
         toast.success('New vessel added. Command accounts created.');
       }
@@ -115,55 +104,62 @@ const VesselsPage: React.FC = () => {
     }
   };
 
-  /**
-   * Triggers the edit modal for a specific vessel.
-   */
+  // --- DELETE HANDLERS ---
+  
+  // 1. Open Modal for Single Delete
+  const handleDeleteClick = (vessel: any) => {
+    setDeleteModal({
+      isOpen: true,
+      type: 'single',
+      id: vessel.id,
+      name: vessel.name,
+      isDeleting: false
+    });
+  };
+
+  // 2. Open Modal for Delete All
+  const handleDeleteAllClick = () => {
+    if (vessels.length === 0) return;
+    setDeleteModal({
+      isOpen: true,
+      type: 'all',
+      name: `${vessels.length} Vessels`,
+      isDeleting: false
+    });
+  };
+
+  // 3. Confirm Logic
+  const handleConfirmDelete = async () => {
+    setDeleteModal(prev => ({ ...prev, isDeleting: true }));
+    
+    try {
+      if (deleteModal.type === 'single' && deleteModal.id) {
+        await vesselService.delete(deleteModal.id);
+        toast.success('Vessel removed successfully.');
+      } 
+      else if (deleteModal.type === 'all') {
+        const allIds = vessels.map(v => v.id);
+        await vesselService.deleteAll(allIds);
+        toast.success('All vessels have been removed.');
+      }
+      
+      refreshData();
+      setDeleteModal({ isOpen: false, type: 'single' }); // Reset
+    } catch (error: any) {
+      toast.error(error.message || "Delete operation failed.");
+      setDeleteModal(prev => ({ ...prev, isDeleting: false })); // Stop loading only on error
+    }
+  };
+
+  const handleImport = () => {
+    refreshData();
+  };
+
   const handleEditClick = (vessel: any) => {
     setEditingVessel(vessel);
     setIsAddOpen(true);
   };
 
-  /**
-   * Deletes a vessel record after confirmation.
-   */
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to remove this vessel from the database?')) {
-      try {
-        await vesselService.delete(id);
-        toast.success('Vessel removed.');
-        refreshData();
-      } catch (error) {
-        toast.error("Delete operation failed.");
-      }
-    }
-  };
-
-  /**
-   * Bulk import logic for Excel/CSV data.
-   * UPDATED: Includes crewEmails to support auto-creation of users during import.
-   */
-  const handleImport = async (data: any[]) => {
-    toast.info(`Importing ${data.length} vessels...`);
-    for (const item of data) {
-      try {
-        await vesselService.create({
-          name: item.name,
-          imo_number: String(item.imo_number),
-          vessel_type: item.vessel_type || "Other",
-          flag: item.flag || "Unknown",
-          class_society: item.class_society || "Unknown",
-          is_active: true,
-          crewEmails: item.crewEmails // <--- IMPORTANT: Passes auto-generated emails
-        });
-      } catch (err) { console.error("Import row failed:", err); }
-    }
-    toast.success("Bulk import complete. Command accounts created.");
-    refreshData();
-  };
-
-  /**
-   * Sorts the data based on column keys.
-   */
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -172,9 +168,6 @@ const VesselsPage: React.FC = () => {
     setSortConfig({ key, direction });
   };
 
-  /**
-   * Process search, filtering, and sorting based on user input.
-   */
   const processData = () => {
     let filtered = vessels.filter((v: any) => 
       (v.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -218,6 +211,15 @@ const VesselsPage: React.FC = () => {
           <p className="text-muted-foreground text-sm font-medium">Monitor active vessels and real-time cadet allocation.</p>
         </div>
         <div className="flex gap-2">
+           {/* DELETE ALL BUTTON */}
+           {vessels.length > 0 && (
+             <button 
+               onClick={handleDeleteAllClick}
+               className="bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-sm active:scale-95 font-bold text-xs uppercase tracking-wide"
+             >
+               <Trash2 size={16} /><span>Delete All</span>
+             </button>
+           )}
            <button 
              onClick={() => setIsImportOpen(true)}
              className="bg-card hover:bg-muted text-foreground border border-border px-4 py-2 rounded-xl flex items-center space-x-2 transition-all shadow-sm active:scale-95"
@@ -311,7 +313,7 @@ const VesselsPage: React.FC = () => {
                              </td>
                              <td className="p-4 font-mono text-muted-foreground text-xs font-bold">{vessel.imo_number}</td>
                              <td className="p-4 text-foreground/80 font-bold">{vessel.vessel_type}</td>
-                             <td className="p-4 text-muted-foreground truncate max-w-[150px] font-medium" title={vessel.class_society}>
+                             <td className="p-4 text-muted-foreground truncate max-w-37.5 font-medium" title={vessel.class_society}>
                                 {vessel.class_society || 'N/A'}
                              </td>
 
@@ -340,7 +342,7 @@ const VesselsPage: React.FC = () => {
                                       <Edit size={16} />
                                    </button>
                                    <button 
-                                      onClick={() => handleDelete(vessel.id)}
+                                      onClick={() => handleDeleteClick(vessel)} // Changed to use Modal Handler
                                       className="p-2 bg-background hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive border border-border shadow-xs transition-colors"
                                       title="Delete Vessel"
                                    >
@@ -384,6 +386,21 @@ const VesselsPage: React.FC = () => {
         onClose={() => { setIsAddOpen(false); setEditingVessel(null); }}
         onSave={handleSaveVessel}
         editData={editingVessel}
+      />
+
+      {/* NEW DELETE MODAL */}
+      <DeleteConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal(prev => ({ ...prev, isOpen: false, isDeleting: false }))}
+        onConfirm={handleConfirmDelete}
+        title={deleteModal.type === 'all' ? "Delete All Vessels?" : "Delete Vessel?"}
+        description={deleteModal.type === 'all' 
+          ? `You are about to remove all ${vessels.length} vessels from the fleet database. This action is irreversible and will delete all associated data.`
+          : "Are you sure you want to remove this vessel from the fleet? This action cannot be undone."
+        }
+        itemName={deleteModal.name}
+        isDeleting={deleteModal.isDeleting}
+        isDeleteAll={deleteModal.type === 'all'}
       />
     </div>
   );

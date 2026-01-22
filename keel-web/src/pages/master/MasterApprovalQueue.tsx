@@ -1,132 +1,208 @@
-import React, { useState, useMemo } from 'react';
-import { CheckCircle, XCircle, User, FileText, Calendar, ShieldAlert, Award } from 'lucide-react';
+//keel-web/src/pages/master/MasterApprovalQueue.tsx
+
+import React, { useState, useEffect } from 'react';
+import { 
+  User, FileText, ShieldAlert, Award, CheckCircle2, 
+  XCircle, Clock, Anchor
+} from 'lucide-react';
 import { toast } from 'sonner';
+import { assignmentService } from '../../services/assignmentService';
+
+interface PendingAssignment {
+  id: number;
+  status: string;
+  progress: number;
+  cadet: {
+    first_name: string;
+    last_name: string;
+    rank: string;
+    department: string;
+  };
+  template: {
+    title: string;
+    code: string;
+    category: string;
+  };
+}
 
 const MasterApprovalQueue: React.FC = () => {
+  const [tasks, setTasks] = useState<PendingAssignment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<number | null>(null);
+  
   const BRAND_COLOR = '#3194A0';
 
-  // Mock data showing the Verification Chain in action
-  const [pendingTasks, setPendingTasks] = useState([
-    { 
-      id: 1, 
-      trainee: 'Anuj Mengaji', 
-      task: 'Rule 24: Lights and Shapes', 
-      submitted: '2026-01-15', 
-      evidence: true,
-      department: 'Deck',
-      cto_signed: true, // Master can sign this
-      isSteering: false
-    },
-    { 
-      id: 2, 
-      trainee: 'Anuj Mengaji', 
-      task: 'Rule 25: Sailing Vessels Underway', 
-      submitted: '2026-01-16', 
-      evidence: false,
-      department: 'Deck',
-      cto_signed: false, // Master BLOCKED - Awaiting CTO
-      isSteering: false
-    },
-    { 
-      id: 3, 
-      trainee: 'Anuj Mengaji', 
-      task: 'Manual Steering Practice (20 Hours)', 
-      submitted: '2026-01-17', 
-      evidence: true,
-      department: 'Deck',
-      cto_signed: true,
-      isSteering: true // Special task for Steering Cert
-    }
-  ]);
+  useEffect(() => {
+    loadQueue();
+  }, []);
 
-  const handleFinalSign = (task: any) => {
-    if (!task.cto_signed) {
-      toast.error("Chain of Command Restricted", {
-        description: "The Department CTO must provide technical verification before the Master signs."
-      });
-      return;
+  const loadQueue = async () => {
+    try {
+      setLoading(true);
+      const data = await assignmentService.getPendingMasterApprovals();
+      setTasks(data);
+    } catch (err) {
+      console.error(err);
+      toast.error("Sync Error", { description: "Failed to load approval queue." });
+    } finally {
+      setLoading(false);
     }
-
-    setPendingTasks(prev => prev.filter(t => t.id !== task.id));
-    toast.success(`Task Approved: ${task.task}`, {
-        description: task.isSteering ? "Steering milestone reached!" : "Task locked in TRB."
-    });
   };
 
+  const handleFinalSign = async (assignmentId: number, taskTitle: string) => {
+    try {
+      setProcessingId(assignmentId);
+      
+      // Call the API
+      await assignmentService.signOffTask(assignmentId);
+      
+      // Success UX
+      toast.success("Task Approved", {
+        description: `You have successfully signed off on "${taskTitle}"`
+      });
+
+      // Optimistic UI Update (remove from list immediately)
+      setTasks(prev => prev.filter(t => t.id !== assignmentId));
+
+    } catch (err: any) {
+      toast.error("Approval Failed", { description: err.message });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="h-96 flex flex-col items-center justify-center text-muted-foreground">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+        <p className="animate-pulse text-sm font-medium">Syncing Command Queue...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+      
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-end gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Master's Approval Queue</h1>
           <p className="text-muted-foreground text-sm">Final endorsement of competency for all onboard personnel.</p>
         </div>
-        <div className="flex gap-2">
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 text-orange-600 rounded-lg text-xs font-bold border border-orange-500/20">
-                <ShieldAlert size={14} /> CTO Verification Required
-            </span>
-        </div>
+        
+        {tasks.length > 0 && (
+           <div className="flex gap-2">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 text-orange-600 rounded-lg text-xs font-bold border border-orange-500/20">
+                  <ShieldAlert size={14} /> {tasks.length} Pending Signatures
+              </span>
+          </div>
+        )}
       </div>
 
+      {/* QUEUE LIST */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-        <table className="w-full text-left text-sm border-collapse">
-          <thead className="bg-muted/50 text-muted-foreground font-bold uppercase text-[10px] tracking-widest border-b border-border">
-            <tr>
-              <th className="p-4">Personnel</th>
-              <th className="p-4">Competency Task</th>
-              <th className="p-4 text-center">CTO Status</th>
-              <th className="p-4 text-center">Evidence</th>
-              <th className="p-4 text-right">Master's Sign-off</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {pendingTasks.map((item) => (
-              <tr key={item.id} className="hover:bg-muted/5 transition-colors">
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <User size={14} style={{ color: BRAND_COLOR }} />
-                    <span className="font-bold text-foreground">{item.trainee}</span>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <FileText size={14} className="text-muted-foreground" />
-                    <div>
-                        <span className="text-foreground/80 block">{item.task}</span>
-                        {item.isSteering && <span className="text-[9px] text-[#3194A0] font-black uppercase tracking-tighter flex items-center gap-1"><Award size={10}/> Steering Milestone</span>}
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4 text-center">
-                  {item.cto_signed ? (
-                    <span className="bg-green-500/10 text-green-600 text-[10px] px-2 py-1 rounded-md font-bold border border-green-500/20">VERIFIED</span>
-                  ) : (
-                    <span className="bg-orange-500/10 text-orange-600 text-[10px] px-2 py-1 rounded-md font-bold border border-orange-500/20">AWAITING CTO</span>
-                  )}
-                </td>
-                <td className="p-4 text-center">
-                    <button className="text-muted-foreground hover:text-[#3194A0] transition-colors">
-                        <FileText size={18} />
-                    </button>
-                </td>
-                <td className="p-4">
-                  <div className="flex justify-end gap-2">
-                    <button 
-                      onClick={() => handleFinalSign(item)}
-                      disabled={!item.cto_signed}
-                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm ${
-                        item.cto_signed 
-                        ? 'bg-[#3194A0] text-white hover:brightness-110 active:scale-95' 
-                        : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
-                      }`}
-                    >
-                      {item.cto_signed ? 'SIGN AS MASTER' : 'LOCKED'}
-                    </button>
-                  </div>
-                </td>
+        {tasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+             <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                <CheckCircle2 size={32} className="text-green-500" />
+             </div>
+             <h3 className="text-lg font-bold text-foreground">All Clear, Captain!</h3>
+             <p className="text-muted-foreground max-w-xs mx-auto mt-2">
+               There are no pending tasks requiring your verification at this time.
+             </p>
+             <button 
+                onClick={loadQueue}
+                className="mt-6 text-xs font-bold text-primary hover:underline"
+             >
+                Refresh Queue
+             </button>
+          </div>
+        ) : (
+          <table className="w-full text-left text-sm border-collapse">
+            <thead className="bg-muted/50 text-muted-foreground font-bold uppercase text-[10px] tracking-widest border-b border-border">
+              <tr>
+                <th className="p-4">Personnel</th>
+                <th className="p-4">Competency Task</th>
+                <th className="p-4 text-center">Status</th>
+                <th className="p-4 text-center">Evidence</th>
+                <th className="p-4 text-right">Master's Sign-off</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {tasks.map((item) => (
+                <tr key={item.id} className="hover:bg-muted/5 transition-colors group">
+                  
+                  {/* PERSONNEL */}
+                  <td className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs border border-primary/20">
+                         {item.cadet?.first_name?.[0]}{item.cadet?.last_name?.[0]}
+                      </div>
+                      <div>
+                        <span className="font-bold text-foreground block">
+                          {item.cadet?.first_name} {item.cadet?.last_name}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground uppercase">
+                          {item.cadet?.rank} • {item.cadet?.department}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* TASK */}
+                  <td className="p-4">
+                    <div className="flex items-start gap-2 max-w-md">
+                      <FileText size={16} className="text-muted-foreground shrink-0 mt-0.5" />
+                      <div>
+                          <span className="text-foreground font-medium block">{item.template?.title}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
+                            {item.template?.code}
+                          </span>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* STATUS */}
+                  <td className="p-4 text-center">
+                    <span className="bg-green-500/10 text-green-600 text-[10px] px-2 py-1 rounded-md font-bold border border-green-500/20 flex items-center justify-center gap-1 w-fit mx-auto">
+                       <CheckCircle2 size={10} /> READY
+                    </span>
+                  </td>
+
+                  {/* EVIDENCE (Placeholder) */}
+                  <td className="p-4 text-center">
+                      <button className="text-muted-foreground hover:text-primary transition-colors p-2 hover:bg-muted rounded-lg" title="View Evidence">
+                          <FileText size={18} />
+                      </button>
+                  </td>
+
+                  {/* ACTION BUTTON */}
+                  <td className="p-4">
+                    <div className="flex justify-end gap-2">
+                      <button 
+                        onClick={() => handleFinalSign(item.id, item.template?.title)}
+                        disabled={processingId === item.id}
+                        className={`
+                          flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm
+                          ${processingId === item.id 
+                            ? 'bg-muted text-muted-foreground cursor-wait' 
+                            : 'bg-primary text-white hover:brightness-110 active:scale-95 shadow-primary/20'
+                          }
+                        `}
+                      >
+                        {processingId === item.id ? (
+                          <>Signing...</>
+                        ) : (
+                          <><Award size={14} /> SIGN AS MASTER</>
+                        )}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
