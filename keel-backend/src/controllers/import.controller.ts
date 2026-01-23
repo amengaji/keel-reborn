@@ -82,19 +82,87 @@ export const importCadets = async (req: Request, res: Response) => {
       }
 
       const userPayload = {
-        first_name: getValue(row, ['First Name', 'first_name', 'Name'])?.split(' ')[0] || 'Cadet',
-        last_name: getValue(row, ['Last Name', 'last_name']) || getValue(row, ['Full Name'])?.split(' ').slice(1).join(' ') || '',
+        /* ============================================================
+        * CORE IDENTITY
+        * ========================================================== */
+
+        first_name:
+          getValue(row, ['First Name', 'first_name']) ||
+          getValue(row, ['Full Name', 'Name'])?.split(' ')[0] ||
+          'Cadet',
+
+        last_name:
+          getValue(row, ['Last Name', 'last_name']) ||
+          getValue(row, ['Full Name'])?.split(' ').slice(1).join(' ') ||
+          '',
+
         email: email.toLowerCase(),
         password_hash: defaultPasswordHash,
         role_id: cadetRole.id,
         company_id: companyId,
         status: 'Ready',
-        dob: parseDate(row['Date of Birth'] || row['dob']),
-        // ... (Other fields mapped same as before) ...
-        rank: getValue(row, ['Rank', 'rank']) || 'CADET',
-        nationality: getValue(row, ['Nationality', 'Country']) || 'Unknown',
-        indos_number: getValue(row, ['INDoS No', 'INDoS'])
+
+        /* ============================================================
+        * PERSONAL
+        * ========================================================== */
+
+        dob: parseDate(getValue(row, ['Date of Birth', 'DOB'])),
+        gender: getValue(row, ['Gender']),
+        blood_group: getValue(row, ['Blood Group']),
+        phone: getValue(row, ['Mobile', 'Phone', 'Contact No']),
+
+        nationality: getValue(row, ['Nationality', 'Passport Nationality']),
+
+        /* ============================================================
+        * ADDRESS (these DO exist in User model)
+        * ========================================================== */
+
+        address: getValue(row, ['Address']),
+        city: getValue(row, ['City']),
+        state: getValue(row, ['State']),
+        country: getValue(row, ['Country']),
+        pincode: getValue(row, ['Pincode', 'Postal Code']),
+
+        /* ============================================================
+        * MARITIME / EMPLOYMENT
+        * ========================================================== */
+
+        rank: getValue(row, ['Rank', 'Trainee Type']) || 'CADET',
+        department: getValue(row, ['Department']),
+
+        indos_number: getValue(row, ['INDoS No', 'INDoS']),
+        sid_number: getValue(row, ['SID No', 'Seaman ID']),
+
+        /* ============================================================
+        * PASSPORT (VALID DB COLUMNS)
+        * ========================================================== */
+
+        passport_number: getValue(row, ['Passport No', 'Passport Number']),
+        passport_place: getValue(row, ['Passport Place']),
+        passport_issue_date: parseDate(getValue(row, ['Passport Issue Date'])),
+        passport_expiry_date: parseDate(getValue(row, ['Passport Expiry Date'])),
+
+        /* ============================================================
+        * CDC / SEAMAN BOOK (VALID DB COLUMNS)
+        * ========================================================== */
+
+        cdc_number: getValue(row, ['CDC No', 'Seaman Book No']),
+        cdc_country: getValue(row, ['CDC Country']),
+        cdc_issue_date: parseDate(getValue(row, ['CDC Issue Date'])),
+        cdc_expiry_date: parseDate(getValue(row, ['CDC Expiry Date'])),
+
+        /* ============================================================
+        * NEXT OF KIN (VALID DB COLUMNS)
+        * ========================================================== */
+
+        kin_name: getValue(row, ['Next of Kin Name', 'NOK Name']),
+        kin_relation: getValue(row, ['Relationship']),
+        kin_mobile: getValue(row, ['Kin Mobile', 'Emergency Contact']),
+        kin_email: getValue(row, ['Kin Email'])
       };
+
+
+
 
       try {
         const [user, created] = await User.findOrCreate({

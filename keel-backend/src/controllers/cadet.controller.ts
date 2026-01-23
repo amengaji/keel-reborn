@@ -61,13 +61,57 @@ export const getCadets = async (req: Request, res: Response) => {
 
       return {
         ...plainCadet,
-        name: `${plainCadet.first_name || ''} ${plainCadet.last_name || ''}`.trim(),
-        vessel: vesselName, 
-        sign_on_date: activeAssignment?.sign_on_date || null,
+
+        /* ------------------ UI EXPECTED KEYS ------------------ */
+
+        // Identity
+        fullName: `${plainCadet.first_name || ''} ${plainCadet.last_name || ''}`.trim(),
+        mobile: plainCadet.phone,
+
+        // Address
+        country: plainCadet.country,
+        state: plainCadet.state,
+        city: plainCadet.city,
+
+        // Emergency (Next of Kin)
+        kinName: plainCadet.kin_name,
+        kinRelation: plainCadet.kin_relation,
+        kinMobile: plainCadet.kin_mobile,
+        kinEmail: plainCadet.kin_email,
+
+        // Passport
+        passportNo: plainCadet.passport_number,
+        passportIssueDate: plainCadet.passport_issue_date,
+        passportExpiryDate: plainCadet.passport_expiry_date,
+        passportPlace: plainCadet.passport_place,
+
+        // CDC / Seaman Book
+        cdcNo: plainCadet.cdc_number,
+        cdcCountry: plainCadet.cdc_country,
+        cdcIssueDate: plainCadet.cdc_issue_date,
+        cdcExpiryDate: plainCadet.cdc_expiry_date,
+
+        // Other Documents
+        indosNo: plainCadet.indos_number,
+        sidNo: plainCadet.sid_number,
+
+        // Role / Employment
+        traineeType: plainCadet.rank,
+        department: plainCadet.department,
+
+        // Assignment-based
+        doj: activeAssignment?.sign_on_date || null,
+        vessel: vesselName,
+
+        // Progress
         completed_tasks_count: completedTasksCount,
         total_tasks_count: totalTasksCount,
-        progress: totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0
+        progress:
+          totalTasksCount > 0
+            ? Math.round((completedTasksCount / totalTasksCount) * 100)
+            : 0
       };
+
     });
     
     res.json(formattedCadets);
