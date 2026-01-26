@@ -8,6 +8,8 @@ import Task from '../models/Task';
 import Assignment from '../models/Assignment';
 import TraineeAssignment from '../models/TraineeAssignment'; 
 import bcrypt from 'bcrypt';
+import { Op } from 'sequelize';
+
 
 /**
  * GET ALL CADETS
@@ -33,19 +35,13 @@ export const getCadets = async (req: Request, res: Response) => {
         {
           model: Role,
           as: 'role',
-          where: isCTODeck
-            ? { name: ['CADET', 'TRAINEE_OS'] } // CTO Deck sees Deck Cadet + Trainee OS
-            : { name: 'CADET' }
+          where: { name: 'CADET' }
         },
+
         {
           model: TraineeAssignment,
           as: 'assignments',
-          where: isCTODeck
-            ? {
-                status: 'ACTIVE',
-                vessel_id: ctoVesselId // 🔒 CTO Deck vessel lock
-              }
-            : { status: 'ACTIVE' },
+          where: { status: 'ACTIVE' },
           required: false,
           include: [
             { 
@@ -66,7 +62,26 @@ export const getCadets = async (req: Request, res: Response) => {
       order: [['first_name', 'ASC']]
     });
 
-    const formattedCadets = cadets.map((c: any) => {
+    // ----------------------------------------------------
+// CTO DECK POST-FILTER (SAFE & DATA-ACCURATE)
+// ----------------------------------------------------
+const filteredCadets =
+  isCTODeck
+    ? cadets.filter((c: any) => {
+        const assignment = c.assignments?.[0];
+        if (!assignment) return false;
+
+        // Vessel lock
+        if (assignment.vessel_id !== ctoVesselId) return false;
+
+        // Rank-based deck logic (matches DB reality)
+        const rank = (c.rank || '').toLowerCase();
+        return rank.includes('deck') || rank.includes('trainee os');
+      })
+    : cadets;
+
+
+    const formattedCadets = filteredCadets.map((c: any) => {
       const plainCadet = c.get({ plain: true });
       const activeAssignment = plainCadet.assignments?.[0];
       const completedTasksCount = plainCadet.taskAssignments ? plainCadet.taskAssignments.length : 0;

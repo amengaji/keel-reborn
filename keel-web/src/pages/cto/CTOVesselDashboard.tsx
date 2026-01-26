@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 
 /**
  * CTOVesselDashboard Component
- * UPDATED: Broader filtering to catch "Deck Cadet (DNS)", "Trainee OS", etc.
+ * UPDATED: Uses ACTIVE TraineeAssignment to determine onboard + vessel match.
  */
 const CTOVesselDashboard: React.FC = () => {
   const [assignedTrainees, setAssignedTrainees] = useState<any[]>([]);
@@ -39,7 +39,10 @@ const CTOVesselDashboard: React.FC = () => {
   const isRelevantRank = (trainee: any, ctoDept: string) => {
     const dept = ctoDept.toLowerCase();
     const tDept = (trainee.department || '').toLowerCase();
-    const tRank = (trainee.rank || '').toLowerCase();
+
+    // NOTE: In your cadet API, the "rank" is exposed as traineeType in many places.
+    // We support both for safety.
+    const tRank = (trainee.rank || trainee.traineeType || '').toLowerCase();
 
     // 1. Direct Department Match
     if (tDept === dept) return true;
@@ -64,6 +67,16 @@ const CTOVesselDashboard: React.FC = () => {
     return false;
   };
 
+  /**
+   * Helper: Returns the ACTIVE assignment (if any)
+   * This is the authoritative source of onboard + vessel_id for trainees.
+   */
+  const getActiveAssignment = (trainee: any) => {
+    const assignments = trainee?.assignments || [];
+    if (!Array.isArray(assignments)) return null;
+    return assignments.find((a: any) => String(a?.status).toUpperCase() === 'ACTIVE') || null;
+  };
+
   const loadDashboardData = async () => {
     try {
       setLoading(true);
@@ -81,16 +94,19 @@ const CTOVesselDashboard: React.FC = () => {
 
       // 1. Fetch ALL Trainees
       const allTrainees = await cadetService.getAll();
-      
-      // 2. STRICT FILTERING
+
+      // 2. STRICT FILTERING (based on ACTIVE TraineeAssignment)
       const myCrew = allTrainees.filter((t: any) => {
-        // A. Must be Onboard
-        const isOnboard = t.status === 'Onboard';
-        
-        // B. Must be on MY Vessel (Safe Comparison)
-        const isMyShip = String(t.vessel_id) === String(myVesselId);
-        
-        // C. Must be in MY Department (using helper)
+        const activeAssignment = getActiveAssignment(t);
+
+        // A. Must be Onboard (ACTIVE assignment)
+        const isOnboard = !!activeAssignment;
+
+        // B. Must be on MY Vessel (compare ACTIVE assignment vessel_id)
+        const traineeVesselId = activeAssignment?.vessel_id;
+        const isMyShip = String(traineeVesselId) === String(myVesselId);
+
+        // C. Must be in MY Department (rank-based helper)
         const isMyDept = myDept ? isRelevantRank(t, myDept) : true;
 
         return isOnboard && isMyShip && isMyDept;
@@ -98,10 +114,22 @@ const CTOVesselDashboard: React.FC = () => {
 
       setAssignedTrainees(myCrew);
 
-      // 3. Fetch Pending Tasks (Filtered)
+      // 3. Fetch Pending Tasks (keep existing logic, but add safe fallback)
+      // NOTE: Your assignment API may not include cadet.vessel_id if not selected in attributes.
+      // We filter using cadet id + trainee assignments already loaded when possible.
       const allPendingTasks = await assignmentService.getPendingCTOApprovals();
+
       const myPendingTasks = allPendingTasks.filter((task: any) => {
-          return String(task.cadet?.vessel_id) === String(myVesselId);
+        const cadet = task?.cadet;
+        if (!cadet) return false;
+
+        // Try vessel_id if present (some APIs may provide it)
+        if (cadet?.vessel_id != null) {
+          return String(cadet.vessel_id) === String(myVesselId);
+        }
+
+        // Fallback: try to match using the trainee list we already filtered
+        return myCrew.some((t: any) => String(t?.id) === String(cadet?.id));
       });
 
       setPendingCount(myPendingTasks.length);
@@ -184,7 +212,7 @@ const CTOVesselDashboard: React.FC = () => {
                         </div>
                         <div>
                         <h3 className="font-bold text-foreground">{trainee.first_name} {trainee.last_name}</h3>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{trainee.rank || 'Trainee'}</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{trainee.rank || trainee.traineeType || 'Trainee'}</p>
                         </div>
                     </div>
                     <div className="text-right">
