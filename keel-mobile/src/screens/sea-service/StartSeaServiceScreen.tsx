@@ -35,9 +35,9 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-import { MainStackParamList } from "../navigation/types";
-import DateInputField from "../components/inputs/DateInputField";
-import { useSeaService } from "../sea-service/SeaServiceContext";
+import { MainStackParamList } from "../../navigation/types";
+import DateInputField from "../../components/inputs/DateInputField";
+import { useSeaService } from "../../sea-service/SeaServiceContext";
 
 /**
  * ============================================================

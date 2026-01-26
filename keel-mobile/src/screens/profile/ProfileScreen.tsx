@@ -22,11 +22,11 @@ import {
   Fingerprint, Info, Image as ImageIcon, X
 } from "lucide-react-native";
 
-import { KeelScreen } from "../components/ui/KeelScreen";
-import { useAuth } from "../auth/AuthContext";
-import DateInputField from "../components/inputs/DateInputField";
-import PhotoCaptureModal from "../components/profile/PhotoCaptureModal";
-import { RELATIONSHIPS } from "../constants/maritime"; // FIXED: Local import
+import { KeelScreen } from "../../components/ui/KeelScreen";
+import { useAuth } from "../../auth/AuthContext";
+import DateInputField from "../../components/inputs/DateInputField";
+import PhotoCaptureModal from "../../components/profile/PhotoCaptureModal";
+import { RELATIONSHIPS } from "../../constants/maritime"; // FIXED: Local import
 
 const { width } = Dimensions.get('window');
 

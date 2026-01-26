@@ -1,4 +1,4 @@
-//keel-mobile/src/screens/SeaServiceScreen.tsx
+//keel-mobile/src/screens/sea-service/SeaServiceScreen.tsx
 
 /**
  * ============================================================
@@ -32,11 +32,12 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { MainStackParamList } from "../navigation/types";
-import { useToast } from "../components/toast/useToast";
-import { useSeaService } from "../sea-service/SeaServiceContext";
-import { getSeaServiceSummary } from "../sea-service/seaServiceStatus";
-import DateInputField from "../components/inputs/DateInputField"; 
+// ✅ FIXED: Updated paths to go up 2 levels (../../)
+import { MainStackParamList } from "../../navigation/types";
+import { useToast } from "../../components/toast/useToast";
+import { useSeaService } from "../../sea-service/SeaServiceContext";
+import { getSeaServiceSummary } from "../../sea-service/seaServiceStatus";
+import DateInputField from "../../components/inputs/DateInputField"; 
 
 /**
  * Helper: Format date safely for UI display.

@@ -33,7 +33,7 @@ import {
   HardHat,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import DateInputField from "../components/inputs/DateInputField";
+import DateInputField from "../../components/inputs/DateInputField";
 import Toast from "react-native-toast-message";
 
 const { width } = Dimensions.get("window");

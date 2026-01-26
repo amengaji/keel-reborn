@@ -22,8 +22,8 @@ import { View, StyleSheet } from "react-native";
 import { Appbar, useTheme } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
 
-import SeaServiceWizard from "../sea-service/SeaServiceWizard";
-import { useToast } from "../components/toast/useToast";
+import SeaServiceWizard from "../../sea-service/SeaServiceWizard";
+import { useToast } from "../../components/toast/useToast";
 
 export default function SeaServiceWizardScreen() {
   const theme = useTheme();

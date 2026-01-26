@@ -6,17 +6,25 @@ import { useTheme } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
+// ✅ FIXED: Screens are now in 'main' deck
 import HomeScreen from "../screens/main/HomeScreen";
-import SeaServiceScreen from "../screens/SeaServiceScreen";
-import TaskListScreen from "../screens/TaskListScreen";
-import DailyScreen from "../screens/DailyScreen";
-import ProfileScreen from "../screens/ProfileScreen";
-import SettingsScreen from "../screens/SettingsScreen";
+// ✅ FIXED: Screens are now in 'sea-service' deck
+import SeaServiceScreen from "../screens/sea-service/SeaServiceScreen";
+// ✅ FIXED: Screens are now in 'tasks' deck
+import TaskListScreen from "../screens/tasks/TaskListScreen";
+// ✅ FIXED: Screens are now in 'daily' deck
+import DailyScreen from "../screens/daily/DailyScreen";
+// ✅ FIXED: Screens are now in 'profile' deck
+import ProfileScreen from "../screens/profile/ProfileScreen";
+import SettingsScreen from "../screens/profile/SettingsScreen";
+// ✅ FIXED: Screens are now in 'tasks' deck
 import TasksHomeScreen from "../screens/tasks/TasksHomeScreen";
 
 import TaskSectionScreen from "../screens/tasks/TaskSectionScreen";
-import TaskDetailsScreen from "../screens/TaskDetailsScreen";
-import { VesselParticularsScreen } from "../screens/VesselParticularsScreen";
+// ✅ FIXED: Moved to 'tasks' folder
+import TaskDetailsScreen from "../screens/tasks/TaskDetailsScreen";
+// ✅ FIXED: Moved to 'vessel' folder
+import { VesselParticularsScreen } from "../screens/vessel/VesselParticularsScreen";
 
 
 const Tab = createBottomTabNavigator();

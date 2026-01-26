@@ -33,20 +33,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
 
-import { KeelScreen } from "../components/ui/KeelScreen";
-import { KeelButton } from "../components/ui/KeelButton";
-import { useToast } from "../components/toast/useToast";
-import TaskAttachments from "../components/tasks/TaskAttachments";
+import { KeelScreen } from "../../components/ui/KeelScreen";
+import { KeelButton } from "../../components/ui/KeelButton";
+import { useToast } from "../../components/toast/useToast";
+import TaskAttachments from "../../components/tasks/TaskAttachments";
 
-import { getTaskByKey, upsertTaskStatus } from "../db/tasks";
-import { getStaticTaskByKey } from "../tasks/taskCatalog.static";
+import { getTaskByKey, upsertTaskStatus } from "../../db/tasks";
+import { getStaticTaskByKey } from "../../tasks/taskCatalog.static";
 
 import {
   ensureTaskAttachmentsTable,
   getAttachmentsForTask,
   insertTaskAttachment,
   softDeleteTaskAttachment,
-} from "../db/taskAttachments";
+} from "../../db/taskAttachments";
 
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";

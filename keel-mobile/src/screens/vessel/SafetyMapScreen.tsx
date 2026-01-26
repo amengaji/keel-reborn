@@ -1,18 +1,48 @@
-//keel-mobile/src/screens/SafetyMapScreen.tsx
+//keel-mobile/src/screens/vessel/SafetyMapScreen.tsx
 
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { Text, useTheme, Surface, Button, TextInput, Menu, IconButton, Divider, ProgressBar } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
 import { 
-  ShieldAlert, LifeBuoy, Flame, ClipboardList, Plus, Trash2, 
-  ChevronDown, Zap, Anchor, Wind, Droplets, HardHat, AlertTriangle, Activity, HeartPulse, BookOpen, Scale,
-  Lock, CheckCircle2
+  ShieldAlert, LifeBuoy, Flame, ClipboardList, Lock, ChevronDown, Zap, 
+  Droplets, HardHat, Activity
 } from "lucide-react-native";
-import YesNoCapsule from "../components/common/YesNoCapsule";
+// ✅ FIXED: Updated import path for the new folder structure
+import YesNoCapsule from "../../components/common/YesNoCapsule";
 import Toast from 'react-native-toast-message';
 
-const TechnicalDropdown = ({ label, options, value, onSelect, disabled }: any) => {
+// ✅ TYPE DEFINITIONS (This fixes the TS Errors)
+interface ItemDetails {
+  [key: string]: string; // Allows any string property (make, type, capacity, etc.)
+}
+
+interface SafetyItem {
+  id: string;
+  name: string;
+  found: boolean | null;
+  details: ItemDetails;
+  options?: string[]; // Optional: Not all items have dropdowns
+  davitOptions?: string[]; // Optional: Specific to lifeboats
+}
+
+interface SafetySection {
+  id: string;
+  title: string;
+  icon: React.ReactNode;
+  items: SafetyItem[];
+}
+
+// ✅ TYPED DROPDOWN COMPONENT
+interface TechnicalDropdownProps {
+  label: string;
+  options?: string[];
+  value: string | undefined;
+  onSelect: (val: string) => void;
+  disabled?: boolean;
+}
+
+const TechnicalDropdown = ({ label, options = [], value, onSelect, disabled }: TechnicalDropdownProps) => {
   const [visible, setVisible] = useState(false);
   const theme = useTheme();
   return (
@@ -40,21 +70,21 @@ const TechnicalDropdown = ({ label, options, value, onSelect, disabled }: any) =
   );
 };
 
-export const SafetyMapScreen = () => {
+export default function SafetyMapScreen() {
   const theme = useTheme();
   const navigation = useNavigation<any>();
 
-  // VERIFICATION STATE (Determines if form is editable)
+  // VERIFICATION STATE
   const [isLocked, setIsLocked] = useState(false);
 
   // DYNAMIC STATE FOR MULTIPLE SYSTEMS
-  const [lifeboats, setLifeboats] = useState([{ id: 1, type: '', davit: '', make: '', cap: '', dim: '' }]);
-  const [liferafts, setLiferafts] = useState([{ id: 1, type: '', make: '', cap: '', release: '' }]);
-  const [lifebuoys, setLifebuoys] = useState([{ id: 1, loc: '', type: '' }]);
-  const [fixedSystems, setFixedSystems] = useState([{ id: 1, type: '', make: '', zones: '' }]);
+  const [lifeboats, setLifeboats] = useState<{ id: number; type: string; davit: string; make: string; cap: string; dim: string }[]>([{ id: 1, type: '', davit: '', make: '', cap: '', dim: '' }]);
+  const [liferafts, setLiferafts] = useState<{ id: number; type: string; make: string; cap: string; release: string }[]>([{ id: 1, type: '', make: '', cap: '', release: '' }]);
+  const [lifebuoys, setLifebuoys] = useState<{ id: number; loc: string; type: string }[]>([{ id: 1, loc: '', type: '' }]);
+  const [fixedSystems, setFixedSystems] = useState<{ id: number; type: string; make: string; zones: string }[]>([{ id: 1, type: '', make: '', zones: '' }]);
 
-  // MASTER DATA STRUCTURE BASED ON 21-POINT LIST
-  const [sections, setSections] = useState([
+  // ✅ MASTER DATA STRUCTURE (Typed with SafetySection[])
+  const [sections, setSections] = useState<SafetySection[]>([
     {
       id: 'MUSTER',
       title: '1. MUSTER & EMERGENCY ORG',
@@ -70,6 +100,7 @@ export const SafetyMapScreen = () => {
       title: '2. PERSONAL LSA & RESCUE',
       icon: <LifeBuoy size={20} color="#3194A0" />,
       items: [
+        // l1 removed or implied? Added placeholder if needed or relying on dynamic lists below
         { id: 'l3', name: 'EPIRB', found: null, details: { make: '', batteryExpiry: '', hruExpiry: '' } },
         { id: 'l4', name: 'SART (Radar/AIS)', found: null, details: { make: '', type: 'Radar' }, options: ['Radar', 'AIS'] },
         { id: 'l5', name: 'Lifejackets & Immersion Suits', found: null, details: { cabinLocation: '', sizeChecked: 'Yes' } },
@@ -215,10 +246,20 @@ export const SafetyMapScreen = () => {
                   {item.id === 'f2' && <TechnicalDropdown label="Coupling" options={item.options} value={item.details.couplingType} onSelect={(v: any) => updateDetail(section.id, item.id, 'couplingType', v)} disabled={isLocked} />}
                   {item.id === 'l4' && <TechnicalDropdown label="SART Type" options={item.options} value={item.details.type} onSelect={(v: any) => updateDetail(section.id, item.id, 'type', v)} disabled={isLocked} />}
 
+                  {/* DYNAMIC FIELD RENDERER: Skips the dropdown fields we handled above */}
                   {Object.keys(item.details).map((key) => {
                     if (['type', 'davit', 'start1', 'start2', 'couplingType'].includes(key)) return null;
                     return (
-                      <TextInput key={key} label={key.replace(/([A-Z])/g, ' $1').toUpperCase()} value={(item.details as any)[key]} onChangeText={(txt) => updateDetail(section.id, item.id, key, txt)} mode="outlined" dense style={styles.input} editable={!isLocked} />
+                      <TextInput 
+                        key={key} 
+                        label={key.replace(/([A-Z])/g, ' $1').toUpperCase()} 
+                        value={item.details[key]} 
+                        onChangeText={(txt) => updateDetail(section.id, item.id, key, txt)} 
+                        mode="outlined" 
+                        dense 
+                        style={styles.input} 
+                        editable={!isLocked} 
+                      />
                     );
                   })}
                 </View>

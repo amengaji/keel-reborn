@@ -28,8 +28,8 @@ import {
   useTheme,
 } from "react-native-paper";
 
-import { KeelScreen } from "../components/ui/KeelScreen";
-import { useAuth } from "../auth/AuthContext";
+import { KeelScreen } from "../../components/ui/KeelScreen";
+import { useAuth } from "../../auth/AuthContext";
 
 export default function SettingsScreen() {
   const theme = useTheme();

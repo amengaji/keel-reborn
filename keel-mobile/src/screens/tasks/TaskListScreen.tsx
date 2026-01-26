@@ -19,17 +19,17 @@
 import React, { useEffect, useState } from "react";
 import { View, StyleSheet, FlatList } from "react-native";
 import { Text, useTheme } from "react-native-paper";
-import { KeelScreen } from "../components/ui/KeelScreen";
-import { KeelCard } from "../components/ui/KeelCard";
-import { KeelButton } from "../components/ui/KeelButton";
+import { KeelScreen } from "../../components/ui/KeelScreen";
+import { KeelCard } from "../../components/ui/KeelCard";
+import { KeelButton } from "../../components/ui/KeelButton";
 import { useNavigation } from "@react-navigation/native";
-import { useToast } from "../components/toast/useToast";
+import { useToast } from "../../components/toast/useToast";
 
 import {
   ensureSeedTasksExist,
   getAllTaskRecords,
   TaskRecord,
-} from "../db/tasks";
+} from "../../db/tasks";
 
 /**
  * ------------------------------------------------------------

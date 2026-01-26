@@ -13,18 +13,24 @@ import AppHeader from "../components/layout/AppHeader";
 /**
  * Screens that MUST be full-screen (NO AppHeader, NO Tabs)
  */
-import SeaServiceWizardScreen from "../screens/SeaServiceWizardScreen";
-import StartSeaServiceScreen from "../screens/StartSeaServiceScreen";
+// ✅ FIXED: Updated Path
+import SeaServiceWizardScreen from "../screens/sea-service/SeaServiceWizardScreen";
+// ✅ FIXED: Updated Path
+import StartSeaServiceScreen from "../screens/sea-service/StartSeaServiceScreen";
 import DataSyncScreen from "../screens/DataSyncScreen";
 
 /**
  * Feature Screens (Tasks, Daily Logs, Vessel Info)
  * These screens usually require the AppHeader context
  */
-import { VesselParticularsScreen } from "../screens/VesselParticularsScreen";
+// ✅ FIXED: Updated Path
+import {VesselParticularsScreen} from "../screens/vessel/VesselParticularsScreen";
+// ✅ FIXED: Updated Path
 import TaskSectionScreen from "../screens/tasks/TaskSectionScreen";
-import TaskDetailsScreen from "../screens/TaskDetailsScreen";
-import DailyScreen from "../screens/DailyScreen";
+// ✅ FIXED: Updated Path
+import TaskDetailsScreen from "../screens/tasks/TaskDetailsScreen";
+// ✅ FIXED: Updated Path
+import DailyScreen from "../screens/daily/DailyScreen";
 
 const RootStack = createNativeStackNavigator<MainStackParamList>();
 const InnerStack = createNativeStackNavigator<MainStackParamList>();
