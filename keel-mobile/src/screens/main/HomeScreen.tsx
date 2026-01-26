@@ -1,4 +1,4 @@
-//keel-mobile/src/screens/main/HomeScreen.tsx
+//keel-mobile/src/screens/HomeScreen.tsx
 
 import React, { useEffect, useState } from "react";
 import { View, StyleSheet, ScrollView, TouchableOpacity, Modal } from "react-native";
@@ -20,7 +20,6 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from 'expo-blur';
 
-// ✅ FIXED: All paths updated to ../../ for components/services
 import { KeelScreen } from "../../components/ui/KeelScreen";
 import { useSeaService } from "../../sea-service/SeaServiceContext";
 import { getSeaServiceSummary } from "../../sea-service/seaServiceStatus";
@@ -39,7 +38,6 @@ export default function HomeScreen() {
   const { payload } = useSeaService();
   const { stcwComplianceStatus, logs } = useDailyLogs();
 
-  // Task Statistics
   const [taskStats, setTaskStats] = useState({ total: 0, completed: 0 });
   const [joinModalVisible, setJoinModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -60,8 +58,6 @@ export default function HomeScreen() {
   };
 
   const seaService = getSeaServiceSummary(payload?.sections, payload?.shipType ?? undefined);
-
-  // Status Logic
   const isOnboard = user?.status === 'Onboard';
   const isAssigned = !!user?.vesselId;
 
@@ -69,7 +65,7 @@ export default function HomeScreen() {
     <KeelScreen>
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         
-        {/* 1) MARITIME HERO */}
+        {/* HERO SECTION */}
         <Surface style={styles.heroWrapper} elevation={0}>
           <LinearGradient colors={['#3194A0', '#1A2426']} style={styles.heroGradient}>
             <View style={styles.heroTopRow}>
@@ -89,17 +85,12 @@ export default function HomeScreen() {
                 {refreshing ? <ActivityIndicator size={20} color="#FFF" /> : <RefreshCcw size={20} color="#FFF" />}
               </TouchableOpacity>
             </View>
-            
             <Divider style={styles.heroDivider} />
-            
-            {/* DYNAMIC VESSEL ROW */}
             <View style={styles.vesselRow}>
               <Ship size={18} color="rgba(255,255,255,0.6)" />
               <Text style={styles.vesselName}>
                 {user?.vesselName ? `${user.vesselName.toUpperCase()}` : "NO VESSEL ASSIGNED"}
               </Text>
-              
-              {/* Show Status Pill next to vessel */}
               <View style={[styles.statusPill, { backgroundColor: isOnboard ? '#4ADE80' : '#F59E0B' }]}>
                 <Text style={styles.statusPillText}>{user?.status?.toUpperCase() || "READY"}</Text>
               </View>
@@ -107,9 +98,7 @@ export default function HomeScreen() {
           </LinearGradient>
         </Surface>
 
-        {/* 2) ACTIONS & ALERTS */}
-        
-        {/* CASE: ASSIGNED BUT NOT JOINED -> SHOW JOIN ACTION */}
+        {/* ALERTS */}
         {isAssigned && !isOnboard && (
           <Surface style={styles.alertCard} elevation={2}>
             <LinearGradient colors={['#F59E0B', '#D97706']} style={styles.alertGradient} start={{x:0, y:0}} end={{x:1, y:0}}>
@@ -117,7 +106,6 @@ export default function HomeScreen() {
                 <View>
                   <Text style={styles.alertTitle}>Ready to Join?</Text>
                   <Text style={styles.alertSub}>You are assigned to {user?.vesselName}.</Text>
-                  <Text style={styles.alertSub}>Tap to confirm joining details.</Text>
                 </View>
                 <Button mode="contained" buttonColor="#FFF" textColor="#D97706" onPress={() => setJoinModalVisible(true)}>
                   JOIN SHIP
@@ -127,28 +115,7 @@ export default function HomeScreen() {
           </Surface>
         )}
 
-        {/* CASE: NOT ONBOARD -> SHOW STATUS TOGGLE (READY / LEAVE) */}
-        {!isOnboard && (
-          <View style={styles.statusToggleContainer}>
-             <Text style={styles.sectionTitle}>CURRENT STATUS</Text>
-             <View style={styles.statusToggleRow}>
-                <StatusOption 
-                  label="Ready to Join" 
-                  active={user?.status === 'Ready'} 
-                  color="#3194A0" 
-                  onPress={() => updateUser({ status: 'Ready' })}
-                />
-                <StatusOption 
-                  label="On Leave" 
-                  active={user?.status === 'Leave'} 
-                  color="#EF4444" 
-                  onPress={() => updateUser({ status: 'Leave' })}
-                />
-             </View>
-          </View>
-        )}
-
-        {/* 3) TECHNICAL KPI GRID */}
+        {/* KPI GRID */}
         <View style={styles.kpiGrid}>
           <KPICard 
             icon={<Activity size={20} color="#3194A0" />} 
@@ -162,14 +129,14 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* 4) COMPLIANCE */}
+        {/* COMPLIANCE */}
         <Text style={styles.sectionTitle}>Compliance & Readiness</Text>
 
         <ComplianceIndicatorCard
           title="Sea Service Profile"
           status={seaService.inProgressSections > 0 ? "ATTENTION" : "ON_TRACK"}
           summary={`${seaService.completedSections} of ${seaService.totalSections} sections finalized`}
-          onPress={() => navigation.navigate("SeaServiceWizard")}
+          onPress={() => navigation.navigate("SeaService")} // Pointing to Tab
         />
 
         <WatchkeepingCompliance />
@@ -181,7 +148,7 @@ export default function HomeScreen() {
           onPress={() => navigation.navigate("Tasks")}
         />
 
-        {/* 5) QUICK ACTIONS */}
+        {/* QUICK ACTIONS - CLEANED UP */}
         <View style={styles.actionSection}>
           <Text style={styles.sectionTitle}>Operational Actions</Text>
           <View style={styles.actionGrid}>
@@ -190,12 +157,7 @@ export default function HomeScreen() {
               icon={<Database size={20} color="#FFF" />} 
               onPress={() => navigation.navigate("Daily")}
             />
-            <ActionBtn 
-              title="Vessel Info" 
-              icon={<Ship size={20} color="#FFF" />} 
-              onPress={() => navigation.navigate("VesselParticulars")}
-              outlined
-            />
+            {/* REMOVED: Vessel Info Button (Redundant) */}
           </View>
         </View>
 
@@ -216,6 +178,10 @@ export default function HomeScreen() {
   );
 }
 
+// ... (Rest of the helper components: StatusOption, JoinVesselModal, KPICard, ActionBtn, WatchkeepingCompliance, styles)
+// KEEP THEM EXACTLY AS THEY WERE IN YOUR FILE
+// I am omitting them here for brevity, but you should keep the existing helper code block at the bottom of the file.
+
 const StatusOption = ({ label, active, color, onPress }: any) => (
   <TouchableOpacity onPress={onPress} style={[styles.statusOption, active && { backgroundColor: color, borderColor: color }]}>
     <Text style={[styles.statusOptionText, active && { color: '#FFF' }]}>{label}</Text>
@@ -232,7 +198,6 @@ const JoinVesselModal = ({ visible, onClose, vesselName, onSuccess }: any) => {
         alert("Please select a sign-on date.");
         return;
     }
-    
     setLoading(true);
     try {
       await api.post('/trainee-assignments/join', {
@@ -255,11 +220,9 @@ const JoinVesselModal = ({ visible, onClose, vesselName, onSuccess }: any) => {
         <Surface style={styles.modalContent} elevation={4}>
           <Text style={styles.modalTitle}>Join {vesselName}</Text>
           <Text style={styles.modalSub}>Please confirm your sign-on details.</Text>
-          
           <View style={{ marginVertical: 16 }}>
              <DateInputField label="Sign On Date" value={date} onChange={setDate} />
           </View>
-          
           <TextInput 
             label="Port of Embarkation" 
             value={port} 
@@ -269,12 +232,9 @@ const JoinVesselModal = ({ visible, onClose, vesselName, onSuccess }: any) => {
             outlineColor="#E5E7EB"
             activeOutlineColor="#3194A0"
           />
-
           <View style={styles.modalActions}>
              <Button onPress={onClose} style={{flex:1}} textColor="#6B7280">Cancel</Button>
-             <Button mode="contained" onPress={handleJoin} loading={loading} style={{flex:1}} buttonColor="#3194A0">
-                Confirm & Join
-             </Button>
+             <Button mode="contained" onPress={handleJoin} loading={loading} style={{flex:1}} buttonColor="#3194A0">Confirm & Join</Button>
           </View>
         </Surface>
       </View>
@@ -337,17 +297,14 @@ const styles = StyleSheet.create({
   vesselName: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '700', marginLeft: 10, letterSpacing: 0.5, flex: 1 },
   statusPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginLeft: 8 },
   statusPillText: { fontSize: 9, fontWeight: '900', color: '#FFF' },
-  
   alertCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 20 },
   alertGradient: { padding: 16 },
   alertTitle: { color: '#FFF', fontSize: 16, fontWeight: '800', marginBottom: 2 },
   alertSub: { color: 'rgba(255,255,255,0.8)', fontSize: 12 },
-
   statusToggleContainer: { marginBottom: 20 },
   statusToggleRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   statusOption: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
   statusOptionText: { fontWeight: '700', fontSize: 13, color: '#6B7280' },
-
   kpiGrid: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   kpiCard: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, borderLeftWidth: 4, borderLeftColor: '#3194A0' },
   kpiContent: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
@@ -358,7 +315,6 @@ const styles = StyleSheet.create({
   actionSection: { marginTop: 12 },
   actionGrid: { flexDirection: 'row', gap: 10 },
   actionBtn: { flex: 1, borderRadius: 12 },
-
   modalOverlay: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,0.5)' },
   modalContent: { backgroundColor: '#FFF', borderRadius: 24, padding: 24 },
   modalTitle: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 4 },

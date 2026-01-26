@@ -1,6 +1,7 @@
 //keel-mobile/src/db/tasks.ts
 import { getDatabase } from "./database";
 import { TASK_SEED } from "./tasks/taskSeed"; 
+import { Platform } from "react-native";
 
 /**
  * ============================================================
@@ -58,6 +59,67 @@ export type TaskRecord = {
   syncState: SyncState;
   createdAt: string;
   updatedAt: string;
+};
+
+/**
+ * SMART SYNC: Merges Backend Tasks with Local Progress
+ * * Rules:
+ * 1. If task is NEW -> Insert it with status 'NOT_STARTED'.
+ * 2. If task EXISTS -> Update Title/Description (Shore might have fixed a typo), 
+ * but KEEP the local 'status', 'evidence_count', and 'completed_date'.
+ */
+export const syncTasksFromShore = (serverTasks: any[]): Promise<void> => {
+  const db = getDatabase();
+
+  return new Promise((resolve, reject) => {
+    try {
+      // Use synchronous transaction for consistency with the rest of the file
+      db.withTransactionSync(() => {
+        serverTasks.forEach(task => {
+          // Generate IDs consistent with local pattern
+          // We assume shore task has 'id' (remote_id) and 'task_key' (or we use id as key)
+          const taskKey = task.task_key || task.code || `R-${task.id}`;
+          const localId = `TASK_${taskKey}`;
+          const now = new Date().toISOString();
+
+          // 1. Try to insert new task (will fail silently if ID exists)
+          // We map Shore fields to our Local Schema
+          db.runSync(
+            `INSERT OR IGNORE INTO task_records (
+              id, task_key, task_title, status, 
+              remarks, signed_by, signed_rank, signed_at,
+              remote_id, sync_state, created_at, updated_at
+             ) VALUES (?, ?, ?, 'NOT_STARTED', ?, NULL, NULL, NULL, ?, 'SYNCED', ?, ?);`,
+            [
+              localId,
+              taskKey,
+              task.title,
+              task.description || null, // Map desc to remarks for now if desired
+              task.id, // Store shore ID as remote_id
+              now,
+              now
+            ]
+          );
+
+          // 2. Update definition (Title) but PRESERVE Status
+          // This ensures if Shore Admin renames "Mop Deck" to "Sanitize Deck",
+          // the cadet sees the new name but keeps their "COMPLETED" checkmark.
+          db.runSync(
+            `UPDATE task_records 
+             SET task_title = ?, remote_id = ?, updated_at = ?
+             WHERE id = ?;`,
+            [task.title, task.id, now, localId]
+          );
+        });
+      });
+      
+      console.log(`✅ Synced ${serverTasks.length} tasks from Shore.`);
+      resolve();
+    } catch (error) {
+      console.error("Task Sync Failed:", error);
+      reject(error);
+    }
+  });
 };
 
 /**

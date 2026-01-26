@@ -76,4 +76,26 @@ export const assignmentService = {
   }
 };
 
+// Add this inside your existing 'api' object or create a new 'taskService' export
+
+export const taskService = {
+  /**
+   * Fetches tasks assigned to a specific rank (e.g. 'DECK_CADET')
+   * Backend should return: { id, title, description, section, category, min_evidence }
+   */
+  getByRank: async (rank: string) => {
+    // We assume the backend handles the filtering based on the query param
+    const response = await api.get(`/training-tasks?rank=${encodeURIComponent(rank)}`);
+    return response.data; 
+  },
+
+  /**
+   * Optional: Upload local progress to backend
+   */
+  syncProgress: async (progressData: any) => {
+    const response = await api.post('/training-tasks/sync', progressData);
+    return response.data;
+  }
+};
+
 export default api;

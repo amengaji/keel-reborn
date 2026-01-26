@@ -1,116 +1,112 @@
-// keel-mobile/src/screens/DataSyncScreen.tsx
+//keel-mobile/src/screens/DataSyncScreen.tsx
 
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
-import { Text, ActivityIndicator, useTheme, Surface, ProgressBar } from 'react-native-paper';
-import { Ship, CloudDownload, CheckCircle } from 'lucide-react-native';
-import { useAuth } from '../auth/AuthContext';
-import { useNavigation } from '@react-navigation/native';
-import api from '../services/api';
-import { SyncService } from '../services/SyncService';
+import React, { useEffect, useState } from "react";
+import { View, StyleSheet, Alert, Platform } from "react-native"; // ✅ Added Platform
+import { Text, ActivityIndicator, useTheme, ProgressBar } from "react-native-paper";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
+// Services & DB
+import { useAuth } from "../auth/AuthContext";
+import { taskService } from "../services/api";
+import { syncTasksFromShore } from "../db/tasks";
+import { MainStackParamList } from "../navigation/types";
 
-const { width } = Dimensions.get('window');
+type NavigationProp = NativeStackNavigationProp<MainStackParamList, "DataSync">;
 
 export default function DataSyncScreen() {
   const theme = useTheme();
+  const navigation = useNavigation<NavigationProp>();
+  // ✅ Removed 'token', relying on user presence
   const { user, refreshUser } = useAuth();
-  const navigation = useNavigation<any>(); // We will type this properly later
   
   const [status, setStatus] = useState("Initializing...");
   const [progress, setProgress] = useState(0.1);
 
   useEffect(() => {
-    runSyncSequence();
-  }, []);
+    // Only run if we have a user context (AuthNavigator handles the null case)
+    if (user) {
+        runSyncSequence();
+    }
+  }, [user]); // Re-run if user object changes/hydrates
 
   const runSyncSequence = async () => {
     try {
-      // Step 1: User Profile & Assignments
-      setStatus("Fetching Profile & Assignments...");
-      await refreshUser(); 
+      // 1. REFRESH PROFILE
+      setStatus("Checking Profile...");
       setProgress(0.3);
+      
+      // We await the refresh, but don't assign the result since it might be void.
+      await refreshUser(); 
+      
+      // We read the rank from the current user object. 
+      // Fallback to "Deck Cadet" if undefined during initial boot.
+      const userRank = user?.rank || "Deck Cadet"; 
 
-      // Step 2: Vessel Details (if assigned)
-      if (user?.vesselId) {
-        setStatus(`Syncing ${user.vesselName || 'Vessel'} Data...`);
-        // Simulate fetch or actually call API if we had a local DB to cache into
-        await api.get(`/vessels/${user.vesselId}`); 
+      // 2. SYNC TASKS
+      setStatus(`Syncing ${userRank} Tasks...`);
+      setProgress(0.5);
+
+      try {
+        // A. Fetch from Shore
+        const shoreTasks = await taskService.getByRank(userRank);
+        
+        // B. Save to Local DB
+        if (shoreTasks && shoreTasks.length > 0) {
+            await syncTasksFromShore(shoreTasks);
+        } else {
+            console.log("No tasks returned from shore.");
+        }
+      } catch (taskError) {
+        console.warn("Task sync failed (likely offline). Using cached DB.");
       }
-      setProgress(0.6);
 
-      // 3. NEW: Run Offline Sync (Upload pending photos)
-      setStatus("Syncing offline data...");
-      await SyncService.runSync();
-      setProgress(0.9);
-
-      // Step 4: Check Tasks / Logs (Placeholder for future offline sync)
-      setStatus("Checking Task Progress...");
-      await new Promise(r => setTimeout(r, 800)); // Artificial delay for UX smoothness
+      // 3. FINALIZE
       setProgress(1.0);
-
-      setStatus("Ready to Sail.");
+      setStatus("Ready.");
+      
       setTimeout(() => {
-        // Navigate to the Main Tabs -> Home
-        navigation.replace("MainTabs"); 
+        navigation.replace("MainTabs");
       }, 500);
 
-    } catch (error) {
-      console.error("Sync Failed", error);
-      // Even if sync fails, let them in, but warn
-      setStatus("Sync warning. Entering offline mode...");
-      setTimeout(() => navigation.replace("MainTabs"), 1000);
+    } catch (e) {
+      console.error("Sync Fatal Error", e);
+      // If sync fails completely, allow user to retry
+      Alert.alert(
+        "Sync Failed",
+        "Could not load data. Check connection.",
+        [{ text: "Retry", onPress: runSyncSequence }]
+      );
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.primary }]}>
-      <Surface style={styles.card} elevation={4}>
-        <View style={styles.iconContainer}>
-          {progress < 1 ? (
-            <CloudDownload size={48} color={theme.colors.primary} />
-          ) : (
-            <CheckCircle size={48} color="#10B981" />
-          )}
-        </View>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={styles.content}>
+        <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginBottom: 20 }} />
         
-        <Text style={styles.title}>Welcome Aboard, {user?.name}</Text>
-        <Text style={styles.subtitle}>Preparing your digital logbook...</Text>
+        <Text variant="titleLarge" style={styles.title}>
+          Keel
+        </Text>
+        
+        <Text variant="bodyMedium" style={{ color: theme.colors.secondary, marginBottom: 20 }}>
+            Maritime Competency System
+        </Text>
 
-        <View style={styles.progressContainer}>
-          <ProgressBar progress={progress} color={theme.colors.primary} style={styles.bar} />
-          <Text style={styles.statusText}>{status}</Text>
-        </View>
-      </Surface>
-      
-      <View style={styles.footer}>
-        <Ship size={24} color="rgba(255,255,255,0.3)" />
-        <Text style={styles.footerText}>KEEL MARITIME SYSTEM</Text>
+        <ProgressBar progress={progress} color={theme.colors.primary} style={styles.bar} />
+        
+        <Text variant="bodySmall" style={styles.status}>
+          {status}
+        </Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  card: {
-    width: width * 0.85,
-    padding: 30,
-    borderRadius: 24,
-    backgroundColor: '#FFF',
-    alignItems: 'center',
-  },
-  iconContainer: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: '#F0F9FA',
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 20
-  },
-  title: { fontSize: 20, fontWeight: '800', color: '#111827', textAlign: 'center', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 30 },
-  progressContainer: { width: '100%' },
-  bar: { height: 8, borderRadius: 4, backgroundColor: '#E5E7EB' },
-  statusText: { marginTop: 12, fontSize: 12, fontWeight: '600', color: '#9CA3AF', textAlign: 'center', textTransform: 'uppercase', letterSpacing: 1 },
-  footer: { position: 'absolute', bottom: 50, alignItems: 'center' },
-  footerText: { color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '900', marginTop: 8, letterSpacing: 2 }
+  container: { flex: 1, justifyContent: "center", alignItems: "center" },
+  content: { width: "70%", alignItems: "center" },
+  title: { fontWeight: "900", letterSpacing: 1, marginBottom: 4 },
+  bar: { height: 6, borderRadius: 3, width: '100%' },
+  status: { marginTop: 12, opacity: 0.6, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }
 });

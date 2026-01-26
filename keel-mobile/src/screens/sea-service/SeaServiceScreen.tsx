@@ -1,49 +1,33 @@
 //keel-mobile/src/screens/sea-service/SeaServiceScreen.tsx
 
-/**
- * ============================================================
- * Sea Service Dashboard — Lifecycle View (Phase 3B)
- * ============================================================
- *
- * PURPOSE:
- * - Show ACTIVE Sea Service (DRAFT) as primary card
- * - Show FINAL Sea Service history as read-only cards (multiple)
- * - Keep "Add Sea Service" always visible (disabled if DRAFT exists)
- *
- * ARCHITECTURE RULES:
- * - Screen is UI-only: NO direct SQLite reads/writes
- * - All state comes from SeaServiceContext
- */
-
-import React from "react";
-import { View, StyleSheet, ScrollView } from "react-native";
+import React, { useState } from "react";
+import { View, StyleSheet, ScrollView, Alert, Modal } from "react-native";
 import {
   Text,
-  Card,
-  Button,
-  Chip,
   useTheme,
-  Dialog,
-  Portal,
-  Divider,
+  Surface,
+  SegmentedButtons,
+  TouchableRipple,
+  Button,
   TextInput,
+  Card,
+  Chip,
+  Divider,
 } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  Cog, Zap, Utensils, Anchor, ShieldAlert, ArrowRight, Lock, 
+  CheckCircle2, Maximize, LogOut, MapPin, Ship, History
+} from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import Toast from "react-native-toast-message";
+import { BlurView } from 'expo-blur'; // Ensure you have this or use a View with opacity
 
-// ✅ FIXED: Updated paths to go up 2 levels (../../)
-import { MainStackParamList } from "../../navigation/types";
-import { useToast } from "../../components/toast/useToast";
+// Contexts
+import { useAuth } from "../../auth/AuthContext";
 import { useSeaService } from "../../sea-service/SeaServiceContext";
-import { getSeaServiceSummary } from "../../sea-service/seaServiceStatus";
-import DateInputField from "../../components/inputs/DateInputField"; 
+import DateInputField from "../../components/inputs/DateInputField";
 
-/**
- * Helper: Format date safely for UI display.
- * - Accepts ISO string or Date (defensive)
- * - Returns "—" if missing/invalid
- */
 function formatDate(value: string | Date | null | undefined) {
   if (!value) return "—";
   const d = value instanceof Date ? value : new Date(value);
@@ -52,719 +36,337 @@ function formatDate(value: string | Date | null | undefined) {
 
 export default function SeaServiceScreen() {
   const theme = useTheme();
-  const toast = useToast();
-  const navigation =
-    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-
-  /**
-   * SeaServiceContext is the SINGLE SOURCE OF TRUTH:
-   * - seaServiceId indicates an ACTIVE DRAFT exists
-   * - payload is the ACTIVE draft payload (or default empty payload)
-   * - finalHistory is the read-only list of FINAL records
-   */
-  const {
-    payload,
-    seaServiceId,
+  const navigation = useNavigation<any>();
+  
+  const { user } = useAuth();
+  const { 
+    seaServiceId, 
+    payload, 
     finalHistory,
-    
-    canFinalize,
+    updateServicePeriod, 
     finalizeSeaService,
-    discardDraft,
+    startSeaServiceDraft // NEW: We call this directly now
   } = useSeaService();
 
-  /**
-   * Derived UI-only vessel identity (for ACTIVE draft).
-   * Vessel identity is stored inside GENERAL_IDENTITY section.
-   */
-  const activeShipName =
-    payload.sections.GENERAL_IDENTITY?.vesselName ?? "Sea Service";
-  const activeImoNumber = payload.sections.GENERAL_IDENTITY?.imoNumber ?? null;
+  // --- START VOYAGE STATE (ASHORE) ---
+  const [startModalVisible, setStartModalVisible] = useState(false);
+  const [startData, setStartData] = useState({ date: new Date(), port: '' });
+  const [isStarting, setIsStarting] = useState(false);
 
-/**
- * ============================================================
- * SECTION PROGRESS (SHIP-TYPE AWARE)
- * ============================================================
- *
- * RULE:
- * - Count ONLY sections applicable to the selected ship type
- * - INERT_GAS_SYSTEM is excluded for non-tankers
- * - Progress must reflect real PSC / TRB applicability
- */
-const sectionStatus = payload?.sectionStatus ?? {};
-const shipType = payload?.shipType ?? "";
+  // --- ONBOARD STATE ---
+  const [workflowStep, setWorkflowStep] = useState(1); 
+  const [dept, setDept] = useState("deck");
+  const [isLocked, setIsLocked] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [signOffData, setSignOffData] = useState({ date: new Date(), port: '' });
 
-/**
- * Determine if IGS applies for this ship type
- */
-const isTanker =
-  shipType === "OIL_TANKER" || shipType === "CHEMICAL_TANKER";
+  // Specs State
+  const [genSpecs, setGenSpecs] = useState({ loa: "", breadth: "", summerDraft: "", callSign: "" });
+  const [deckSpecs, setDeckSpecs] = useState({ holds: "", cranes: "", swl: "", bwms: "" });
 
-/**
- * Build the list of enabled section keys (TYPE-SAFE)
- */
-const enabledSectionKeys = (
-  Object.keys(sectionStatus) as Array<keyof typeof sectionStatus>
-).filter((key) => {
-  if (key === "INERT_GAS_SYSTEM" && !isTanker) return false;
-  return true;
-});
-
-/**
- * Calculate progress using ONLY enabled sections
- */
-const activeSectionSummary = {
-  completedSections: enabledSectionKeys.filter(
-    (key) => sectionStatus[key] === "COMPLETE"
-  ).length,
-  totalSections: enabledSectionKeys.length,
-};
-
-
-
-
-  /**
-   * FINALIZE ELIGIBILITY (UX-only cue)
-   * - Sign-off is required to finalize (your confirmed rule)
-   * - Sections must be complete (audit-grade)
-   */
-  const hasSignOff = !!payload.servicePeriod?.signOffDate;
-  const allSectionsComplete = activeSectionSummary
-    ? activeSectionSummary.completedSections === activeSectionSummary.totalSections
-    : false;
-
-  const canFinalizeUX = hasSignOff && allSectionsComplete;
-
-  /**
-   * Finalize confirmation dialog state
-   */
-  const [showFinalizeConfirm, setShowFinalizeConfirm,] = React.useState(false);
-  const [showDiscardConfirm, setShowDiscardConfirm] = React.useState(false);
-
-
-  /**
- * ============================================================
- * SIGN-OFF ENTRY MODAL STATE (SERVICE CLOSURE)
- * ============================================================
- */
-const [showSignOffModal, setShowSignOffModal] = React.useState(false);
-const [signOffDate, setSignOffDate] = React.useState<Date | null>(
-  payload.servicePeriod?.signOffDate ?? null
-);
-const [signOffPort, setSignOffPort] = React.useState<string>(
-  payload.servicePeriod?.signOffPort ?? ""
-);
-
-
-
-  const handleContinueService = () => {
-    navigation.navigate("SeaServiceWizard");
-    toast.info("Continuing Sea Service...");
-  };
-
-  const handleAddSeaService = () => {
-    navigation.navigate("StartSeaService");
-    toast.info("Starting new Sea Service...");
-  };
-
-  const handleFinalizePress = () => {
-    setShowFinalizeConfirm(true);
-  };
-
-  const handleConfirmFinalize = async () => {
+  const handleStartVoyage = async () => {
+    if (!startData.date || !startData.port.trim()) return;
+    setIsStarting(true);
     try {
-      await finalizeSeaService();
-      setShowFinalizeConfirm(false);
-      navigation.goBack();
-    } catch (err) {
-      toast.error("Failed to finalize Sea Service.");
-    }
-  };
-  /**
-   * Discard current Sea Service draft (DRAFT only)
-   * - Opens confirmation dialog (audit-grade UX)
-   */
-  const handleDiscardDraft = () => {
-    setShowDiscardConfirm(true);
-  };
-
-  /**
-   * Confirm discard (calls context single authority)
-   */
-  const handleConfirmDiscard = async () => {
-    try {
-      await discardDraft();
-      setShowDiscardConfirm(false);
-      // Stay on this screen; UI will update automatically when seaServiceId becomes null.
-    } catch (err) {
-      // Context already toasts; keep screen defensive.
-      setShowDiscardConfirm(false);
+      // Create Draft
+      await startSeaServiceDraft({
+        shipType: "General Cargo", // Default, sync later
+        signOnDate: startData.date.toISOString().slice(0, 10),
+        signOnPort: startData.port.trim()
+      });
+      setStartModalVisible(false);
+      // UI Auto-updates because 'seaServiceId' is no longer null
+    } catch (e) {
+      Toast.show({ type: 'error', text1: 'Failed to start voyage' });
+    } finally {
+      setIsStarting(false);
     }
   };
 
+  const handleFinalLock = () => {
+    Alert.alert(
+      "Verify Technical Data",
+      "Confirm all particulars are correct? This will LOCK the data and ENABLE the Sign-Off section.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Verify & Lock", onPress: () => {
+            setIsLocked(true);
+            setWorkflowStep(3);
+            Toast.show({ type: 'success', text1: 'Verified', text2: 'Sign-Off enabled.' });
+        }}
+      ]
+    );
+  };
 
+  const handleSignOff = async () => {
+    Alert.alert(
+      "Confirm Sign-Off",
+      "This will FINALIZE your record. Cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Finalize", 
+          style: "destructive",
+          onPress: async () => {
+            setIsFinalizing(true);
+            try {
+              updateServicePeriod({
+                ...payload.servicePeriod,
+                signOffDate: signOffData.date,
+                signOffPort: signOffData.port
+              });
+              await new Promise(r => setTimeout(r, 100));
+              await finalizeSeaService();
+              Toast.show({ type: "success", text1: "Voyage Completed" });
+            } catch (e) {
+              Toast.show({ type: "error", text1: "Error", text2: "Failed to finalize." });
+            } finally {
+              setIsFinalizing(false);
+            }
+          }
+        }
+      ]
+    );
+  };
 
-  return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-      contentContainerStyle={styles.content}
-    >
-      {/* ========================================================
-          HEADER
-         ======================================================== */}
-      <View style={styles.header}>
-        <Text variant="headlineMedium" style={styles.title}>
-          Sea Service
-        </Text>
-        <Text variant="bodyMedium" style={styles.subtitle}>
-          Your cadet sea-time record (STCW compliant)
-        </Text>
-      </View>
+  const displayVesselName = user?.vesselName || "Assigned Vessel";
+  const displaySignOnDate = payload?.servicePeriod?.signOnDate 
+    ? new Date(payload.servicePeriod.signOnDate).toLocaleDateString() 
+    : "Date Not Set";
+  const displayPort = payload?.servicePeriod?.signOnPort || "Port Not Set";
 
-      {/* ========================================================
-          ACTIVE SEA SERVICE (DRAFT) — ONLY WHEN seaServiceId EXISTS
-         ======================================================== */}
-      {!!seaServiceId && (
-        <Card style={styles.serviceCard}>
-          <Card.Content>
-            <View style={styles.cardHeader}>
-              <View>
-                <Text variant="titleMedium" style={styles.cardTitle}>
-                  {activeShipName}
-                </Text>
-                <Chip 
-                  mode="flat" 
-                  compact
-                  style={{ backgroundColor: theme.colors.primary }}
-                  textStyle={{ color: theme.colors.onPrimary }}                  
-                  >
-                  Active
-                </Chip>
-              </View>
+  // ------------------------------------------------------------
+  // MODE 1: ASHORE (HISTORY VIEW)
+  // ------------------------------------------------------------
+  if (!seaServiceId) {
+    return (
+      <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]} contentContainerStyle={{ padding: 16 }}>
+        <View style={styles.ashoreHeader}>
+          <Text style={styles.ashoreTitle}>Sea Service</Text>
+          <Text style={styles.ashoreSubtitle}>You are currently signed off.</Text>
+        </View>
 
-              {/* =====================================================
-                  ICON ACTIONS — ACTIVE DRAFT (UX-2B)
-                ===================================================== */}
-              <View style={styles.iconActions}>
-                {/* Continue / Edit (✏️) */}
-                <MaterialCommunityIcons
-                  name="pencil-outline"
-                  size={25}
-                  color={theme.colors.primary}
-                  onPress={handleContinueService}
-                />
-
-                {/* Finalize (🔒) */}
-                <MaterialCommunityIcons
-                  name="lock-outline"
-                  size={25}
-                  color={canFinalizeUX ? theme.colors.primary : theme.colors.outline}
-                  onPress={canFinalizeUX ? handleFinalizePress : undefined}
-                />
-
-                {/* Discard (🗑️) */}
-                <MaterialCommunityIcons
-                  name="trash-can-outline"
-                  size={25}
-                  color={theme.colors.error}
-                  onPress={handleDiscardDraft}
-                />
-              </View>
+        <Surface style={styles.startCard} elevation={2}>
+          <LinearGradient colors={["#3194A0", "#1A2426"]} style={styles.startGradient}>
+            <Ship size={32} color="rgba(255,255,255,0.8)" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.startTitle}>Start New Voyage</Text>
+              <Text style={styles.startSub}>Assigned to {user?.vesselName || "Vessel"}?</Text>
             </View>
+            <Button 
+              mode="contained" 
+              buttonColor="#FFF" 
+              textColor="#3194A0"
+              onPress={() => setStartModalVisible(true)}
+            >
+              Start
+            </Button>
+          </LinearGradient>
+        </Surface>
 
-
-            {activeImoNumber && (
-              <Text variant="bodySmall" style={styles.metaText}>
-                IMO: {activeImoNumber}
-              </Text>
-            )}
-
-          {/* ============================================================
-              SERVICE PERIOD (SIGN-ON / SIGN-OFF)
-              UX RULES:
-              - Pencil icon only if NOT finalized
-              - Add Sign-Off only when ALL sections complete
-              - Icons ALWAYS on the LEFT
-              ============================================================ */}
-          <View style={{ marginTop: 8 }}>
-
-            {/* ---------------- SIGN-ON ---------------- */}
-            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
-              {!canFinalize && (
-                <MaterialCommunityIcons
-                  name="pencil-outline"
-                  size={22}
-                  color={theme.colors.primary}
-                  style={{ marginRight: 6 }}
-                  onPress={() => navigation.navigate("StartSeaService")}/>
-              )}
-
-              <Text variant="bodySmall" style={styles.metaText}>
-                Sign On: {formatDate(payload.servicePeriod?.signOnDate)}
-                {payload.servicePeriod?.signOnPort
-                  ? ` · ${payload.servicePeriod.signOnPort}`
-                  : ""}
-              </Text>
-            </View>
-
-              {/* ---------------- SIGN-OFF ---------------- */}
-              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
-                {payload.servicePeriod?.signOffDate ? (
-                  <>
-                    {!canFinalize && (
-                      <MaterialCommunityIcons
-                        name="pencil-outline"
-                        size={22}
-                        color={theme.colors.primary}
-                        style={{ marginRight: 6 }}
-                        onPress={() => setShowSignOffModal(true)}
-                      />
-                    )}
-
-                    <Text
-                      variant="bodySmall"
-                      style={styles.metaText}
-                      onPress={!canFinalize ? () => setShowSignOffModal(true) : undefined}
-                    >
-                      Sign Off: {formatDate(payload.servicePeriod.signOffDate)} ·{" "}
-                      {payload.servicePeriod.signOffPort}
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    {/* Plus icon is ALWAYS visible, enabled only when sections complete */}
-                    <MaterialCommunityIcons
-                      name="plus-circle-outline"
-                      size={22}
-                      color={
-                        allSectionsComplete
-                          ? theme.colors.primary
-                          : theme.colors.onSurfaceDisabled
-                      }
-                      style={{ marginRight: 6 }}
-                      onPress={allSectionsComplete ? () => setShowSignOffModal(true) : undefined}
-                    />
-
-                    <Text
-                      variant="bodySmall"
-                      style={[
-                        styles.metaText,
-                        {
-                          color: allSectionsComplete
-                            ? theme.colors.primary
-                            : theme.colors.onSurfaceDisabled,
-                        },
-                      ]}
-                    >
-                      Sign Off: {allSectionsComplete ? "Add sign-off" : "Complete sections first"}
-                    </Text>
-                  </>
-                )}
-
-              </View>
-            </View>
-
-
-
-            {/* --------------------------------------------------------
-                SECTION COMPLETION INDICATOR (UX ONLY)
-               -------------------------------------------------------- */}
-            {activeSectionSummary && (
-              <View style={styles.progressBlock}>
-                <Text variant="bodySmall" style={styles.progressLabel}>
-                  Progress
-                </Text>
-
-                <View style={styles.progressRow}>
-                  <Chip mode="flat"
-                    style={{ backgroundColor: theme.colors.primary }}
-                    textStyle={{ color: theme.colors.onPrimary }}                    
-                  >
-                    {activeSectionSummary.completedSections} /{" "}
-                    {activeSectionSummary.totalSections} completed
-                  </Chip>
-
-                  <Chip
-                    mode="flat"
-                    compact
-                    style={{
-                      backgroundColor: canFinalizeUX
-                        ? "#2E7D32" // Green — Ready
-                        : allSectionsComplete
-                        ? "#ED6C02" // Orange — Sign-off required
-                        : "#ED6C02", // Amber — In progress
-                    }}
-                    textStyle={{ color: "#FFFFFF" }}
-                  >
-                    {canFinalizeUX
-                      ? "Ready to Finalize"
-                      : allSectionsComplete
-                      ? "Sign-off Required"
-                      : "In Progress"}
-                  </Chip>
-
-                </View>
-              </View>
-            )}
-
-            {/* --------------------------------------------------------
-                FINALIZE ELIGIBILITY CUE (UX ONLY)
-               -------------------------------------------------------- */}
-            <View style={{ marginTop: 12 }}>
-              {canFinalizeUX ? (
-                <Text
-                  variant="bodySmall"
-                  style={{ color: theme.colors.primary }}
-                >
-                  Ready to Finalize – all mandatory sections completed and
-                  sign-off recorded.
-                </Text>
-              ) : (
-                <Text variant="bodySmall" style={{ opacity: 0.7 }}>
-                  Not ready to finalize.
-                  {!hasSignOff && " Sign-off not recorded."}
-                  {!allSectionsComplete && " Some sections are incomplete."}
-                </Text>
-              )}
-            </View>
-          </Card.Content>
-
-        </Card>
-      )}
-
-      {/* ========================================================
-          EMPTY STATE — NO ACTIVE DRAFT + NO HISTORY
-         ======================================================== */}
-      {!seaServiceId && finalHistory.length === 0 && (
-        <Card style={styles.emptyCard}>
-          <Card.Content>
-            <Text variant="bodyMedium" style={styles.emptyText}>
-              No Sea Service started yet.
-            </Text>
-            <Text variant="bodySmall" style={styles.emptySubtext}>
-              Start a new Sea Service when you join a vessel.
-            </Text>
-          </Card.Content>
-        </Card>
-      )}
-
-      {/* ========================================================
-          SEA SERVICE HISTORY (FINAL) — MULTIPLE READ-ONLY RECORDS
-         ======================================================== */}
-      {finalHistory.length > 0 && (
-        <View style={styles.historyBlock}>
-          <View style={styles.historyHeader}>
-            <Text variant="titleMedium" style={styles.historyTitle}>
-              Sea Service History
-            </Text>
-            <Text variant="bodySmall" style={styles.historySubtitle}>
-              Finalized records are read-only for compliance and audit integrity.
-            </Text>
+        <View style={styles.historySection}>
+          <View style={styles.historyLabelRow}>
+            <History size={16} color={theme.colors.outline} />
+            <Text style={styles.historyLabel}>SERVICE HISTORY</Text>
           </View>
-
-          <Divider style={{ marginBottom: 12 }} />
-
-          {finalHistory.map((rec) => {
-            const shipName = rec.shipName || "Sea Service";
-            const imoNumber = rec.imoNumber || null;
-
-            const summary = getSeaServiceSummary(
-              rec.payload.sections,
-              rec.payload.shipType ?? undefined
-            );
-
-            return (
+          {finalHistory.length === 0 ? (
+            <Text style={styles.emptyHistory}>No completed records found.</Text>
+          ) : (
+            finalHistory.map((rec) => (
               <Card key={rec.id} style={styles.historyCard}>
                 <Card.Content>
-                  <View style={styles.cardHeader}>
-                    <Text variant="titleMedium" style={styles.cardTitle}>
-                      {shipName}
-                    </Text>
-                    <Chip
-                      mode="flat"
-                      style={{ backgroundColor: "#2E7D32" }}
-                      textStyle={{ color: "#FFFFFF" }}
-                    >
-                      COMPLETED
-                    </Chip>
-
+                  <View style={styles.historyRow}>
+                    <View>
+                      <Text variant="titleMedium" style={{ fontWeight: '700' }}>{rec.shipName || "Unknown"}</Text>
+                      <Text variant="bodySmall" style={{ opacity: 0.6 }}>{rec.imoNumber ? `IMO: ${rec.imoNumber}` : ""}</Text>
+                    </View>
+                    <Chip compact style={{ backgroundColor: "#E0E0E0" }}>Finalized</Chip>
                   </View>
-
-                  {imoNumber && (
-                    <Text variant="bodySmall" style={styles.metaText}>
-                      IMO: {imoNumber}
-                    </Text>
-                  )}
-
-                  <Text variant="bodySmall" style={styles.metaText}>
-                    Sign On: {formatDate(rec.signOnDate)}
-                  </Text>
-
-                  <Text variant="bodySmall" style={styles.metaText}>
-                    Sign Off: {formatDate(rec.signOffDate)}
-                  </Text>
-
-                  <View style={{ marginTop: 12 }}>
-                    <Chip mode="outlined">
-                      {summary.completedSections} / {summary.totalSections} completed
-                    </Chip>
+                  <Divider style={{ marginVertical: 10 }} />
+                  <View style={styles.historyDates}>
+                    <Text variant="bodySmall">On: {formatDate(rec.signOnDate)}</Text>
+                    <Text variant="bodySmall">Off: {formatDate(rec.signOffDate)}</Text>
                   </View>
                 </Card.Content>
               </Card>
-            );
-          })}
+            ))
+          )}
         </View>
-      )}
 
-      {/* ========================================================
-          ADD SEA SERVICE CTA (ALWAYS VISIBLE)
-         ======================================================== */}
-      <Button
-        mode="contained"
-        style={styles.addButton}
-        disabled={!!seaServiceId}
-        onPress={handleAddSeaService}
-      >
-        Add Sea Service
-      </Button>
+        {/* START MODAL */}
+        <Modal visible={startModalVisible} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <Surface style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Join {user?.vesselName || "Vessel"}</Text>
+              <View style={{ marginVertical: 16 }}>
+                <DateInputField label="Sign On Date" value={startData.date} onChange={(d) => setStartData({...startData, date: d!})} />
+              </View>
+              <TextInput 
+                label="Port of Embarkation" 
+                value={startData.port} 
+                onChangeText={(t) => setStartData({...startData, port: t})} 
+                mode="outlined"
+                style={{ backgroundColor: '#FFF', marginBottom: 20 }}
+              />
+              <View style={styles.modalActions}>
+                <Button onPress={() => setStartModalVisible(false)} style={{flex:1}}>Cancel</Button>
+                <Button mode="contained" onPress={handleStartVoyage} loading={isStarting} style={{flex:1}} buttonColor="#3194A0">Confirm</Button>
+              </View>
+            </Surface>
+          </View>
+        </Modal>
+      </ScrollView>
+    );
+  }
 
-      {!!seaServiceId && (
-        <Text
-          variant="bodySmall"
-          style={{ textAlign: "center", marginTop: 8, opacity: 0.6 }}
-        >
-          Finalize the current Sea Service before adding a new one.
-        </Text>
-      )}
+  // ------------------------------------------------------------
+  // MODE 2: ONBOARD (DASHBOARD)
+  // ------------------------------------------------------------
+  return (
+    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]} showsVerticalScrollIndicator={false}>
+      
+      {/* HERO */}
+      <View style={styles.sectionWrapper}>
+        <LinearGradient colors={["#2C3E50", "#1A1A1A"]} style={styles.heroGradient}>
+          <View style={styles.headerTopRow}>
+            <Text style={styles.stepTag}>ACTIVE VOYAGE</Text>
+            <CheckCircle2 size={20} color="#4ADE80" />
+          </View>
+          <Text style={styles.heroTitle}>{displayVesselName}</Text>
+          <View style={styles.confirmedBox}>
+            <Text style={styles.confirmedText}>Rank: {user?.rank || "Cadet"}</Text>
+            <Text style={styles.confirmedText}>Joined: {displaySignOnDate} at {displayPort}</Text>
+          </View>
+        </LinearGradient>
+      </View>
 
-      {/* ========================================================
-          FINALIZE CONFIRMATION DIALOG
-         ======================================================== */}
-      <Portal>
-        <Dialog
-          visible={showFinalizeConfirm}
-          onDismiss={() => setShowFinalizeConfirm(false)}
-        >
-          <Dialog.Title>Finalize Sea Service</Dialog.Title>
+      {/* STEP 1: SAFETY */}
+      <View style={[styles.sectionWrapper, workflowStep < 1 && styles.lockedOpacity]}>
+        <Surface style={styles.glassCard} elevation={workflowStep === 1 ? 4 : 0}>
+          <TouchableRipple onPress={() => workflowStep === 1 && navigation.navigate('SafetyMap')} style={styles.ripple} disabled={workflowStep !== 1}>
+            <View style={styles.safetyContent}>
+              <View style={styles.iconCircle}><ShieldAlert color={workflowStep === 1 ? theme.colors.error : theme.colors.outline} size={24} /></View>
+              <View style={{flex: 1, marginLeft: 15}}>
+                <Text style={styles.stepTagAlt}>STEP 01</Text>
+                <Text style={styles.cardMainLabel}>Safety Familiarization</Text>
+                <Text style={styles.subtext}>Mandatory Walkthrough</Text>
+              </View>
+              {workflowStep < 1 ? <Lock size={20} color={theme.colors.outline} /> : <ArrowRight size={20} color={theme.colors.primary} />}
+            </View>
+          </TouchableRipple>
+          {workflowStep === 1 && <Button mode="text" onPress={() => setWorkflowStep(2)} textColor={theme.colors.primary}>Simulate Completion</Button>}
+        </Surface>
+      </View>
 
-          <Dialog.Content>
-            <Text variant="bodyMedium">
-              Once finalized, this Sea Service record becomes read-only and
-              cannot be edited or deleted.
-            </Text>
-
-            <Text variant="bodySmall" style={{ marginTop: 12, opacity: 0.7 }}>
-              This action is required for STCW compliance and audit integrity.
-            </Text>
-          </Dialog.Content>
-
-          <Dialog.Actions>
-            <Button onPress={() => setShowFinalizeConfirm(false)}>
-              Cancel
+      {/* STEP 2: TECH DATA */}
+      <View style={[styles.sectionWrapper, workflowStep < 2 && styles.lockedOpacity]}>
+        <Text style={styles.technicalHeader}>STEP 02: TECHNICAL DATA</Text>
+        <SegmentedButtons
+          value={dept} onValueChange={setDept} style={styles.segment}
+          buttons={[
+            { value: 'deck', label: 'DECK', disabled: workflowStep < 2, icon: () => <Anchor size={16} color={dept==='deck'?'#FFF':theme.colors.primary}/> },
+            { value: 'engine', label: 'ENG', disabled: workflowStep < 2, icon: () => <Cog size={16} color={dept==='engine'?'#FFF':theme.colors.primary}/> },
+          ]}
+        />
+        {workflowStep >= 2 ? (
+          <View style={styles.specsContainer}>
+            <Surface style={styles.technicalCard}>
+                <View style={styles.rowHeader}><Maximize size={18} color={theme.colors.primary} /><Text style={styles.specHeader}>Principal Dimensions</Text></View>
+                <View style={styles.inputRow}>
+                    <TextInput label="LOA (m)" value={genSpecs.loa} onChangeText={(v)=>setGenSpecs({...genSpecs, loa: v})} mode="outlined" dense style={[styles.innerInput, {flex: 1, marginRight: 8}]} editable={!isLocked} />
+                    <TextInput label="BREADTH (m)" value={genSpecs.breadth} onChangeText={(v)=>setGenSpecs({...genSpecs, breadth: v})} mode="outlined" dense style={[styles.innerInput, {flex: 1}]} editable={!isLocked} />
+                </View>
+            </Surface>
+            <Button mode="contained" onPress={handleFinalLock} disabled={isLocked} style={[styles.verifyBtn, isLocked && { backgroundColor: theme.colors.secondary }]} icon={isLocked ? "lock" : "check-circle"}>
+              {isLocked ? "DATA LOCKED" : "VERIFY DATA"}
             </Button>
-            <Button mode="contained" onPress={handleConfirmFinalize}>
-              Finalize
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-                {/* ========================================================
-            DISCARD DRAFT CONFIRMATION DIALOG (DRAFT ONLY)
-           ======================================================== */}
-        <Dialog
-          visible={showDiscardConfirm}
-          onDismiss={() => setShowDiscardConfirm(false)}
-        >
-          <Dialog.Title>Discard Draft</Dialog.Title>
+          </View>
+        ) : (
+          <LinearGradient colors={theme.dark ? ["#1F1F1F", "#121212"] : ["#F9FAFB", "#F3F4F6"]} style={styles.lockedCard}>
+            <View style={styles.lockedIconCircle}><Lock size={32} color="#3194A0" /></View>
+            <Text style={styles.lockedTitle}>RESTRICTED ACCESS</Text>
+            <Text style={styles.lockedMsg}>Complete Safety Familiarization first.</Text>
+          </LinearGradient>
+        )}
+      </View>
 
-          <Dialog.Content>
-            <Text variant="bodyMedium">
-              This will permanently delete your current Sea Service draft.
-            </Text>
-
-            <Text variant="bodySmall" style={{ marginTop: 12, opacity: 0.7 }}>
-              Finalized (FINAL) Sea Service records cannot be deleted for STCW
-              compliance and audit integrity.
-            </Text>
-          </Dialog.Content>
-
-          <Dialog.Actions>
-            <Button onPress={() => setShowDiscardConfirm(false)}>
-              Cancel
-            </Button>
-
-            <Button
-              mode="contained"
-              onPress={handleConfirmDiscard}
-              buttonColor={theme.colors.error}
-              textColor={theme.colors.onError}
-            >
-              Discard
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-
-       {/* ========================================================
-            SIGN-OFF ENTRY DIALOG (SERVICE CLOSURE)
-           ======================================================== */}
-        <Dialog
-          visible={showSignOffModal}
-          onDismiss={() => setShowSignOffModal(false)}
-        >
-          <Dialog.Title>Sign-Off Details</Dialog.Title>
-
-          <Dialog.Content>
-            <Text variant="bodySmall" style={{ marginBottom: 8, opacity: 0.7 }}>
-              Enter sign-off details when you leave the vessel.
-            </Text>
-
-          {/* ============================================================
-              SIGN-OFF DATE (DATE PICKER – SAME AS SIGN-ON)
-          ============================================================ */}
-          <DateInputField
-            label="Sign-Off Date"
-            value={signOffDate}
-            onChange={setSignOffDate}
-          />
-
-          {/* ============================================================
-              SIGN-OFF PORT
-          ============================================================ */}
-          <TextInput
-            label="Sign-Off Port"
-            value={signOffPort}
-            onChangeText={setSignOffPort}
-            mode="outlined"
-            style={{ marginTop: 12 }}
-          />
-
-          </Dialog.Content>
-
-          <Dialog.Actions>
-            <Button onPress={() => setShowSignOffModal(false)}>
-              Cancel
-            </Button>
-
-            <Button
-              mode="contained"
-              style={{
-                borderRadius: 18,
-                height: 40,
-                justifyContent: "center",
-              }}
-              contentStyle={{ height: 40 }}
-              onPress={() => {
-                if (!signOffDate || !signOffPort.trim()) {
-                  toast.error(
-                    "Sign-Off date and port are mandatory to finalize."
-                  );
-                  return;
-                }
-
-                payload.servicePeriod.signOffDate = signOffDate;
-                payload.servicePeriod.signOffPort = signOffPort;
-
-                toast.success("Sign-Off details saved.");
-                setShowSignOffModal(false);
-              }}
-            >
-              Save
-            </Button>
-
-          </Dialog.Actions>
-        </Dialog>
-
-
-      </Portal>
+      {/* STEP 3: SIGN OFF */}
+      <View style={[styles.sectionWrapper, workflowStep < 3 && styles.lockedOpacity]}>
+        <Text style={[styles.technicalHeader, { color: theme.colors.error }]}>STEP 03: VOYAGE COMPLETION</Text>
+        
+        {isLocked ? (
+            <Surface style={[styles.technicalCard, { borderColor: theme.colors.error, borderWidth: 1 }]}>
+                <View style={styles.rowHeader}>
+                    <LogOut size={20} color={theme.colors.error} />
+                    <Text style={[styles.specHeader, { color: theme.colors.error }]}>Sign-Off</Text>
+                </View>
+                <DateInputField label="Sign-Off Date" value={signOffData.date} onChange={(d)=>setSignOffData({...signOffData, date: d!})} />
+                <View style={{ height: 12 }} />
+                <TextInput label="Sign-Off Port" value={signOffData.port} onChangeText={(t)=>setSignOffData({...signOffData, port: t})} mode="outlined" right={<TextInput.Icon icon={() => <MapPin size={20} color={theme.colors.outline}/>} />} />
+                <Button mode="contained" onPress={handleSignOff} loading={isFinalizing} buttonColor={theme.colors.error} style={{ marginTop: 20, borderRadius: 12 }}>FINALIZE VOYAGE</Button>
+            </Surface>
+        ) : (
+            <LinearGradient colors={theme.dark ? ["#1F1F1F", "#121212"] : ["#F9FAFB", "#F3F4F6"]} style={styles.lockedCard}>
+              <View style={styles.lockedIconCircle}><Lock size={32} color="#3194A0" /></View>
+              <Text style={styles.lockedTitle}>RESTRICTED ACCESS</Text>
+              <Text style={styles.lockedMsg}>Verify Technical Data to enable Sign-Off.</Text>
+            </LinearGradient>
+        )}
+      </View>
+      <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 40 },
+  // Ashore Styles
+  ashoreHeader: { marginTop: 20, marginBottom: 20 },
+  ashoreTitle: { fontSize: 32, fontWeight: '800' },
+  ashoreSubtitle: { fontSize: 16, opacity: 0.6 },
+  startCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 30 },
+  startGradient: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 16 },
+  startTitle: { color: '#FFF', fontSize: 18, fontWeight: '700' },
+  startSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
+  historySection: { flex: 1 },
+  historyLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  historyLabel: { fontSize: 12, fontWeight: '900', color: 'gray', letterSpacing: 1 },
+  emptyHistory: { textAlign: 'center', marginTop: 40, opacity: 0.5 },
+  historyCard: { marginBottom: 12, backgroundColor: '#FFF' },
+  historyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  historyDates: { flexDirection: 'row', justifyContent: 'space-between', opacity: 0.7 },
+  modalOverlay: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalContent: { backgroundColor: '#FFF', borderRadius: 24, padding: 24 },
+  modalTitle: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
+  modalActions: { flexDirection: 'row', gap: 12 },
 
-  header: { marginBottom: 20 },
-  title: { fontWeight: "700", marginBottom: 4 },
-  subtitle: { opacity: 0.7 },
-
-  serviceCard: { marginBottom: 16 },
-
-  historyBlock: { marginTop: 4, marginBottom: 16 },
-  historyHeader: { marginBottom: 8 },
-  historyTitle: { fontWeight: "700" },
-  historySubtitle: { marginTop: 4, opacity: 0.7 },
-
-  historyCard: { marginBottom: 12 },
-
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-
-  cardTitle: { fontWeight: "600" },
-
-  metaText: {
-    opacity: 0.7,
-    marginTop: 4,
-  },
-
-  progressBlock: {
-    marginTop: 12,
-  },
-
-  progressLabel: {
-    marginBottom: 6,
-    opacity: 0.7,
-  },
-
-  progressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-
-    /**
-   * ------------------------------------------------------------
-   * Mobile-safe action layout
-   * ------------------------------------------------------------
-   * Card.Actions defaults to horizontal layout.
-   * We override it to a vertical stack so 3 buttons never overflow.
-   */
-  actionsStack: {
-    flexDirection: "column",
-    alignItems: "stretch",
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-  },
-
-  /**
-   * Full-width button inside stacked Card.Actions
-   */
-  actionButton: {
-    width: "100%",
-  },
-
-  /**
-   * Ensure button content is centered and has consistent height.
-   * (Helps touch-target size for cadets on phones/tablets.)
-   */
-  actionButtonContent: {
-    height: 44,
-    justifyContent: "center",
-  },
-  iconActions: {
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 14,
-},
-
-
-
-  emptyCard: { marginTop: 8, marginBottom: 16 },
-  emptyText: { textAlign: "center", marginBottom: 4 },
-  emptySubtext: { textAlign: "center", opacity: 0.6 },
-
-  addButton: { marginTop: 8 },
+  // Onboard Styles
+  sectionWrapper: { paddingHorizontal: 16, marginTop: 16 },
+  heroGradient: { borderRadius: 24, padding: 24, minHeight: 140 },
+  headerTopRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
+  stepTag: { color: "rgba(255,255,255,0.6)", letterSpacing: 2, fontSize: 10, fontWeight: "900" },
+  heroTitle: { color: "#FFF", fontSize: 28, fontWeight: "900", marginBottom: 8 },
+  confirmedBox: { marginTop: 4 },
+  confirmedText: { color: "#4ADE80", fontWeight: "700", fontSize: 13, marginBottom: 2 },
+  lockedOpacity: { opacity: 0.5 },
+  glassCard: { borderRadius: 24, overflow: "hidden", backgroundColor: "#FFF" },
+  ripple: { padding: 20 },
+  safetyContent: { flexDirection: "row", alignItems: "center" },
+  iconCircle: { width: 50, height: 50, borderRadius: 25, backgroundColor: "rgba(0,0,0,0.03)", justifyContent: "center", alignItems: "center" },
+  stepTagAlt: { fontSize: 10, fontWeight: "900", opacity: 0.4, letterSpacing: 1 },
+  cardMainLabel: { fontSize: 16, fontWeight: "800" },
+  subtext: { fontSize: 12, opacity: 0.5 },
+  technicalHeader: { fontSize: 12, fontWeight: "900", color: "rgba(128,128,128,0.6)", letterSpacing: 1.5, marginBottom: 12 },
+  segment: { marginBottom: 15 },
+  specsContainer: { marginTop: 10 },
+  technicalCard: { borderRadius: 24, padding: 20, marginBottom: 15, backgroundColor: "#FFF" },
+  rowHeader: { flexDirection: "row", alignItems: "center", marginBottom: 15 },
+  specHeader: { fontWeight: "900", fontSize: 13, color: "#3194A0", marginLeft: 10, textTransform: "uppercase" },
+  innerInput: { marginBottom: 10, fontSize: 13, backgroundColor: "transparent" },
+  inputRow: { flexDirection: "row", marginBottom: 5 },
+  verifyBtn: { borderRadius: 16, height: 50, justifyContent: "center", marginTop: 10 },
+  lockedCard: { borderRadius: 24, padding: 32, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(128,128,128, 0.1)", overflow: 'hidden' },
+  lockedIconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: "rgba(49, 148, 160, 0.08)", alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  lockedTitle: { fontSize: 14, fontWeight: "800", color: "#3194A0", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 },
+  lockedMsg: { fontSize: 14, color: "rgba(128,128,128, 0.7)", textAlign: "center", maxWidth: '85%', lineHeight: 22, fontWeight: "500" },
 });

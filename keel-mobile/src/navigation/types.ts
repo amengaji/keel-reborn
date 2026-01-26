@@ -2,7 +2,6 @@
 
 import { NavigatorScreenParams } from "@react-navigation/native";
 
-
 /**
  * ============================================================
  * TASKS STACK PARAM LIST
@@ -12,7 +11,7 @@ import { NavigatorScreenParams } from "@react-navigation/native";
 export type TasksStackParamList = {
   TasksHome: undefined;
   TaskSection: { sectionKey: string; sectionTitle: string };
-  TaskDetails: { taskKey: string }; // Changed 'taskId' to 'taskKey' to match your screen
+  TaskDetails: { taskKey: string };
 };
 
 /**
@@ -22,25 +21,27 @@ export type TasksStackParamList = {
  * Defines all possible routes in the Root/Inner stacks.
  */
 export type MainStackParamList = {
+  // Initialization
+  DataSync: undefined;
+
   // Main Shell (Tabs)
   MainTabs: undefined;
   MainShell: undefined; // Internal tab shell
 
   // Wizards / Modals
-  StartSeaService: undefined;
   SeaServiceWizard: undefined;
 
-  // Feature: Vessel Info
-  VesselParticulars: undefined;
-
   // Feature: Tasks (TRB)
-  Tasks: undefined;
-  TaskSection: { sectionId: string; title: string };
-  TaskDetails: { taskId: string };
+  // We align these params with TasksStackParamList for consistency
+  Tasks: NavigatorScreenParams<TasksStackParamList>;
+  TaskSection: { sectionKey: string; sectionTitle: string };
+  TaskDetails: { taskKey: string };
 
   // Feature: Daily Logs / Watchkeeping
   Daily: undefined;
-  DataSync: undefined;
+
+  // Feature: Vessel Dashboard Drill-down
+  SafetyMap: undefined;
 };
 
 /**
@@ -60,7 +61,8 @@ export type AuthStackParamList = {
  */
 export type OnboardingStackParamList = {
   OnboardingIntro: undefined;
-  LogPosition: undefined;
-  SafetyMap: undefined;
-  SeaService: undefined;
+  EnableBiometrics: undefined; 
+  VesselStatus: undefined;
+  VesselDetails: undefined; 
+  // Note: SafetyMap & SeaService moved to MainStack as they are core features now
 };

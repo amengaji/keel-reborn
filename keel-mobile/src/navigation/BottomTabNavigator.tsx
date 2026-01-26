@@ -24,7 +24,6 @@ import TaskSectionScreen from "../screens/tasks/TaskSectionScreen";
 // ✅ FIXED: Moved to 'tasks' folder
 import TaskDetailsScreen from "../screens/tasks/TaskDetailsScreen";
 // ✅ FIXED: Moved to 'vessel' folder
-import { VesselParticularsScreen } from "../screens/vessel/VesselParticularsScreen";
 
 
 const Tab = createBottomTabNavigator();
@@ -50,12 +49,7 @@ function HomeStackNavigator() {
       {/* The Dashboard */}
       <HomeStack.Screen name="HomeRoot" component={HomeScreen} />
       
-      {/* Drill-down Screens (Tabs remain visible) */}
-      <HomeStack.Screen 
-        name="VesselParticulars" 
-        component={VesselParticularsScreen}
-        options={{ animation: "slide_from_right" }}
-      />
+
     </HomeStack.Navigator>
   );
 }
