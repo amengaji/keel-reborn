@@ -25,7 +25,7 @@ import { useAuth } from "../auth/AuthContext";
 
 import AuthNavigator from "./AuthNavigator";
 import MainNavigator from "./MainNavigator";
-import EnableBiometricsScreen from "../screens/EnableBiometricsScreen";
+import EnableBiometricsScreen from "../screens/onboarding/EnableBiometricsScreen";
 import OnboardingNavigator from "./OnboardingNavigator";
 
 /**

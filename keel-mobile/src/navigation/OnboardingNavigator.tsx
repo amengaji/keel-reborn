@@ -2,9 +2,16 @@
 
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import OnboardingIntroScreen from "../screens/OnboardingIntroScreen";
+import OnboardingIntroScreen from "../screens/onboarding/OnboardingIntroScreen";
+import VesselStatusScreen from "../screens/onboarding/VesselStatusScreen";
 
-const Stack = createNativeStackNavigator();
+// ✅ FIXED: Explicitly exporting this type for use in screens
+export type OnboardingStackParamList = {
+  OnboardingIntro: undefined;
+  VesselStatus: undefined;
+};
+
+const Stack = createNativeStackNavigator<OnboardingStackParamList>();
 
 export default function OnboardingNavigator() {
   return (
@@ -12,6 +19,10 @@ export default function OnboardingNavigator() {
       <Stack.Screen
         name="OnboardingIntro"
         component={OnboardingIntroScreen}
+      />
+      <Stack.Screen 
+        name="VesselStatus" 
+        component={VesselStatusScreen} 
       />
     </Stack.Navigator>
   );

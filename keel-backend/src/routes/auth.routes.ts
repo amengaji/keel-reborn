@@ -1,24 +1,27 @@
-// keel-reborn/keel-backend/src/routes/auth.routes.ts
+// keel-backend/src/routes/auth.routes.ts
 
-import { Router, Request, Response } from "express";
-import bcrypt from "bcryptjs";
-
-import { login, changePassword, updateProfile } from "../controllers/auth.controller";
-
-/**
- * Authentication Routes
- * ---------------------
- * Handles login and (temporary) admin password reset.
- */
+import { Router } from "express";
+import { 
+  login, 
+  getMe, // <--- IMPORT THIS
+  changePassword, 
+  updateProfile 
+} from "../controllers/auth.controller";
+import { authenticate } from "../middleware/auth.middleware";
 
 const router = Router();
 
-// ---------------------------------------------------------------------
-// Login
-// URL: POST /api/auth/login
-// ---------------------------------------------------------------------
+/**
+ * Authentication Routes
+ * Base URL: /api/auth
+ */
+
+// 1. Public Routes
 router.post("/login", login);
-router.post("/change-password", changePassword);
-router.put("/profile", updateProfile);
+
+// 2. Protected Routes (Require Token)
+router.get("/me", authenticate, getMe); // <--- ADD THIS (Fixes the 404)
+router.post("/change-password", authenticate, changePassword);
+router.put("/profile", authenticate, updateProfile);
 
 export default router;

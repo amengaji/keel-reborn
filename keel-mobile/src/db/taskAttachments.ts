@@ -87,7 +87,7 @@ export function ensureTaskAttachmentsTable(): void {
       size_bytes INTEGER,
       created_at TEXT NOT NULL,
       created_by TEXT,
-      sync_state TEXT NOT NULL,
+      sync_state TEXT NOT NULL DEFAULT 'LOCAL_ONLY',
       deleted_at TEXT
     );
   `);
@@ -204,5 +204,56 @@ export function softDeleteTaskAttachment(
     WHERE id = ?
     `,
     [nowIso, attachmentId]
+  );
+}
+
+/* ============================================================
+   Sync Engine Support
+   ============================================================ */
+
+/**
+ * getPendingAttachments
+ *
+ * Returns attachments that need to be uploaded to the server.
+ * Criteria: sync_state is 'LOCAL_ONLY' or 'DIRTY', and NOT deleted locally.
+ * (Deleted items sync differently - omitted for simplicity)
+ */
+export function getPendingAttachments(): TaskAttachmentRecord[] {
+  const db = getDatabase();
+
+  const rows = db.getAllSync<TaskAttachmentRecord>(
+    `
+    SELECT
+      id,
+      task_key AS taskKey,
+      kind,
+      file_name AS fileName,
+      local_uri AS localUri,
+      mime_type AS mimeType,
+      size_bytes AS sizeBytes,
+      created_at AS createdAt,
+      created_by AS createdBy,
+      sync_state AS syncState,
+      deleted_at AS deletedAt
+    FROM task_attachments
+    WHERE (sync_state = 'LOCAL_ONLY' OR sync_state = 'DIRTY')
+      AND deleted_at IS NULL
+    LIMIT 50
+    `
+  );
+
+  return rows ?? [];
+}
+
+/**
+ * markAttachmentAsSynced
+ *
+ * Updates status to SYNCED after successful upload.
+ */
+export function markAttachmentAsSynced(id: string): void {
+  const db = getDatabase();
+  db.runSync(
+    `UPDATE task_attachments SET sync_state = 'SYNCED' WHERE id = ?`,
+    [id]
   );
 }

@@ -2,6 +2,19 @@
 
 import { NavigatorScreenParams } from "@react-navigation/native";
 
+
+/**
+ * ============================================================
+ * TASKS STACK PARAM LIST
+ * ============================================================
+ * Defines routes strictly for the Task/TRB Tab.
+ */
+export type TasksStackParamList = {
+  TasksHome: undefined;
+  TaskSection: { sectionKey: string; sectionTitle: string };
+  TaskDetails: { taskKey: string }; // Changed 'taskId' to 'taskKey' to match your screen
+};
+
 /**
  * ============================================================
  * MAIN STACK PARAM LIST
@@ -27,7 +40,7 @@ export type MainStackParamList = {
 
   // Feature: Daily Logs / Watchkeeping
   Daily: undefined;
-  WatchEntry: undefined;
+  DataSync: undefined;
 };
 
 /**

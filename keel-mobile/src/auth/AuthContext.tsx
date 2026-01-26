@@ -1,4 +1,4 @@
-// keel-mobile/src/auth/AuthContext.tsx
+//keel-mobile/src/auth/AuthContext.tsx
 
 import React, {
   createContext,
@@ -10,6 +10,13 @@ import React, {
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 import api from "../services/api";
+
+/**
+ * ============================================================
+ * AuthContext — The "Ship's Log" for User Identity
+ * ============================================================
+ * Handles: Login, Biometrics, Onboarding, and Theme.
+ */
 
 export interface User {
   id: number;
@@ -60,18 +67,22 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   updateUser: (updates: Partial<User>) => Promise<void>;
-  refreshUser: () => Promise<void>; // <--- ADDED REFRESH
+  refreshUser: () => Promise<void>; 
 
   biometricEnabled: boolean;
   biometricPromptSeen: boolean;
 
   onboardingCompleted: boolean;
   markOnboardingCompleted: () => Promise<void>;
+  
+  // ✅ ADDED: This is the alias needed for the new VesselStatusScreen
+  setOnboardingCompleted: (completed: boolean) => void;
 
   hasSeenWelcome: boolean;
   setHasSeenWelcome: () => Promise<void>;
 
   markBiometricPromptSeen: () => Promise<void>;
+  setBiometricPromptSeen: (seen: boolean) => void; // Added for compatibility
 
   themeMode: ThemeMode;
   toggleTheme: () => Promise<void>;
@@ -98,9 +109,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const [biometricEnabled, setBiometricEnabled] = useState(false);
-  const [biometricPromptSeen, setBiometricPromptSeen] = useState(false);
+  const [biometricPromptSeen, setBiometricPromptSeenState] = useState(false);
 
-  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
+  const [onboardingCompleted, setOnboardingCompletedState] = useState(false);
   const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
 
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
@@ -123,9 +134,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const storedTheme = await SecureStore.getItemAsync("themeMode");
 
       setBiometricEnabled(bio === "true");
-      setBiometricPromptSeen(bioSeen === "true");
+      setBiometricPromptSeenState(bioSeen === "true");
 
-      setOnboardingCompleted(onboarding === "true");
+      setOnboardingCompletedState(onboarding === "true");
       setHasSeenWelcome(welcome === "true");
 
       if (storedTheme === "dark" || storedTheme === "light") {
@@ -177,10 +188,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await SecureStore.setItemAsync("user", JSON.stringify(updatedUser));
       
       // 2. Sync with Backend
-      // We pass only specific fields that the backend accepts in updateProfile
       const payload: any = { userId: user.id };
       if (updates.status) payload.status = updates.status;
-      if (updates.mobileNumbers) payload.mobile = updates.mobileNumbers[0]; // Example mapping
+      if (updates.mobileNumbers) payload.mobile = updates.mobileNumbers[0]; 
       
       await api.put("/auth/profile", payload);
       
@@ -189,7 +199,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     } catch (error) {
       console.error("FAILED TO UPDATE USER STATE:", error);
-      // Revert if needed, but for now we keep simple
     }
   };
 
@@ -200,11 +209,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const markBiometricPromptSeen = async () => {
     await SecureStore.setItemAsync("biometricPromptSeen", "true");
+    setBiometricPromptSeenState(true);
   };
 
+  // Compatibility alias for manual setting
+  const setBiometricPromptSeen = (seen: boolean) => {
+    setBiometricPromptSeenState(seen);
+    SecureStore.setItemAsync("biometricPromptSeen", JSON.stringify(seen));
+  };
+
+  // Original Logic
   const markOnboardingCompleted = async () => {
     await SecureStore.setItemAsync("onboardingCompleted", "true");
-    setOnboardingCompleted(true);
+    setOnboardingCompletedState(true);
+  };
+
+  // ✅ NEW: Flexible setter needed for the Vessel Status Flow
+  const setOnboardingCompleted = (completed: boolean) => {
+    setOnboardingCompletedState(completed);
+    SecureStore.setItemAsync("onboardingCompleted", JSON.stringify(completed));
   };
 
   const toggleTheme = async () => {
@@ -279,6 +302,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await SecureStore.deleteItemAsync("accessToken");
         await SecureStore.deleteItemAsync("refreshToken");
         await SecureStore.deleteItemAsync("user");
+        await SecureStore.deleteItemAsync("onboardingCompleted"); // Optional: clear onboarding on logout?
         delete api.defaults.headers.common['Authorization'];
         setUser(null);
     } catch (e) {
@@ -299,11 +323,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         onboardingCompleted,
         markOnboardingCompleted,
+        setOnboardingCompleted, // ✅ Exposed here
 
         hasSeenWelcome,
         setHasSeenWelcome: markWelcomeSeen,
 
         markBiometricPromptSeen,
+        setBiometricPromptSeen, // ✅ Exposed here
 
         themeMode,
         toggleTheme,

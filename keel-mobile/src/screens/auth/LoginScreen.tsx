@@ -1,4 +1,4 @@
-//keel-mobile/src/screens/LoginScreen.tsx
+//keel-mobile/src/screens/auth/LoginScreen.tsx
 
 console.log(">>> NEW LOGIN SCREEN IS RENDERING <<<");
 
@@ -11,8 +11,9 @@ import {
   Platform,
 } from "react-native";
 import { Text, TextInput, useTheme } from "react-native-paper";
-import { KeelButton } from "../components/ui/KeelButton";
-import { useAuth } from "../auth/AuthContext";
+// ✅ FIXED: Path updated (../../ to go up from 'auth' folder)
+import { KeelButton } from "../../components/ui/KeelButton";
+import { useAuth } from "../../auth/AuthContext";
 
 export default function LoginScreen() {
   const theme = useTheme();
@@ -83,8 +84,9 @@ export default function LoginScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.headerWrapper}>
+          {/* ✅ FIXED: Path updated to go up 3 levels to root assets */}
           <Image
-            source={require("../../assets/keel-logo.png")}
+            source={require("../../../assets/keel-logo.png")}
             style={styles.logo}
             resizeMode="contain"
           />
@@ -143,3 +145,29 @@ export default function LoginScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  keyboardView: { flex: 1, justifyContent: "center", padding: 20 },
+  logoSection: { alignItems: "center", marginBottom: 40 },
+  logoCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: "#FFF", justifyContent: "center", alignItems: "center", marginBottom: 16 },
+  logoImage: { width: 60, height: 60 },
+  appName: { fontSize: 32, fontWeight: "900", color: "#FFF", letterSpacing: 4 },
+  appTag: { fontSize: 10, fontWeight: "700", color: "rgba(255,255,255,0.7)", letterSpacing: 2, marginTop: 4 },
+  
+  formCard: { borderRadius: 24, padding: 30, backgroundColor: "#FFF" },
+  welcomeText: { fontSize: 24, fontWeight: "800", color: "#111827", textAlign: "center" },
+  subText: { fontSize: 14, color: "#6B7280", textAlign: "center", marginBottom: 30, marginTop: 4 },
+  
+  inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#F3F4F6", borderRadius: 12, marginBottom: 16, paddingHorizontal: 16 },
+  inputIcon: { marginRight: 10 },
+  input: { flex: 1, backgroundColor: "transparent", height: 56, fontSize: 16 },
+  
+  loginBtn: { borderRadius: 12, marginTop: 10, backgroundColor: "#3194A0" },
+  
+  bioBtn: { marginTop: 24, alignItems: "center" },
+  bioText: { color: "#3194A0", fontSize: 12, fontWeight: "600", marginTop: 8 },
+  
+  footer: { alignItems: "center", marginTop: 40 },
+  footerText: { color: "rgba(255,255,255,0.6)", fontSize: 12 }
+});

@@ -1,4 +1,4 @@
-//keel-mobile/src/screens/HomeScreen.tsx
+//keel-mobile/src/screens/main/HomeScreen.tsx
 
 import React, { useEffect, useState } from "react";
 import { View, StyleSheet, ScrollView, TouchableOpacity, Modal } from "react-native";
@@ -20,16 +20,17 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from 'expo-blur';
 
-import { KeelScreen } from "../components/ui/KeelScreen";
-import { useSeaService } from "../sea-service/SeaServiceContext";
-import { getSeaServiceSummary } from "../sea-service/seaServiceStatus";
-import { useDailyLogs } from "../daily-logs/DailyLogsContext";
+// ✅ FIXED: All paths updated to ../../ for components/services
+import { KeelScreen } from "../../components/ui/KeelScreen";
+import { useSeaService } from "../../sea-service/SeaServiceContext";
+import { getSeaServiceSummary } from "../../sea-service/seaServiceStatus";
+import { useDailyLogs } from "../../daily-logs/DailyLogsContext";
 import { useNavigation } from "@react-navigation/native";
-import { ensureSeedTasksExist, getAllTaskRecords } from "../db/tasks";
-import { useAuth } from "../auth/AuthContext";
-import ComplianceIndicatorCard from "../components/home/ComplianceIndicatorCard";
-import api from "../services/api";
-import DateInputField from "../components/inputs/DateInputField"; 
+import { ensureSeedTasksExist, getAllTaskRecords } from "../../db/tasks";
+import { useAuth } from "../../auth/AuthContext";
+import ComplianceIndicatorCard from "../../components/home/ComplianceIndicatorCard";
+import api from "../../services/api";
+import DateInputField from "../../components/inputs/DateInputField"; 
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -222,13 +223,11 @@ const StatusOption = ({ label, active, color, onPress }: any) => (
 );
 
 const JoinVesselModal = ({ visible, onClose, vesselName, onSuccess }: any) => {
-  // FIX: Allow date to be null in state
   const [date, setDate] = useState<Date | null>(new Date());
   const [port, setPort] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleJoin = async () => {
-    // FIX: Check if date is null before submitting
     if (!date) {
         alert("Please select a sign-on date.");
         return;

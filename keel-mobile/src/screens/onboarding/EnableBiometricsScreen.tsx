@@ -5,7 +5,7 @@ console.log(">>> BIOMETRICS SCREEN <<<");
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import { Text, Button, useTheme } from "react-native-paper";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../../auth/AuthContext";
 
 export default function EnableBiometricsScreen() {
   const theme = useTheme();

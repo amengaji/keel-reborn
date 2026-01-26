@@ -15,6 +15,7 @@ import { calculateWeeklyWatchTotals } from "../utils/watchWeeklyAggregation";
 import { checkStcwCompliance } from "../utils/stcwCompliance";
 import CheckboxBox from "../components/common/CheckboxBox";
 import type { DailyLogEntry } from "../daily-logs/dailyLogsDomain";
+import TimePainter from '../components/daily-logs/TimePainter';
 
 /**
  * ============================================================
@@ -158,6 +159,55 @@ const buildEngineSummaryText = (payloadJson?: string | null): string | null => {
     return null;
   }
 };
+
+/* ============================================================
+     VISUALIZATION HELPER (TimePainter Integration)
+     ============================================================
+     Converts the list of log entries into a 24-hour "WORK" vs "REST" map.
+     Used to drive the TimePainter component in Read-Only mode.
+  */
+  const dailyTimelineData = useMemo(() => {
+    const map: Record<string, string> = {};
+    const slots = 48; // 24 hours * 2 slots per hour
+
+    // 1. Initialize day as REST
+    for (let i = 0; i < slots; i++) {
+      const hour = Math.floor(i / 2).toString().padStart(2, '0');
+      const min = i % 2 === 0 ? "00" : "30";
+      map[`${hour}:${min}`] = "REST";
+    }
+
+    // 2. Overlay Work/Watch Logs
+    entries.forEach(entry => {
+      // Skip invalid entries
+      if (!entry.startTime || !entry.endTime) return;
+
+      const start = new Date(entry.startTime);
+      const end = new Date(entry.endTime);
+
+      // Iterate through all 48 slots to check for overlap
+      for (let i = 0; i < slots; i++) {
+        const slotHour = Math.floor(i / 2);
+        const slotMin = i % 2 === 0 ? 0 : 30;
+        
+        // Create a Date object for this specific slot on the log's date
+        // (Assuming entries are filtered by date or we check date match)
+        const slotTime = new Date(entry.date); 
+        slotTime.setHours(slotHour, slotMin, 0, 0);
+
+        // Check if this slot time falls within the entry's duration
+        // Note: We treat the slot as "Work" if the entry covers this 30m block
+        if (slotTime >= start && slotTime < end) {
+          const hourKey = slotHour.toString().padStart(2, '0');
+          const minKey = slotMin === 0 ? "00" : "30";
+          map[`${hourKey}:${minKey}`] = "WORK"; 
+        }
+      }
+    });
+
+    return map;
+  }, [entries]);
+
 
   /**
    * Converts minutes into a friendly "Xh Ym" string.
@@ -1562,6 +1612,35 @@ const handleCancelEdit = () => {
    ============================================================ */}
 {primaryMode === "REVIEW" && (
   <>
+  {/* --- NEW: VISUAL TIMELINE SUMMARY --- */}
+    <Card style={{ marginBottom: 16, backgroundColor: '#F8FAFC' }}>
+        <Card.Content>
+            <Text variant="titleMedium" style={{ fontWeight: '700', marginBottom: 8 }}>
+                24-Hour Timeline
+            </Text>
+            <Text variant="bodySmall" style={{ color: '#64748B', marginBottom: 12 }}>
+                Visual overview of recorded work/rest hours for this day.
+            </Text>
+            
+            {/* The Visualizer */}
+            <TimePainter 
+                initialData={dailyTimelineData} 
+                onChange={() => {}} // Read-only: Do nothing on touch
+                mode="WORK" // Default color theme
+            />
+            
+            <View style={{ flexDirection: 'row', gap: 16, marginTop: 12, justifyContent: 'center' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 12, height: 12, backgroundColor: '#EF4444', borderRadius: 2 }} />
+                    <Text variant="labelSmall">Work / Watch</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 12, height: 12, backgroundColor: '#10B981', borderRadius: 2 }} />
+                    <Text variant="labelSmall">Rest</Text>
+                </View>
+            </View>
+        </Card.Content>
+    </Card>
     <Text
       variant="titleMedium"
       style={{ marginBottom: 12, marginTop: 8 }}

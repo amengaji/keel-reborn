@@ -15,15 +15,16 @@ import AppHeader from "../components/layout/AppHeader";
  */
 import SeaServiceWizardScreen from "../screens/SeaServiceWizardScreen";
 import StartSeaServiceScreen from "../screens/StartSeaServiceScreen";
-import {VesselParticularsScreen} from "../screens/VesselParticularsScreen";
+import DataSyncScreen from "../screens/DataSyncScreen";
 
 /**
- * Feature Screens (Tasks, Daily Logs)
+ * Feature Screens (Tasks, Daily Logs, Vessel Info)
+ * These screens usually require the AppHeader context
  */
+import { VesselParticularsScreen } from "../screens/VesselParticularsScreen";
 import TaskSectionScreen from "../screens/tasks/TaskSectionScreen";
 import TaskDetailsScreen from "../screens/TaskDetailsScreen";
 import DailyScreen from "../screens/DailyScreen";
-import {WatchEntryScreen} from "../screens/WatchEntryScreen";
 
 const RootStack = createNativeStackNavigator<MainStackParamList>();
 const InnerStack = createNativeStackNavigator<MainStackParamList>();
@@ -50,7 +51,17 @@ const InnerStack = createNativeStackNavigator<MainStackParamList>();
  */
 export default function MainNavigator() {
   return (
-    <RootStack.Navigator screenOptions={{ headerShown: false }}>
+    <RootStack.Navigator 
+      screenOptions={{ headerShown: false }} 
+      initialRouteName="DataSync"
+    >
+      {/* ======================================================
+          INITIALIZATION
+          ------------------------------------------------------
+          - Data Sync / Loading Screen
+         ====================================================== */}
+      <RootStack.Screen name="DataSync" component={DataSyncScreen} />
+
       {/* ======================================================
           MAIN APPLICATION SHELL
           ------------------------------------------------------
@@ -77,17 +88,6 @@ export default function MainNavigator() {
         component={SeaServiceWizardScreen}
       />
 
-      {/* VESSEL INFO (Fixes the navigation error) */}
-      <RootStack.Screen 
-        name="VesselParticulars" 
-        component={VesselParticularsScreen} 
-        options={{ animation: "slide_from_right" }}
-      />
-
-      {/* DAILY LOGS & WATCHKEEPING */}
-      <RootStack.Screen name="Daily" component={DailyScreen} />
-      <RootStack.Screen name="WatchEntry" component={WatchEntryScreen} />
-
     </RootStack.Navigator>
   );
 }
@@ -103,9 +103,10 @@ export default function MainNavigator() {
  *
  * IMPORTANT:
  * - TaskSection & TaskDetails live here
+ * - VesselParticulars lives here
  * - This guarantees:
  * ✓ Header visibility
- * ✓ Tab visibility
+ * ✓ Tab visibility (if configured)
  * ✓ Correct stacking
  */
 function MainLayout() {
@@ -125,18 +126,41 @@ function MainLayout() {
           - Bottom Tabs (default)
           - TaskSection
           - TaskDetails
+          - Vessel Info & Daily Logs
          ====================================================== */}
       <View style={styles.content}>
         <InnerStack.Navigator screenOptions={{ headerShown: false }}>
+          
           {/* Bottom Tabs */}
           <InnerStack.Screen
             name="MainShell"
             component={BottomTabNavigator}
           />
 
-          {/* Task Drill-Downs (Keep Header & Tabs visible) */}
+          {/* Task Drill-Downs 
+             (Keep Header & Tabs visible) 
+          */}
           <InnerStack.Screen name="TaskSection" component={TaskSectionScreen} />
-          <InnerStack.Screen name="TaskDetails" component={TaskDetailsScreen} />
+          
+          {/* FIX: Cast to 'any' to resolve Type mismatch between 
+             Local Screen Props vs Global Navigator Props. 
+             They are structurally identical ({taskKey: string}).
+          */}
+          <InnerStack.Screen 
+            name="TaskDetails" 
+            component={TaskDetailsScreen as any} 
+          />
+
+          {/* Operational Screens 
+             (Moved here to ensure they get the App Header)
+          */}
+          <InnerStack.Screen 
+            name="VesselParticulars" 
+            component={VesselParticularsScreen} 
+            options={{ animation: "slide_from_right" }}
+          />
+          
+          <InnerStack.Screen name="Daily" component={DailyScreen} />
 
         </InnerStack.Navigator>
       </View>

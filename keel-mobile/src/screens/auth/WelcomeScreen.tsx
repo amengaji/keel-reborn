@@ -3,8 +3,8 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
 import { Text, useTheme } from "react-native-paper";
-import { KeelButton } from "../components/ui/KeelButton";
-import { useAuth } from "../auth/AuthContext";
+import { KeelButton } from "../../components/ui/KeelButton";
+import { useAuth } from "../../auth/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 
 export default function WelcomeScreen() {

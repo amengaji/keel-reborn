@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import Task from '../models/Task';
 import sequelize from '../config/database';
+import TaskEvidence from '../models/TaskEvidence';
 
 const STCW_MAP: Record<string, string> = {
   'Function 1': 'Navigation',
@@ -13,6 +14,54 @@ const STCW_MAP: Record<string, string> = {
   'Function 5': 'Electrical & Control',
   'Function 6': 'Maintenance & Repair',
   'Function 7': 'Radio Communications'
+};
+
+// --- UPLOAD EVIDENCE ---
+export const uploadEvidence = async (req: Request, res: Response) => {
+  try {
+    // @ts-ignore
+    const userId = req.user.id;
+    const { taskId, description } = req.body;
+    const file = req.file; // Assuming 'multer' middleware is used
+
+    if (!file) {
+        return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    // In a real app, upload 'file.buffer' to S3/Cloudinary here.
+    // For local dev, we'll assume the middleware saved it to 'uploads/' and gave us a path.
+    const fileUrl = `/uploads/${file.filename}`; 
+
+    const evidence = await TaskEvidence.create({
+        user_id: userId,
+        task_id: taskId,
+        file_url: fileUrl,
+        file_type: 'IMAGE', // Detect mime type in real app
+        description
+    });
+
+    res.status(201).json(evidence);
+  } catch (error) {
+    console.error("Evidence Upload Error:", error);
+    res.status(500).json({ message: "Failed to upload evidence" });
+  }
+};
+
+// --- GET EVIDENCE FOR TASK ---
+export const getTaskEvidence = async (req: Request, res: Response) => {
+  try {
+    // @ts-ignore
+    const userId = req.user.id;
+    const { taskId } = req.params;
+
+    const evidence = await TaskEvidence.findAll({
+        where: { user_id: userId, task_id: taskId }
+    });
+
+    res.json(evidence);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching evidence" });
+  }
 };
 
 // GET ALL TASKS (With Visibility Filter)

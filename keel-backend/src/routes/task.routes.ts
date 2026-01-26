@@ -4,6 +4,11 @@ import { Router } from 'express';
 import * as TaskController from '../controllers/task.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { checkRole } from '../middleware/role.middleware';
+// Add these to your router
+import { uploadEvidence, getTaskEvidence } from '../controllers/task.controller';
+import { upload } from '../middleware/upload.middleware'; // Ensure you have this or create simple multer setup
+
+
 
 const router = Router();
 
@@ -46,5 +51,8 @@ router.delete(
   checkRole(['SUPER_ADMIN', 'ADMIN']), 
   TaskController.deleteAllTasks
 );
+
+router.post('/evidence', authenticate, upload.single('file'), uploadEvidence);
+router.get('/:taskId/evidence', authenticate, getTaskEvidence);
 
 export default router;

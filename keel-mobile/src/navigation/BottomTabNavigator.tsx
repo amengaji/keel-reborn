@@ -4,21 +4,53 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useTheme } from "react-native-paper";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import HomeScreen from "../screens/HomeScreen";
+import HomeScreen from "../screens/main/HomeScreen";
 import SeaServiceScreen from "../screens/SeaServiceScreen";
 import TaskListScreen from "../screens/TaskListScreen";
 import DailyScreen from "../screens/DailyScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import TasksHomeScreen from "../screens/tasks/TasksHomeScreen";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import TaskSectionScreen from "../screens/tasks/TaskSectionScreen";
 import TaskDetailsScreen from "../screens/TaskDetailsScreen";
+import { VesselParticularsScreen } from "../screens/VesselParticularsScreen";
 
 
 const Tab = createBottomTabNavigator();
+
+/**
+ * ============================================================
+ * Home Tab Stack Types (LOCAL)
+ * ============================================================
+ * * PURPOSE:
+ * - Allows navigation to Vessel Particulars while keeping
+ * the bottom tabs visible (Nested Navigation).
+ */
+type HomeStackParamList = {
+  HomeRoot: undefined;
+  VesselParticulars: undefined;
+};
+
+const HomeStack = createNativeStackNavigator<HomeStackParamList>();
+
+function HomeStackNavigator() {
+  return (
+    <HomeStack.Navigator screenOptions={{ headerShown: false }}>
+      {/* The Dashboard */}
+      <HomeStack.Screen name="HomeRoot" component={HomeScreen} />
+      
+      {/* Drill-down Screens (Tabs remain visible) */}
+      <HomeStack.Screen 
+        name="VesselParticulars" 
+        component={VesselParticularsScreen}
+        options={{ animation: "slide_from_right" }}
+      />
+    </HomeStack.Navigator>
+  );
+}
 
 /**
  * ============================================================
@@ -95,7 +127,7 @@ export default function BottomTabNavigator() {
     >
       <Tab.Screen
         name="Home"
-        component={HomeScreen}
+        component={HomeStackNavigator}
         options={{
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="home" color={color} size={size} />

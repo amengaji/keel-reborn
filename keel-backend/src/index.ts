@@ -21,6 +21,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import companyRoutes from './routes/company.routes';
 import importRoutes from './routes/import.routes'; 
 import reportsRoutes from './routes/reports.routes'; 
+import dailyLogRoutes from './routes/dailyLog.routes';
 
 // Models
 import Task from './models/Task';
@@ -58,6 +59,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/import', importRoutes); 
 app.use('/api/reports', reportsRoutes);
+app.use('/api/daily-logs', dailyLogRoutes);
 
 const startServer = async () => {
   try {

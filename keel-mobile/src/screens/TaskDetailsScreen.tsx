@@ -17,7 +17,7 @@
  * - Android 3-button + gesture safe
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, } from "react-native";
 import {
   Text,
@@ -40,25 +40,33 @@ import TaskAttachments from "../components/tasks/TaskAttachments";
 
 import { getTaskByKey, upsertTaskStatus } from "../db/tasks";
 import { getStaticTaskByKey } from "../tasks/taskCatalog.static";
-import { TasksStackParamList } from "../navigation/types";
+
 import {
   ensureTaskAttachmentsTable,
   getAttachmentsForTask,
   insertTaskAttachment,
   softDeleteTaskAttachment,
 } from "../db/taskAttachments";
+
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy"; 
+import * as Sharing from "expo-sharing"; 
+import * as IntentLauncher from "expo-intent-launcher"; 
 import { Linking } from "react-native";
 
 
-
-type Props = NativeStackScreenProps<TasksStackParamList, "TaskDetails">;
-
 /**
- * Extra breathing space above Android system navigation
+ * Local definition to ensure 'taskKey' is recognized safely
  */
+type TaskDetailsParams = {
+  TaskDetails: {
+    taskKey: string;
+  };
+};
+
+type Props = NativeStackScreenProps<TaskDetailsParams, "TaskDetails">;
+
 const FOOTER_BREATHING_SPACE = 16;
 
 export default function TaskDetailsScreen({ route }: Props) {
@@ -69,59 +77,43 @@ export default function TaskDetailsScreen({ route }: Props) {
 
   const { taskKey } = route.params;
 
-  /**
-   * ------------------------------------------------------------
-   * Task state
-   * ------------------------------------------------------------
-   */
+  // Task State
   const [title, setTitle] = useState("Loading task…");
   const [description, setDescription] = useState("");
   const [status, setStatus] =
     useState<"NOT_STARTED" | "IN_PROGRESS" | "COMPLETED">("NOT_STARTED");
 
-  /**
-   * ============================================================
-   * Task Attachments (Offline-first)
-   * ============================================================
-   */
+  // Attachments State
   const [attachments, setAttachments] = useState<any[]>([]);
+  
+  // LOCK: Prevents double-taps and race conditions
+  const processingRef = useRef(false);
 
-
-
-  // ------------------------------------------------------------
-  // Cadet Notes state
-  // ------------------------------------------------------------
+  // Notes State
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-
-  /**
-   * Cadet-entered long-form notes (stored locally)
-   */
   const [cadetNotes, setCadetNotes] = useState<string>("");
-
-  // ------------------------------------------------------------
-  // Cadet Notes UI Mode
-  // ------------------------------------------------------------
-  // Preview by default (logbook-style)
   const [isEditingNotes, setIsEditingNotes] = useState(false);
-
-
-  /**
-   * Indicates whether structured catalog guidance exists
-   */
   const [hasCatalogData, setHasCatalogData] = useState<boolean>(true);
 
-  /**
-   * Dialog state
-   */
+  // Dialogs
   const [showStartConfirm, setShowStartConfirm] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showInfoDialog, setShowInfoDialog] = useState(false);
 
-  /**
-   * ============================================================
-   * LOAD TASK (OFFLINE-FIRST)
-   * ============================================================
-   */
+  // Delete Confirmation State
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+
+  // Init DB
+  useEffect(() => {
+    try {
+      ensureTaskAttachmentsTable();
+    } catch (err) {
+      console.error("Failed to init attachments table", err);
+    }
+  }, []);
+
+  // Load Task
   useEffect(() => {
     try {
       const staticTask = getStaticTaskByKey(taskKey);
@@ -151,51 +143,64 @@ export default function TaskDetailsScreen({ route }: Props) {
 
   /**
    * ============================================================
-   * ATTACHMENT FILE HELPERS (Offline-safe)
+   * ATTACHMENT FILE HELPERS
    * ============================================================
    */
+  const docDir = FileSystem.documentDirectory; 
+  const TASK_EVIDENCE_DIR = `${docDir}task-evidence/`;
 
-/**
- * ============================================================
- * ATTACHMENT STORAGE PATH (TS-SAFE)
- * ============================================================
- *
- * We intentionally DO NOT reference:
- * - FileSystem.documentDirectory
- * - FileSystem.cacheDirectory
- *
- * Reason:
- * - In strict Expo + TS setups, these are missing from typings
- * - Even though they exist at runtime
- *
- * Strategy:
- * - Use a relative app-scoped directory
- * - Expo resolves this safely at runtime
- */
-const TASK_EVIDENCE_DIR = "task-evidence/";
-
-  /**
-   * Ensure evidence directory exists.
-   */
-async function ensureEvidenceDirExists() {
-  try {
-    await FileSystem.makeDirectoryAsync(TASK_EVIDENCE_DIR, {
-      intermediates: true,
-    });
-  } catch {
-    // Directory already exists — safe to ignore
+  async function ensureEvidenceDirExists() {
+    try {
+      await FileSystem.makeDirectoryAsync(TASK_EVIDENCE_DIR, {
+        intermediates: true,
+      });
+    } catch {
+      // Directory already exists — safe to ignore
+    }
   }
-}
 
   /**
-   * Build a PSC/audit-friendly filename.
+   * Helper to ensure every file gets a readable name.
+   */
+  function getFileNameFromAsset(asset: any, kind: "PHOTO" | "DOCUMENT"): string {
+    let name: string | null = null;
+
+    // 1. Try Document Picker 'name'
+    if (asset.name && typeof asset.name === 'string' && asset.name.trim().length > 0) {
+      name = asset.name;
+    }
+    // 2. Try Image Picker 'fileName'
+    else if (asset.fileName && typeof asset.fileName === 'string' && asset.fileName.trim().length > 0) {
+      name = asset.fileName;
+    }
+    // 3. Try to extract from URI
+    else if (asset.uri) {
+      const parts = asset.uri.split('/');
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && lastPart.includes('.')) {
+        name = lastPart;
+      }
+    }
+
+    // 4. Force Timestamp Fallback
+    if (!name || name.length < 5) {
+      const timestamp = new Date().toISOString().replace(/[-:T.]/g, "").slice(0, 14); // 20260126103000
+      const ext = kind === 'PHOTO' ? 'jpg' : 'pdf';
+      name = `${kind === 'PHOTO' ? 'Photo' : 'Doc'}_${timestamp}.${ext}`;
+    }
+
+    return name;
+  }
+
+  /**
+   * Build a unique internal filename for storage.
    */
   function buildEvidenceFileName(
     taskKey: string,
-    originalName: string | null | undefined
+    originalName: string
   ) {
-    const safeOriginal =
-      originalName?.replace(/\s+/g, "_") ?? "evidence";
+    // Sanitize
+    const safeOriginal = originalName.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9._-]/g, "");
     return `TASK_${taskKey}_${Date.now()}_${safeOriginal}`;
   }
 
@@ -233,38 +238,48 @@ async function ensureEvidenceDirExists() {
  */
 
 /**
- * Reload attachments from DB
+ * Reload attachments from DB and MAP TO UI FORMAT
  */
 function reloadAttachments() {
   const rows = getAttachmentsForTask(taskKey);
-  setAttachments(rows);
+  
+  // FIXED: Explicitly map 'fileName' to 'name' for the UI list
+  const uiAttachments = rows.map((row: any) => ({
+    ...row,
+    name: row.fileName // <--- This ensures the name appears in the list
+  }));
+
+  setAttachments(uiAttachments);
 }
 
 /**
  * Add photo using CAMERA
  */
 async function handleAddPhoto(taskKey: string) {
+  if (processingRef.current) return;
+  processingRef.current = true;
+
   try {
     await ensureEvidenceDirExists();
 
-    const permission =
-      await ImagePicker.requestCameraPermissionsAsync();
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       toast.error("Camera permission is required.");
       return;
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, // FIXED: Reverted to Options
       quality: 0.8,
     });
 
     if (result.canceled || !result.assets?.[0]) return;
 
-    const asset = result.assets[0];
-    await saveImageAsset(taskKey, asset);
+    await saveAsset(taskKey, result.assets[0], "PHOTO");
   } catch {
     toast.error("Failed to open camera.");
+  } finally {
+    processingRef.current = false;
   }
 }
 
@@ -272,139 +287,171 @@ async function handleAddPhoto(taskKey: string) {
  * Add photo using GALLERY
  */
 async function handleAddGallery(taskKey: string) {
+  if (processingRef.current) return;
+  processingRef.current = true;
+
   try {
     await ensureEvidenceDirExists();
 
-    const permission =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       toast.error("Gallery permission is required.");
       return;
     }
 
+    // Explicitly calling launchImageLibraryAsync
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, // FIXED: Reverted to Options
       quality: 0.8,
     });
 
     if (result.canceled || !result.assets?.[0]) return;
 
-    const asset = result.assets[0];
-    await saveImageAsset(taskKey, asset);
-  } catch {
+    await saveAsset(taskKey, result.assets[0], "PHOTO");
+  } catch (error) {
+    console.error("Gallery Error:", error);
     toast.error("Failed to open gallery.");
+  } finally {
+    processingRef.current = false;
   }
 }
-
-/**
- * Shared image save logic
- */
-async function saveImageAsset(taskKey: string, asset: any) {
-  const fileName = buildEvidenceFileName(taskKey, asset.fileName);
-  const destUri = TASK_EVIDENCE_DIR + fileName;
-
-  await FileSystem.copyAsync({
-    from: asset.uri,
-    to: destUri,
-  });
-
-  insertTaskAttachment({
-    id: `ATT_${Date.now()}`,
-    taskKey,
-    kind: "PHOTO",
-    fileName,
-    localUri: destUri,
-    mimeType: asset.type ?? "image/jpeg",
-    sizeBytes: asset.fileSize ?? null,
-  });
-
-  reloadAttachments();
-  toast.success("Photo attached.");
-}
-
 
 /**
  * Add PDF / Document
  */
 async function handleAddDocument(taskKey: string) {
-  try {
-    await ensureEvidenceDirExists();
+    if (processingRef.current) return;
+    processingRef.current = true;
 
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ["application/pdf"],
-      copyToCacheDirectory: false,
-    });
+    try {
+      await ensureEvidenceDirExists();
 
-    if (result.canceled || !result.assets?.[0]) return;
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf"],
+        copyToCacheDirectory: true,
+      });
 
-    const asset = result.assets[0];
-    const fileName = buildEvidenceFileName(
-      taskKey,
-      asset.name
-    );
+      if (result.canceled || !result.assets?.[0]) return;
 
-    const destUri = TASK_EVIDENCE_DIR + fileName;
+      await saveAsset(taskKey, result.assets[0], "DOCUMENT");
 
-    await FileSystem.copyAsync({
-      from: asset.uri,
-      to: destUri,
-    });
-
-    insertTaskAttachment({
-      id: `ATT_${Date.now()}`,
-      taskKey,
-      kind: "DOCUMENT",
-      fileName,
-      localUri: destUri,
-      mimeType: asset.mimeType ?? "application/pdf",
-      sizeBytes: asset.size ?? null,
-    });
-
-    reloadAttachments();
-    toast.success("Document attached.");
-  } catch {
-    toast.error("Failed to attach document.");
-  }
-}
-
-/**
- * Open attachment using system viewer.
- *
- * FileSystem does NOT open files.
- * We must delegate to the OS (Android/iOS).
- */
-async function handleOpenAttachment(item: any) {
-  try {
-    const info = await FileSystem.getInfoAsync(item.localUri);
-    if (!info.exists) {
-      toast.error("File not found on device.");
-      return;
+    } catch (error) {
+      console.error("Attach Error:", error);
+      toast.error("Failed to attach document.");
+    } finally {
+      processingRef.current = false;
     }
-
-    await Linking.openURL(item.localUri);
-  } catch {
-    toast.error("Unable to open attachment.");
   }
-}
+
+  /**
+   * Consolidated Save Logic
+   */
+  async function saveAsset(taskKey: string, asset: any, kind: "PHOTO" | "DOCUMENT") {
+    try {
+        // 1. Extract Real Name
+        const originalName = getFileNameFromAsset(asset, kind);
+        console.log("Saving Asset Name:", originalName);
+        
+        // 2. Build Internal Unique Name
+        const uniqueFileName = buildEvidenceFileName(taskKey, originalName);
+        const destUri = TASK_EVIDENCE_DIR + uniqueFileName;
+
+        // 3. Copy
+        await FileSystem.copyAsync({
+          from: asset.uri,
+          to: destUri,
+        });
+
+        // 4. Save to DB
+        insertTaskAttachment({
+          id: `ATT_${Date.now()}`,
+          taskKey,
+          kind,
+          fileName: originalName, // Save readable name for UI
+          localUri: destUri,
+          mimeType: asset.mimeType ?? (kind === "PHOTO" ? "image/jpeg" : "application/pdf"),
+          sizeBytes: asset.fileSize ?? asset.size ?? null,
+        });
+
+        reloadAttachments();
+        toast.success(`${kind === "PHOTO" ? "Photo" : "Document"} attached.`);
+    } catch (e) {
+        console.error("Save Asset Error:", e);
+        toast.error("Failed to save attachment.");
+    }
+  }
+
+/**
+   * Open attachment.
+   */
+  async function handleOpenAttachment(item: any) {
+    try {
+      const info = await FileSystem.getInfoAsync(item.localUri);
+      if (!info.exists) {
+        toast.error("File not found on device.");
+        return;
+      }
+
+      let mimeType = item.mimeType;
+      const lowerName = item.fileName.toLowerCase();
+      if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) mimeType = 'image/jpeg';
+      else if (lowerName.endsWith('.png')) mimeType = 'image/png';
+      else if (lowerName.endsWith('.pdf')) mimeType = 'application/pdf';
+
+      if (Platform.OS === 'android') {
+        const contentUri = await FileSystem.getContentUriAsync(item.localUri);
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: contentUri,
+          flags: 1, 
+          type: mimeType || 'application/pdf' 
+        });
+      } else {
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(item.localUri, {
+             mimeType: mimeType,
+             dialogTitle: `Open ${item.fileName}`,
+             UTI: mimeType
+          });
+        }
+      }
+
+    } catch (error) {
+      console.error("Open Attachment Error:", error);
+      toast.error("Unable to open attachment.");
+    }
+  }
 
 
 /**
- * Soft delete attachment (DB only)
+ * Request Delete
  */
-async function handleDeleteAttachment(item: any) {
+async function handleRequestDelete(item: any) {
+  setDeleteTarget(item);
+  setShowDeleteConfirm(true);
+}
+
+/**
+ * Confirm Delete
+ */
+async function handleConfirmDelete() {
+  if (!deleteTarget) return;
+
   try {
-    softDeleteTaskAttachment(item.id);
+    softDeleteTaskAttachment(deleteTarget.id);
     reloadAttachments();
     toast.success("Attachment removed.");
   } catch {
     toast.error("Failed to remove attachment.");
+  } finally {
+    setShowDeleteConfirm(false);
+    setDeleteTarget(null);
   }
 }
 
 
   /**
    * ============================================================
-   * MARKDOWN HELPERS (SIMPLE, TABLET-SAFE)
+   * MARKDOWN HELPERS
    * ============================================================
    */
   function appendMarkdown(wrapper: string) {
@@ -638,7 +685,7 @@ async function handleDeleteAttachment(item: any) {
         onAddGallery={handleAddGallery}
         onAddDocument={handleAddDocument}
         onOpen={handleOpenAttachment}
-        onDelete={handleDeleteAttachment}
+        onDelete={handleRequestDelete}
       />
 
 
@@ -690,128 +737,54 @@ async function handleDeleteAttachment(item: any) {
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      {/* NEW: Delete Confirmation Dialog */}
+      <Portal>
+        <Dialog visible={showDeleteConfirm} onDismiss={() => setShowDeleteConfirm(false)}>
+          <Dialog.Title>Delete Attachment?</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium">
+              Are you sure you want to remove this attachment? This action cannot be undone.
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setShowDeleteConfirm(false)}>Cancel</Button>
+            <Button textColor={theme.colors.error} onPress={handleConfirmDelete}>Delete</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
     </KeelScreen>
   );
 }
+
 const styles = StyleSheet.create({
-scroll: {
-  paddingTop: 4,
-  paddingBottom: 96,
-},
-headerRow: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: 2,
-  marginTop: -4,
-},
+  scroll: { paddingTop: 4, paddingBottom: 96 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2, marginTop: -4 },
   headerLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
   title: { fontWeight: "700", flex: 1 },
   divider: { marginVertical: 12 },
   sectionTitle: { fontWeight: "700", marginBottom: 6 },
-  noticeBox: {
-    flexDirection: "row",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    backgroundColor: "#00000010",
-  },
+  noticeBox: { flexDirection: "row", padding: 12, borderRadius: 8, marginBottom: 16, backgroundColor: "#00000010" },
   noticeText: { flex: 1 },
-  requirementsBox: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
+  requirementsBox: { padding: 12, borderRadius: 8, marginBottom: 12 },
   toolbar: { flexDirection: "row", gap: 4 },
   notesInput: { minHeight: 160, marginBottom: 12 },
-  footer: {
-    position: "absolute",
-    left: 10,
-    right: 10,
-    bottom: 0,
-    paddingTop: 6,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#E5E7EB",
-  },
-  backButtonWrap: {
-  justifyContent: "center",
-  marginRight: 6,
-},
-
-backButton: {
-  borderWidth: 1.5,
-  borderColor: "#3194A0",
-  borderRadius: 24,
-  backgroundColor: "transparent",
-},
-
-titleBlock: {
-  flex: 1,
-  justifyContent: "center",
-},
-notesHeader: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: 6,
-},
-
-notesPreview: {
-  padding: 12,
-  paddingVertical: 6,
-  borderRadius: 8,
-  marginBottom: 12,
-},
-
-notesActions: {
-  flexDirection: "row",
-  justifyContent: "flex-end",
-  gap: 12,
-  marginBottom: 12,
-},
-notes: {
-  minHeight: 160,
-  marginBottom: 12,
-},
-notesLine: {
-  marginBottom: 4,
-  lineHeight: 20,
-},
-
-notesPlaceholder: {
-  fontStyle: "italic",
-  color: "#6B7280",
-},
-headerContainer: {
-  marginBottom: 8,
-},
-
-metaRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  marginTop: 2,
-},
-
-statusText: {
-  marginTop: 2,
-  color: "#6B7280",
-},
-cardSurface: {
-  backgroundColor: undefined, // injected via theme
-  borderRadius: 12,
-  borderWidth: StyleSheet.hairlineWidth,
-  borderColor: "#00000020", // auto-works in dark/light
-},
-
-cardPadded: {
-  padding: 14,
-  marginBottom: 14,
-},
-textPrimary: {
-  },
-
-textMuted: {
-
-},
-
+  footer: { position: "absolute", left: 10, right: 10, bottom: 0, paddingTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#E5E7EB" },
+  backButtonWrap: { justifyContent: "center", marginRight: 6 },
+  backButton: { borderWidth: 1.5, borderColor: "#3194A0", borderRadius: 24, backgroundColor: "transparent" },
+  titleBlock: { flex: 1, justifyContent: "center" },
+  notesHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  notesPreview: { padding: 12, paddingVertical: 6, borderRadius: 8, marginBottom: 12 },
+  notesActions: { flexDirection: "row", justifyContent: "flex-end", gap: 12, marginBottom: 12 },
+  notes: { minHeight: 160, marginBottom: 12 },
+  notesLine: { marginBottom: 4, lineHeight: 20 },
+  notesPlaceholder: { fontStyle: "italic", color: "#6B7280" },
+  headerContainer: { marginBottom: 8 },
+  metaRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
+  statusText: { marginTop: 2, color: "#6B7280" },
+  cardSurface: { backgroundColor: undefined, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: "#00000020" },
+  cardPadded: { padding: 14, marginBottom: 14 },
+  textPrimary: {},
+  textMuted: {},
 });
