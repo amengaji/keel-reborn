@@ -18,6 +18,9 @@ export const getCadets = async (req: Request, res: Response) => {
     const currentUser = req.user;
     const whereClause: any = {};
     const totalTasksCount = await Task.count();
+    const isCTODeck = currentUser?.role === 'CTO_DECK';
+    const ctoVesselId = currentUser?.vessel_id;
+
 
     // FILTER BY COMPANY (Multi-Tenancy)
     if (currentUser && currentUser.role !== 'SUPER_ADMIN' && currentUser.company_id) {
@@ -27,16 +30,27 @@ export const getCadets = async (req: Request, res: Response) => {
     const cadets = await User.findAll({
       where: whereClause, // <--- Apply Company Filter
       include: [
-        { model: Role, as: 'role', where: { name: 'CADET' } },
+        {
+          model: Role,
+          as: 'role',
+          where: isCTODeck
+            ? { name: ['CADET', 'TRAINEE_OS'] } // CTO Deck sees Deck Cadet + Trainee OS
+            : { name: 'CADET' }
+        },
         {
           model: TraineeAssignment,
           as: 'assignments',
-          where: { status: 'ACTIVE' },
-          required: false, // Left Join (get cadet even if not assigned)
+          where: isCTODeck
+            ? {
+                status: 'ACTIVE',
+                vessel_id: ctoVesselId // 🔒 CTO Deck vessel lock
+              }
+            : { status: 'ACTIVE' },
+          required: false,
           include: [
             { 
               model: Vessel, 
-              as: 'vessel', // <--- FIX: Matches the alias defined in associations.ts
+              as: 'vessel',
               attributes: ['name'] 
             }
           ]
@@ -47,6 +61,7 @@ export const getCadets = async (req: Request, res: Response) => {
           required: false,
         }
       ],
+
       attributes: { exclude: ['password_hash'] },
       order: [['first_name', 'ASC']]
     });
