@@ -4,7 +4,6 @@ import React from "react";
 import { View, StyleSheet } from "react-native";
 import {
   createNativeStackNavigator,
-  NativeStackNavigationProp,
 } from "@react-navigation/native-stack";
 import { MainStackParamList } from "./types";
 
@@ -16,7 +15,15 @@ import AppHeader from "../components/layout/AppHeader";
  */
 import SeaServiceWizardScreen from "../screens/SeaServiceWizardScreen";
 import StartSeaServiceScreen from "../screens/StartSeaServiceScreen";
+import {VesselParticularsScreen} from "../screens/VesselParticularsScreen";
 
+/**
+ * Feature Screens (Tasks, Daily Logs)
+ */
+import TaskSectionScreen from "../screens/tasks/TaskSectionScreen";
+import TaskDetailsScreen from "../screens/TaskDetailsScreen";
+import DailyScreen from "../screens/DailyScreen";
+import {WatchEntryScreen} from "../screens/WatchEntryScreen";
 
 const RootStack = createNativeStackNavigator<MainStackParamList>();
 const InnerStack = createNativeStackNavigator<MainStackParamList>();
@@ -69,6 +76,18 @@ export default function MainNavigator() {
         name="SeaServiceWizard"
         component={SeaServiceWizardScreen}
       />
+
+      {/* VESSEL INFO (Fixes the navigation error) */}
+      <RootStack.Screen 
+        name="VesselParticulars" 
+        component={VesselParticularsScreen} 
+        options={{ animation: "slide_from_right" }}
+      />
+
+      {/* DAILY LOGS & WATCHKEEPING */}
+      <RootStack.Screen name="Daily" component={DailyScreen} />
+      <RootStack.Screen name="WatchEntry" component={WatchEntryScreen} />
+
     </RootStack.Navigator>
   );
 }
@@ -85,9 +104,9 @@ export default function MainNavigator() {
  * IMPORTANT:
  * - TaskSection & TaskDetails live here
  * - This guarantees:
- *   ✓ Header visibility
- *   ✓ Tab visibility
- *   ✓ Correct stacking
+ * ✓ Header visibility
+ * ✓ Tab visibility
+ * ✓ Correct stacking
  */
 function MainLayout() {
   return (
@@ -115,6 +134,9 @@ function MainLayout() {
             component={BottomTabNavigator}
           />
 
+          {/* Task Drill-Downs (Keep Header & Tabs visible) */}
+          <InnerStack.Screen name="TaskSection" component={TaskSectionScreen} />
+          <InnerStack.Screen name="TaskDetails" component={TaskDetailsScreen} />
 
         </InnerStack.Navigator>
       </View>

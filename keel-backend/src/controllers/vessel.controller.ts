@@ -5,14 +5,14 @@ import bcrypt from 'bcrypt';
 import Vessel from '../models/Vessel';
 import User from '../models/User';
 import Role from '../models/Role';
-import TraineeAssignment from '../models/TraineeAssignment'; // <--- ADDED IMPORT
+import TraineeAssignment from '../models/TraineeAssignment';
 
 // Helper: Standardized Password Hash
 const getDefaultPasswordHash = async () => {
   return await bcrypt.hash('Keel@123', 10);
 };
 
-// GET ALL (Supports Multi-Tenancy)
+// --- 1. GET ALL VESSELS (Supports Multi-Tenancy & Crew Mapping) ---
 export const getVessels = async (req: Request, res: Response) => {
   try {
     // @ts-ignore - 'user' is attached by auth middleware
@@ -56,7 +56,25 @@ export const getVessels = async (req: Request, res: Response) => {
   }
 };
 
-// CREATE VESSEL
+// --- 2. GET SINGLE VESSEL (Added for Mobile App Context) ---
+export const getVesselById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const vessel = await Vessel.findByPk(id);
+
+    if (!vessel) {
+      return res.status(404).json({ message: 'Vessel not found' });
+    }
+
+    res.json(vessel);
+  } catch (error) {
+    console.error("GET VESSEL BY ID ERROR:", error);
+    res.status(500).json({ message: 'Error fetching vessel details' });
+  }
+};
+
+// --- 3. CREATE VESSEL (Handles Master/CTO Auto-Creation) ---
 export const createVessel = async (req: Request, res: Response) => {
   try {
     const data = req.body;
@@ -128,7 +146,7 @@ export const createVessel = async (req: Request, res: Response) => {
   }
 };
 
-// UPDATE (Preserves Company Logic)
+// --- 4. UPDATE VESSEL (Preserves Logic) ---
 export const updateVessel = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -192,7 +210,7 @@ export const updateVessel = async (req: Request, res: Response) => {
   }
 };
 
-// DELETE VESSEL (FIXED: Handles Foreign Key Constraints)
+// --- 5. DELETE VESSEL (Handles Foreign Key Constraints) ---
 export const deleteVessel = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

@@ -1,82 +1,53 @@
 //keel-mobile/src/navigation/types.ts
 
+import { NavigatorScreenParams } from "@react-navigation/native";
+
 /**
  * ============================================================
- * Navigation Type Definitions
+ * MAIN STACK PARAM LIST
  * ============================================================
- *
- * IMPORTANT RULES:
- * - Stack param lists MUST match actual navigator usage
- * - A screen belongs to EXACTLY ONE stack
- * - Types must reflect real navigation hierarchy
+ * Defines all possible routes in the Root/Inner stacks.
  */
+export type MainStackParamList = {
+  // Main Shell (Tabs)
+  MainTabs: undefined;
+  MainShell: undefined; // Internal tab shell
 
-/* ------------------------------------------------------------
- * AUTH FLOW
- * ------------------------------------------------------------ */
+  // Wizards / Modals
+  StartSeaService: undefined;
+  SeaServiceWizard: undefined;
+
+  // Feature: Vessel Info
+  VesselParticulars: undefined;
+
+  // Feature: Tasks (TRB)
+  Tasks: undefined;
+  TaskSection: { sectionId: string; title: string };
+  TaskDetails: { taskId: string };
+
+  // Feature: Daily Logs / Watchkeeping
+  Daily: undefined;
+  WatchEntry: undefined;
+};
+
+/**
+ * ============================================================
+ * AUTH STACK PARAM LIST
+ * ============================================================
+ */
 export type AuthStackParamList = {
   Welcome: undefined;
   Login: undefined;
-  EnableBiometrics: undefined;
-};
-
-/* ------------------------------------------------------------
- * MAIN STACK (above Bottom Tabs)
- * ------------------------------------------------------------ */
-export type MainStackParamList = {
-  MainTabs: undefined;
-  StartSeaService: undefined;
-
-  /**
-   * Inner shell content
-   * - BottomTabNavigator
-   * - Task / Daily / Profile flows
-   *
-   * NOTE:
-   * Must be distinct from MainTabs to avoid nested-name warning.
-   */
-  MainShell: undefined;
-
-  /**
-   * Full-screen Sea Service Wizard
-   * - Opened from Sea Service dashboard
-   */
-  SeaServiceWizard: undefined;
-
-  /**
-   * Task Details (drill-down screen)
-   * - Opened from Tasks tab list
-   * - Inspector-safe: explicit id
-   */
-};
-
-/* ------------------------------------------------------------
- * BOTTOM TABS
- * ------------------------------------------------------------ */
-export type BottomTabParamList = {
-  Home: undefined;
-  SeaService: undefined;
-  Daily: undefined;
-  Tasks: undefined;
-  Profile: undefined;
-  Settings: undefined;
 };
 
 /**
  * ============================================================
- * Tasks Stack (inside Tasks Tab)
+ * ONBOARDING STACK PARAM LIST
  * ============================================================
  */
-export type TasksStackParamList = {
-  TasksHome: undefined;
-
-  TaskSection: {
-    sectionKey: string;
-    sectionTitle: string;
-  };
-
-  TaskDetails: {
-    taskKey: string;
-  };
+export type OnboardingStackParamList = {
+  OnboardingIntro: undefined;
+  LogPosition: undefined;
+  SafetyMap: undefined;
+  SeaService: undefined;
 };
-
