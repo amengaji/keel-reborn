@@ -41,6 +41,7 @@ const parseExcel = (buffer: Buffer) => {
 
 // --- HELPER: PASSWORD HASH ---
 const getDefaultPasswordHash = async () => {
+  // FIX: Standardized to 'Keel@123' for consistency
   return await bcrypt.hash('Keel@123', 10);
 };
 
@@ -65,7 +66,10 @@ export const importCadets = async (req: Request, res: Response) => {
 
     const success: any[] = [];
     const skipped: any[] = [];
-    const defaultPasswordHash = await bcrypt.hash('Keel1234!', 10);
+    
+    // FIX: Standardized to 'Keel@123'
+    const defaultPasswordHash = await getDefaultPasswordHash();
+    
     let newUsersCreated = 0;
 
     for (const row of rows) {
@@ -162,8 +166,6 @@ export const importCadets = async (req: Request, res: Response) => {
       };
 
 
-
-
       try {
         const [user, created] = await User.findOrCreate({
             where: { email: userPayload.email },
@@ -174,7 +176,10 @@ export const importCadets = async (req: Request, res: Response) => {
             newUsersCreated++;
             success.push(email);
         } else {
-            await user.update(userPayload);
+            // Note: We generally don't overwrite passwords on re-import to avoid locking people out
+            // We only update profile fields
+            const { password_hash, ...updateData } = userPayload; 
+            await user.update(updateData);
             success.push(`${email} (Updated)`);
         }
 
@@ -208,6 +213,8 @@ export const importVessels = async (req: Request, res: Response) => {
     // Pre-fetch roles and hash to speed up loop
     const ctoRole = await Role.findOne({ where: { name: 'CTO' } });
     const masterRole = await Role.findOne({ where: { name: 'MASTER' } });
+    
+    // FIX: Standardized to 'Keel@123'
     const defaultPass = await getDefaultPasswordHash();
 
     if (!ctoRole || !masterRole) {

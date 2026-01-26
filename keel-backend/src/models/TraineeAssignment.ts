@@ -10,8 +10,9 @@ class TraineeAssignment extends Model {
   public id!: number;
   public trainee_id!: number;
   public vessel_id!: number;
-  public company_id!: number; // <--- NEW FIELD
+  public company_id!: number;
   public sign_on_date!: Date;
+  public sign_on_port!: string | null; // <--- NEW FIELD
   public sign_off_date!: Date | null;
   public status!: string;
   
@@ -47,7 +48,7 @@ TraineeAssignment.init(
         key: 'id',
       },
     },
-    company_id: { // <--- NEW COLUMN DEFINITION
+    company_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
@@ -59,6 +60,10 @@ TraineeAssignment.init(
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
+    },
+    sign_on_port: { // <--- NEW COLUMN
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     sign_off_date: {
       type: DataTypes.DATE,
@@ -72,7 +77,7 @@ TraineeAssignment.init(
   {
     sequelize,
     tableName: 'trainee_assignments',
-    underscored: true, // Ensures columns are snake_case in DB
+    underscored: true,
   }
 );
 

@@ -181,7 +181,8 @@ export const createCadet = async (req: Request, res: Response) => {
     const cadetRole = await Role.findOne({ where: { name: "CADET" } });
     if (!cadetRole) return res.status(500).json({ message: "System Error: CADET role missing" });
 
-    const passwordHash = await bcrypt.hash(data.password || "cadet123", 10);
+    // --- FIX: UPDATED DEFAULT PASSWORD TO 'Keel@123' ---
+    const passwordHash = await bcrypt.hash(data.password || "Keel@123", 10);
 
     const newUser = await User.create({
       // Core Auth

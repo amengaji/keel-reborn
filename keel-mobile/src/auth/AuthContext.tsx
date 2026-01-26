@@ -16,6 +16,15 @@ export interface User {
   name: string;
   email: string;
   category: string;
+  
+  // Maritime Status
+  rank?: string;
+  status?: string; // 'Ready', 'Onboard', 'Leave'
+  vesselId?: number;
+  vesselName?: string;
+  department?: string;
+
+  // Personal
   dob?: string;
   pob?: string;
   address?: string;
@@ -24,6 +33,8 @@ export interface User {
   city?: string;
   pincode?: string;
   mobileNumbers?: string[];
+  
+  // Docs
   passportNo?: string;
   passportDoi?: string;
   passportPoi?: string;
@@ -34,6 +45,8 @@ export interface User {
   sbDoe?: string;
   sidNo?: string;
   indosNo?: string;
+  
+  // Kin
   nokName?: string;
   nokRelation?: string;
   nokContact?: string;
@@ -47,6 +60,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   updateUser: (updates: Partial<User>) => Promise<void>;
+  refreshUser: () => Promise<void>; // <--- ADDED REFRESH
 
   biometricEnabled: boolean;
   biometricPromptSeen: boolean;
@@ -119,15 +133,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (token && storedUser) {
-        // --- FIX: Safely parse the user object ---
         try {
           const parsedUser = JSON.parse(storedUser);
           setUser(parsedUser);
-          // Set axios default header immediately upon restoration
           api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         } catch (parseError) {
           console.error("Failed to parse stored user JSON:", parseError);
-          // If JSON is corrupt, clear it so we don't crash again
           await SecureStore.deleteItemAsync("user");
         }
       }
@@ -138,22 +149,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  /**
-   * PERSISTENT PROFILE UPDATE
-   * Merges updates into current user and saves to local SecureStore.
-   */
+  // --- REFRESH USER FROM BACKEND ---
+  const refreshUser = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      const freshUser = res.data;
+      
+      // Standardize fields if needed
+      const mappedUser: User = {
+         ...freshUser,
+         name: freshUser.name || `${freshUser.first_name} ${freshUser.last_name}`
+      };
+
+      setUser(mappedUser);
+      await SecureStore.setItemAsync("user", JSON.stringify(mappedUser));
+    } catch (e) {
+      console.error("Failed to refresh user", e);
+    }
+  };
+
   const updateUser = async (updates: Partial<User>) => {
     if (!user) return;
     try {
+      // 1. Optimistic UI Update
       const updatedUser = { ...user, ...updates };
-      // --- FIX: Ensure JSON.stringify is used ---
-      await SecureStore.setItemAsync("user", JSON.stringify(updatedUser));
       setUser(updatedUser);
+      await SecureStore.setItemAsync("user", JSON.stringify(updatedUser));
       
-      // OPTIONAL: Sync with backend API if connected
-      // await api.patch("/me/profile", updates);
+      // 2. Sync with Backend
+      // We pass only specific fields that the backend accepts in updateProfile
+      const payload: any = { userId: user.id };
+      if (updates.status) payload.status = updates.status;
+      if (updates.mobileNumbers) payload.mobile = updates.mobileNumbers[0]; // Example mapping
+      
+      await api.put("/auth/profile", payload);
+      
+      // 3. Fetch fresh to ensure sync
+      await refreshUser();
+
     } catch (error) {
       console.error("FAILED TO UPDATE USER STATE:", error);
+      // Revert if needed, but for now we keep simple
     }
   };
 
@@ -164,10 +200,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const markBiometricPromptSeen = async () => {
     await SecureStore.setItemAsync("biometricPromptSeen", "true");
-    setHasSeenWelcome(true); // Assuming this marks welcome as seen too? Or should it update bioPrompt state?
-    // Correct logic might be updating the bio prompt state:
-    // setBiometricPromptSeen(true); 
-    // However, keeping your original logic for now to avoid side effects.
   };
 
   const markOnboardingCompleted = async () => {
@@ -188,21 +220,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const { accessToken, refreshToken, user } = res.data;
 
-      // --- FIX: Ensure JSON.stringify is used for the user object ---
       await SecureStore.setItemAsync("accessToken", accessToken);
-      // Only save refreshToken if it exists (some backends might not send it)
       if (refreshToken) {
         await SecureStore.setItemAsync("refreshToken", refreshToken);
       }
       await SecureStore.setItemAsync("user", JSON.stringify(user));
 
-      // Set axios header for immediate subsequent requests
       api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
 
       setUser(user);
     } catch (error: any) {
       console.log("LOGIN ERROR FULL:", error);
-      console.log("LOGIN ERROR RESPONSE:", error?.response?.data);
       throw error;
     }
   };
@@ -225,7 +253,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (!auth.success) return false;
 
-        // Try to refresh token if available
         const refreshToken = await SecureStore.getItemAsync("refreshToken");
         if (!refreshToken) return false;
 
@@ -235,7 +262,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await SecureStore.setItemAsync("accessToken", newAccessToken);
         api.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
 
-        // Retrieve user from storage
         const storedUser = await SecureStore.getItemAsync("user");
         if (storedUser) {
             setUser(JSON.parse(storedUser));
@@ -253,7 +279,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await SecureStore.deleteItemAsync("accessToken");
         await SecureStore.deleteItemAsync("refreshToken");
         await SecureStore.deleteItemAsync("user");
-        // Clear Axios header
         delete api.defaults.headers.common['Authorization'];
         setUser(null);
     } catch (e) {
@@ -267,6 +292,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         loading,
         updateUser,
+        refreshUser,
 
         biometricEnabled,
         biometricPromptSeen,

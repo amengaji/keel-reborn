@@ -2,20 +2,57 @@
 
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt"; // ✅ FIXED: native bcrypt ONLY
+import bcrypt from "bcrypt"; 
 import User from "../models/User";
 import Role from "../models/Role";
 import Company from "../models/Company";
-import Vessel from "../models/Vessel"; // <--- ADDED IMPORT
+import Vessel from "../models/Vessel";
+import TraineeAssignment from "../models/TraineeAssignment"; // <--- Import this
 
-/**
- * Authentication Controller
- * Handles Login for Emails (Admins/Master) AND IDs (CTOs: ctodeck.IMO)
- */
+// --- HELPER: DEEP RESOLVE VESSEL ---
+// Checks User table -> then TraineeAssignment table -> Self-Heals if needed
+const resolveVesselInfo = async (user: User) => {
+  
+  // 1. Happy Path: User already has vessel loaded
+  if (user.vessel && user.vessel.name) {
+      return { id: user.vessel.id, name: user.vessel.name };
+  }
+
+  // 2. Fallback A: User has ID but no association loaded
+  if (user.vessel_id) {
+      const v = await Vessel.findByPk(user.vessel_id);
+      if (v) return { id: v.id, name: v.name };
+  }
+
+  // 3. Fallback B (The Fix): Check TraineeAssignment table
+  // This handles cases where User.vessel_id is NULL but they are actually assigned
+  const activeAssignment = await TraineeAssignment.findOne({
+      where: { 
+          trainee_id: user.id,
+          status: 'ACTIVE'
+      },
+      include: [{ model: Vessel, as: 'vessel' }]
+  });
+
+  if (activeAssignment && activeAssignment.vessel) {
+      // SELF-HEAL: Update the user record so it's correct next time
+      console.log(`🛠️ Self-Healing User ${user.email}: Linking to Vessel ${activeAssignment.vessel.name}`);
+      await User.update(
+          { vessel_id: activeAssignment.vessel.id, status: 'Onboard' },
+          { where: { id: user.id } }
+      );
+      
+      return { 
+          id: activeAssignment.vessel.id, 
+          name: activeAssignment.vessel.name 
+      };
+  }
+
+  return { id: null, name: null };
+};
 
 // --- LOGIN ---
 export const login = async (req: Request, res: Response) => {
-  // Use 'email' field from body, but treat it as a generic Login ID
   const rawId = req.body?.email;
   const rawPassword = req.body?.password;
 
@@ -31,28 +68,11 @@ export const login = async (req: Request, res: Response) => {
 
     // 1. Find User
     const user = await User.findOne({
-      where: { email: loginId }, // Matches 'ctodeck.123' OR 'capt@gmail.com'
+      where: { email: loginId },
       include: [
         { model: Role, as: "role" },
         { model: Company, as: "company" },
         { model: Vessel, as: "vessel", attributes: ["id", "name"] }
-      ],
-      attributes: [
-        "id",
-        "email",
-        "password_hash",
-        "first_name",
-        "last_name",
-        "role_id",
-        "company_id",
-        "rank",
-        "status",
-        "avatar_url",
-        "coc_number",
-        "seaman_book_number",
-        "mfa_enabled",
-        "department",
-        "vessel_id"
       ]
     });
 
@@ -72,7 +92,10 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Invalid credentials." });
     }
 
-    // 3. Generate Token
+    // 3. Deep Resolve Vessel (Self-Healing)
+    const vesselInfo = await resolveVesselInfo(user);
+
+    // 4. Generate Token
     const accessToken = jwt.sign(
       {
         id: user.id,
@@ -80,24 +103,21 @@ export const login = async (req: Request, res: Response) => {
         role: user.role?.name,
         company_id: user.company_id,
         department: user.department,
-        vessel_id: user.vessel_id
+        vessel_id: vesselInfo.id // Use the resolved ID
       },
       process.env.JWT_SECRET || "maritime_secret_key",
       { expiresIn: "12h" }
     );
 
-    console.log(
-      `✅ Login Success: ${user.email} (${user.role?.name}) -> Vessel: ${
-        user.vessel?.name || "Shore"
-      }`
-    );
+    console.log(`✅ Login Success: ${user.email} | Vessel: ${vesselInfo.name || 'None'}`);
 
-    // 4. Send Response
+    // 5. Send Response
     return res.status(200).json({
       accessToken,
       user: {
         id: user.id,
         email: user.email,
+        name: `${user.first_name} ${user.last_name}`,
         firstName: user.first_name,
         lastName: user.last_name,
         role: user.role?.name,
@@ -108,10 +128,9 @@ export const login = async (req: Request, res: Response) => {
         status: user.status,
 
         // --- VESSEL CONTEXT ---
-        vesselId: user.vessel_id,
-        vesselName: user.vessel?.name,
-        // ----------------------
-
+        vesselId: vesselInfo.id,
+        vesselName: vesselInfo.name, // <--- GUARANTEED VALUE
+        
         avatar: user.avatar_url,
         cocNumber: user.coc_number,
         seamanBookNumber: user.seaman_book_number,
@@ -124,7 +143,7 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
-// --- GET ME (Current User Context) ---
+// --- GET ME ---
 export const getMe = async (req: Request, res: Response) => {
   try {
     // @ts-ignore
@@ -141,10 +160,14 @@ export const getMe = async (req: Request, res: Response) => {
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    // Deep Resolve
+    const vesselInfo = await resolveVesselInfo(user);
+
     res.json({
       ...user.toJSON(),
-      vesselId: user.vessel_id,
-      vesselName: user.vessel?.name
+      name: `${user.first_name} ${user.last_name}`,
+      vesselId: vesselInfo.id,
+      vesselName: vesselInfo.name
     });
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
@@ -156,14 +179,11 @@ export const changePassword = async (req: Request, res: Response) => {
   const { userId, currentPassword, newPassword } = req.body;
 
   try {
-    const user = await User.findByPk(userId, {
-      attributes: ["id", "password_hash"]
-    });
+    const user = await User.findByPk(userId, { attributes: ["id", "password_hash"] });
     if (!user) return res.status(404).json({ message: "User not found." });
 
     const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
-    if (!isMatch)
-      return res.status(400).json({ message: "Current password is incorrect." });
+    if (!isMatch) return res.status(400).json({ message: "Current password is incorrect." });
 
     const newHash = await bcrypt.hash(newPassword, 10);
     user.password_hash = newHash;
@@ -177,32 +197,47 @@ export const changePassword = async (req: Request, res: Response) => {
 
 // --- UPDATE PROFILE ---
 export const updateProfile = async (req: Request, res: Response) => {
-  const { userId, cocNumber, seamanBookNumber, mfaEnabled } = req.body;
+  // @ts-ignore
+  const userIdFromToken = req.user?.id;
+  const { userId, cocNumber, seamanBookNumber, mfaEnabled, status } = req.body;
+
+  const targetId = userId || userIdFromToken;
 
   try {
-    const user = await User.findByPk(userId);
+    const user = await User.findByPk(targetId);
     if (!user) return res.status(404).json({ message: "User not found." });
 
     if (cocNumber !== undefined) user.coc_number = cocNumber;
-    if (seamanBookNumber !== undefined)
-      user.seaman_book_number = seamanBookNumber;
+    if (seamanBookNumber !== undefined) user.seaman_book_number = seamanBookNumber;
     if (mfaEnabled !== undefined) user.mfa_enabled = mfaEnabled;
+    if (status !== undefined) user.status = status;
 
     await user.save();
+
+    // Re-fetch 
+    const updatedUser = await User.findByPk(user.id, {
+        include: [{ model: Vessel, as: "vessel", attributes: ["id", "name"] }]
+    });
+
+    const vesselInfo = await resolveVesselInfo(updatedUser!);
 
     res.json({
       message: "Profile updated successfully.",
       user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        role: user.role?.name || "Unknown",
-        cocNumber: user.coc_number,
-        seamanBookNumber: user.seaman_book_number,
-        mfaEnabled: user.mfa_enabled,
-        department: user.department,
-        vessel_id: user.vessel_id
+        id: updatedUser!.id,
+        email: updatedUser!.email,
+        name: `${updatedUser!.first_name} ${updatedUser!.last_name}`,
+        firstName: updatedUser!.first_name,
+        lastName: updatedUser!.last_name,
+        role: "CADET", 
+        cocNumber: updatedUser!.coc_number,
+        seamanBookNumber: updatedUser!.seaman_book_number,
+        mfaEnabled: updatedUser!.mfa_enabled,
+        department: updatedUser!.department,
+        rank: updatedUser!.rank,
+        status: updatedUser!.status, 
+        vesselId: vesselInfo.id,
+        vesselName: vesselInfo.name
       }
     });
   } catch (error) {
@@ -210,7 +245,7 @@ export const updateProfile = async (req: Request, res: Response) => {
   }
 };
 
-// --- CREATE USER (Helper) ---
+// --- CREATE USER ---
 export const createUser = async (req: Request, res: Response) => {
   try {
     const data = req.body;
@@ -218,7 +253,6 @@ export const createUser = async (req: Request, res: Response) => {
     const currentUser = req.user;
 
     let targetCompanyId = currentUser.company_id;
-
     if (currentUser.role === "SUPER_ADMIN" && data.companyId) {
       targetCompanyId = data.companyId;
     }
