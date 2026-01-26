@@ -1,7 +1,7 @@
 //keel-mobile/src/screens/DataSyncScreen.tsx
 
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet, Alert, Platform } from "react-native"; // ✅ Added Platform
+import { View, StyleSheet, Alert, Platform } from "react-native";
 import { Text, ActivityIndicator, useTheme, ProgressBar } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -17,7 +17,6 @@ type NavigationProp = NativeStackNavigationProp<MainStackParamList, "DataSync">;
 export default function DataSyncScreen() {
   const theme = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  // ✅ Removed 'token', relying on user presence
   const { user, refreshUser } = useAuth();
   
   const [status, setStatus] = useState("Initializing...");
@@ -28,7 +27,7 @@ export default function DataSyncScreen() {
     if (user) {
         runSyncSequence();
     }
-  }, [user]); // Re-run if user object changes/hydrates
+  }, [user]); 
 
   const runSyncSequence = async () => {
     try {
@@ -36,29 +35,43 @@ export default function DataSyncScreen() {
       setStatus("Checking Profile...");
       setProgress(0.3);
       
-      // We await the refresh, but don't assign the result since it might be void.
       await refreshUser(); 
       
-      // We read the rank from the current user object. 
-      // Fallback to "Deck Cadet" if undefined during initial boot.
-      const userRank = user?.rank || "Deck Cadet"; 
+      const rawRank = user?.rank || "DECK_CADET";
+
+      // ✅ FIX: Robust Normalization Logic
+      // 1. Remove parentheses and content inside: "Deck Cadet (BSC)" -> "Deck Cadet"
+      // 2. Trim spaces
+      // 3. Space to Underscore
+      // 4. Uppercase
+      const formattedRank = rawRank
+        .replace(/\s*\(.*?\)\s*/g, '') 
+        .trim()
+        .replace(/\s+/g, '_')
+        .toUpperCase();
+
+      console.log(`>>> RAW RANK: ${rawRank}`);
+      console.log(`>>> NORMALIZED RANK: ${formattedRank}`); // Should be DECK_CADET
 
       // 2. SYNC TASKS
-      setStatus(`Syncing ${userRank} Tasks...`);
+      setStatus(`Syncing ${formattedRank} Tasks...`);
       setProgress(0.5);
 
       try {
         // A. Fetch from Shore
-        const shoreTasks = await taskService.getByRank(userRank);
+        const shoreTasks = await taskService.getByRank(formattedRank);
         
+        console.log(`>>> TASKS RECEIVED: ${shoreTasks?.length || 0}`); 
+
         // B. Save to Local DB
         if (shoreTasks && shoreTasks.length > 0) {
             await syncTasksFromShore(shoreTasks);
+            console.log(">>> TASKS SAVED TO DB");
         } else {
             console.log("No tasks returned from shore.");
         }
       } catch (taskError) {
-        console.warn("Task sync failed (likely offline). Using cached DB.");
+        console.warn("Task sync failed (likely offline). Using cached DB.", taskError);
       }
 
       // 3. FINALIZE
@@ -71,7 +84,6 @@ export default function DataSyncScreen() {
 
     } catch (e) {
       console.error("Sync Fatal Error", e);
-      // If sync fails completely, allow user to retry
       Alert.alert(
         "Sync Failed",
         "Could not load data. Check connection.",

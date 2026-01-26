@@ -1,23 +1,26 @@
-// keel-backend/src/routes/task.routes.ts
+//keel-backend/src/routes/task.routes.ts
 
 import { Router } from 'express';
 import * as TaskController from '../controllers/task.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { checkRole } from '../middleware/role.middleware';
-// Add these to your router
-import { uploadEvidence, getTaskEvidence } from '../controllers/task.controller';
-import { upload } from '../middleware/upload.middleware'; // Ensure you have this or create simple multer setup
-
-
+import { uploadEvidence, getTaskEvidence, getMobileTasks } from '../controllers/task.controller';
+import { upload } from '../middleware/upload.middleware'; 
 
 const router = Router();
 
-// 1. GET TASKS
-// Everyone (Cadets, Officers, Admins, Super Admins) can SEE the tasks available to them.
+// 1. GET TASKS (Web Tree View)
 router.get('/', authenticate, TaskController.getTasks);
 
-// 2. CREATE TASK
-// Super Admins (Global) + Company Admins/Managers (Private) can create tasks.
+// 2. MOBILE SYNC (Flat List) - ✅ NEW ROUTE
+// Must be placed BEFORE /:id to prevent routing conflicts
+router.get('/sync', authenticate, getMobileTasks);
+
+// 3. EVIDENCE ENDPOINTS
+router.post('/evidence', authenticate, upload.single('file'), uploadEvidence);
+router.get('/:taskId/evidence', authenticate, getTaskEvidence);
+
+// 4. CREATE TASK
 router.post(
   '/', 
   authenticate, 
@@ -25,8 +28,7 @@ router.post(
   TaskController.createTask
 );
 
-// 3. UPDATE TASK
-// Access allowed for Admins/Managers, but Controller enforces ownership strictness.
+// 5. UPDATE TASK
 router.put(
   '/:id', 
   authenticate, 
@@ -34,8 +36,7 @@ router.put(
   TaskController.updateTask
 );
 
-// 4. DELETE SINGLE TASK
-// Access allowed for Admins/Managers, but Controller enforces ownership strictness.
+// 6. DELETE SINGLE TASK
 router.delete(
   '/:id', 
   authenticate, 
@@ -43,16 +44,12 @@ router.delete(
   TaskController.deleteTask
 );
 
-// 5. BULK DELETE
-// Dangerous operation: Only Super Admins or Company Admins (for their own data) should do this.
+// 7. BULK DELETE
 router.delete(
   '/', 
   authenticate, 
   checkRole(['SUPER_ADMIN', 'ADMIN']), 
   TaskController.deleteAllTasks
 );
-
-router.post('/evidence', authenticate, upload.single('file'), uploadEvidence);
-router.get('/:taskId/evidence', authenticate, getTaskEvidence);
 
 export default router;

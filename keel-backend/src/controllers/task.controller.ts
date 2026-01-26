@@ -1,4 +1,4 @@
-// keel-backend/src/controllers/task.controller.ts
+//keel-backend/src/controllers/task.controller.ts
 
 import { Request, Response } from 'express';
 import { Op } from 'sequelize';
@@ -22,21 +22,19 @@ export const uploadEvidence = async (req: Request, res: Response) => {
     // @ts-ignore
     const userId = req.user.id;
     const { taskId, description } = req.body;
-    const file = req.file; // Assuming 'multer' middleware is used
+    const file = req.file; 
 
     if (!file) {
         return res.status(400).json({ message: "No file uploaded" });
     }
 
-    // In a real app, upload 'file.buffer' to S3/Cloudinary here.
-    // For local dev, we'll assume the middleware saved it to 'uploads/' and gave us a path.
     const fileUrl = `/uploads/${file.filename}`; 
 
     const evidence = await TaskEvidence.create({
         user_id: userId,
         task_id: taskId,
         file_url: fileUrl,
-        file_type: 'IMAGE', // Detect mime type in real app
+        file_type: 'IMAGE', 
         description
     });
 
@@ -64,7 +62,7 @@ export const getTaskEvidence = async (req: Request, res: Response) => {
   }
 };
 
-// GET ALL TASKS (With Visibility Filter)
+// GET ALL TASKS (Tree Structure for Web)
 export const getTasks = async (req: Request, res: Response) => {
   try {
     // @ts-ignore
@@ -72,14 +70,9 @@ export const getTasks = async (req: Request, res: Response) => {
     
     let whereClause = {};
 
-    // LOGIC: Visibility Filter
     if (user.role === 'SUPER_ADMIN') {
-      // Super Admin sees EVERYTHING
       whereClause = {}; 
     } else {
-      // Companies/Trainees see:
-      // 1. Global Tasks (company_id IS NULL)
-      // 2. Their Own Company Tasks (company_id matches user's company)
       whereClause = {
         [Op.or]: [
           { company_id: null },
@@ -93,7 +86,6 @@ export const getTasks = async (req: Request, res: Response) => {
       order: [['function_code', 'ASC'], ['code', 'ASC']] 
     });
     
-    // --- TRANSFORM TO TREE STRUCTURE (Same as before) ---
     const tree: any[] = [];
 
     tasks.forEach((task: any) => {
@@ -130,11 +122,8 @@ export const getTasks = async (req: Request, res: Response) => {
         description: task.description || '',
         instructions: task.instructions || '',
         stcw: task.stcw_code || '', 
-        
-        // Return ownership info so frontend can show badges/lock buttons
         company_id: task.company_id, 
         is_global: task.company_id === null,
-
         function_code: task.function_code,
         category: task.category,
         department: task.department,
@@ -154,7 +143,7 @@ export const getTasks = async (req: Request, res: Response) => {
   }
 };
 
-// CREATE TASK (With Ownership Assignment)
+// CREATE TASK
 export const createTask = async (req: Request, res: Response) => {
   try {
     // @ts-ignore
@@ -168,20 +157,18 @@ export const createTask = async (req: Request, res: Response) => {
       evidence_type, evidence, verification_method, verification
     } = req.body;
 
-    // LOGIC: Determine Ownership
     let companyIdToSet = null;
     if (user.role === 'SUPER_ADMIN') {
-        companyIdToSet = null; // Global Task
+        companyIdToSet = null; 
     } else {
         if (!user.company_id) return res.status(400).json({ message: 'User not linked to a company' });
-        companyIdToSet = user.company_id; // Private Company Task
+        companyIdToSet = user.company_id; 
     }
 
     const payload = {
       code: code || `TRB-${Date.now()}`, 
       stcw_code: stcw || '', 
-      company_id: companyIdToSet, // <--- Set the owner
-
+      company_id: companyIdToSet, 
       title: title,
       description: description,
       instructions: instructions || instruction,
@@ -209,7 +196,7 @@ export const createTask = async (req: Request, res: Response) => {
   }
 };
 
-// UPDATE TASK (With Permission Checks)
+// UPDATE TASK
 export const updateTask = async (req: Request, res: Response) => {
   try {
     // @ts-ignore
@@ -219,12 +206,9 @@ export const updateTask = async (req: Request, res: Response) => {
     const task = await Task.findByPk(id);
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
-    // LOGIC: Security Check
-    // 1. If Global Task, ONLY Super Admin can edit
     if (task.company_id === null && user.role !== 'SUPER_ADMIN') {
         return res.status(403).json({ message: 'Forbidden: Cannot edit Global Standard Tasks.' });
     }
-    // 2. If Private Task, ONLY owner company (or Super Admin) can edit
     if (task.company_id !== null && task.company_id !== user.company_id && user.role !== 'SUPER_ADMIN') {
         return res.status(403).json({ message: 'Forbidden: This task belongs to another company.' });
     }
@@ -255,7 +239,7 @@ export const updateTask = async (req: Request, res: Response) => {
   }
 };
 
-// DELETE TASK (With Permission Checks)
+// DELETE TASK
 export const deleteTask = async (req: Request, res: Response) => {
   try {
     // @ts-ignore
@@ -265,12 +249,9 @@ export const deleteTask = async (req: Request, res: Response) => {
     const task = await Task.findByPk(id);
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
-    // LOGIC: Security Check
-    // 1. If Global Task, ONLY Super Admin can delete
     if (task.company_id === null && user.role !== 'SUPER_ADMIN') {
         return res.status(403).json({ message: 'Forbidden: Cannot delete Global Standard Tasks.' });
     }
-    // 2. If Private Task, ONLY owner company (or Super Admin) can delete
     if (task.company_id !== null && task.company_id !== user.company_id && user.role !== 'SUPER_ADMIN') {
         return res.status(403).json({ message: 'Forbidden: This task belongs to another company.' });
     }
@@ -282,29 +263,21 @@ export const deleteTask = async (req: Request, res: Response) => {
   }
 };
 
-// BULK DELETE (Safe Scope)
+// BULK DELETE
 export const deleteAllTasks = async (req: Request, res: Response) => {
   const t = await sequelize.transaction();
   try {
     // @ts-ignore
     const user = req.user;
 
-    // LOGIC: Bulk Delete Scope
     let whereClause = {};
     if (user.role === 'SUPER_ADMIN') {
-        // Super Admin deletes everything (Full Reset)
         whereClause = {}; 
     } else {
-        // Company Admin ONLY deletes their own tasks
         whereClause = { company_id: user.company_id };
     }
 
-    // 1️⃣ Delete dependent records FIRST (Only for tasks we are about to delete)
-    // NOTE: This raw query deletes ALL assignments if whereClause is empty. 
-    // If whereClause matches specific company, we should ideally join tables, but for safety:
-    
     if (user.role !== 'SUPER_ADMIN') {
-        // If not super admin, we fetch IDs first to only delete relevant assignments
         const tasksToDelete = await Task.findAll({ attributes: ['id'], where: whereClause, transaction: t });
         const ids = tasksToDelete.map(task => task.id);
         
@@ -316,7 +289,6 @@ export const deleteAllTasks = async (req: Request, res: Response) => {
             await Task.destroy({ where: { id: ids }, transaction: t });
         }
     } else {
-        // Super Admin wipe
         await sequelize.query(`DELETE FROM assignments`, { transaction: t });
         await Task.destroy({ where: {}, truncate: false, transaction: t });
     }
@@ -331,5 +303,73 @@ export const deleteAllTasks = async (req: Request, res: Response) => {
       message: 'Failed to delete all tasks safely',
       error: error.message,
     });
+  }
+};
+
+/**
+ * ============================================================
+ * GET MOBILE TASKS (SYNC ENDPOINT)
+ * ============================================================
+ * Purpose: Serve a flat list of tasks for the Mobile App SQLite Sync.
+ * Filter:
+ * 1. By Rank (req.query.rank)
+ * 2. By Visibility (Global + User's Company)
+ */
+export const getMobileTasks = async (req: Request, res: Response) => {
+  try {
+    // @ts-ignore
+    const user = req.user;
+    const rank = req.query.rank as string;
+
+    if (!rank) {
+      return res.status(400).json({ message: "Rank query parameter is required." });
+    }
+
+    // 1. Build Visibility Clause
+    // Same rule as Web: See Global Tasks + My Company Tasks
+    const visibilityClause = user.role === 'SUPER_ADMIN' 
+      ? {} 
+      : {
+          [Op.or]: [
+            { company_id: null },
+            { company_id: user.company_id }
+          ]
+        };
+
+    // 2. Build Rank Clause
+    // Mobile sends e.g. "Deck Cadet". DB has 'trainee_type'.
+    // We filter strict exact match OR tasks applicable to 'ALL' if you support that.
+    const rankClause = { trainee_type: rank };
+
+    const tasks = await Task.findAll({
+      where: {
+        ...visibilityClause,
+        ...rankClause
+      },
+      // Select only fields needed for mobile sync to save bandwidth
+      attributes: [
+        'id', 'code', 'title', 'description', 'instructions', 
+        'category', 'function_code', 'trainee_type', 'mandatory'
+      ]
+    });
+
+    // 3. Map to Mobile Schema
+    // Mobile DB expects: { id, task_key, title, description, rank, ... }
+    const mobileData = tasks.map(t => ({
+      id: t.id,
+      task_key: t.code,        // Maps to 'code' (e.g. TRB-123)
+      title: t.title,
+      description: t.description || t.instructions, // Fallback if description empty
+      section: t.function_code, // e.g. 'Function 1'
+      category: t.category,     // e.g. 'Safety'
+      rank: t.trainee_type,
+      min_evidence: t.mandatory ? 1 : 0 // Simple logic for now
+    }));
+
+    res.json(mobileData);
+
+  } catch (error: any) {
+    console.error("Mobile Sync Error:", error);
+    res.status(500).json({ message: "Failed to fetch mobile tasks", error: error.message });
   }
 };

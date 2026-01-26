@@ -3,8 +3,11 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// NOTE: Use your PC's Local IP if testing on a real device
-// Use http://10.0.2.2:5000/api if using Android Emulator
+// ---------------------------------------------------------------------------
+// CONFIGURATION
+// ---------------------------------------------------------------------------
+// IMPORTANT: Change this IP address to your computer's local IP address.
+// If your IP changes (e.g. office vs home), you must update this line.
 export const API_URL = 'http://192.168.86.247:5000/api'; 
 
 const api = axios.create({
@@ -14,7 +17,11 @@ const api = axios.create({
   },
 });
 
-// Request Interceptor: Add Token
+// ---------------------------------------------------------------------------
+// INTERCEPTORS
+// ---------------------------------------------------------------------------
+
+// Request: Attach Token
 api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem('keel_token');
@@ -26,17 +33,20 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Handle 401 (Unauthorized)
+// Response: Handle 401 (Auto-Logout)
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
       await AsyncStorage.multiRemove(['keel_token', 'keel_user']);
     }
     return Promise.reject(error);
   }
 );
+
+// ---------------------------------------------------------------------------
+// SERVICES
+// ---------------------------------------------------------------------------
 
 export const authService = {
   login: async (email: string, password: string) => {
@@ -50,7 +60,6 @@ export const authService = {
   }
 };
 
-// ✅ NEW: Service to handle Vessel Lists
 export const vesselService = {
   getAll: async () => {
     const response = await api.get('/vessels');
@@ -69,31 +78,27 @@ export const assignmentService = {
     return response.data;
   },
 
-  // ✅ NEW: Explicit function to Join a Ship
   joinVessel: async (data: { sign_on_date: string; sign_on_port: string; vesselId?: number }) => {
     const response = await api.post('/trainee-assignments/join', data);
     return response.data;
   }
 };
 
-// Add this inside your existing 'api' object or create a new 'taskService' export
-
 export const taskService = {
   /**
-   * Fetches tasks assigned to a specific rank (e.g. 'DECK_CADET')
-   * Backend should return: { id, title, description, section, category, min_evidence }
+   * Fetches tasks for Mobile Sync.
+   * Endpoint: /api/tasks/sync?rank=...
    */
   getByRank: async (rank: string) => {
-    // We assume the backend handles the filtering based on the query param
-    const response = await api.get(`/training-tasks?rank=${encodeURIComponent(rank)}`);
+    // ✅ FIXED: Updated path to match Backend ('/tasks/sync')
+    const response = await api.get(`/tasks/sync?rank=${encodeURIComponent(rank)}`);
     return response.data; 
   },
 
-  /**
-   * Optional: Upload local progress to backend
-   */
   syncProgress: async (progressData: any) => {
-    const response = await api.post('/training-tasks/sync', progressData);
+    // ✅ FIXED: Updated path to match Backend logic if you implemented a specific sync route
+    // For now, assuming you might add this later.
+    const response = await api.post('/tasks/sync-progress', progressData);
     return response.data;
   }
 };
