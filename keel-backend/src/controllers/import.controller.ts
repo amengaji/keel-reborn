@@ -6,7 +6,7 @@ import User from '../models/User';
 import Vessel from '../models/Vessel';
 import Role from '../models/Role';
 import Subscription from '../models/Subscription';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 
 // --- HELPER: ROBUST KEY MATCHER ---
 const getValue = (row: any, targetKeys: string[]) => {

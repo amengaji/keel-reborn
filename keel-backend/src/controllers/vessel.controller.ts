@@ -1,7 +1,7 @@
 //keel-backend/src/controllers/vessel.controller.ts
 
 import { Request, Response } from 'express';
-import bcrypt from 'bcryptjs'; 
+import bcrypt from 'bcrypt'; 
 import Vessel from '../models/Vessel';
 import User from '../models/User';
 import Role from '../models/Role';

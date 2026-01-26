@@ -7,7 +7,7 @@ import Vessel from '../models/Vessel';
 import Task from '../models/Task';
 import Assignment from '../models/Assignment';
 import TraineeAssignment from '../models/TraineeAssignment'; 
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 
 /**
  * GET ALL CADETS

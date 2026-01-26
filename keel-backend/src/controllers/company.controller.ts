@@ -6,7 +6,7 @@ import Company from '../models/Company';
 import User from '../models/User';
 import Subscription from '../models/Subscription';
 import Role from '../models/Role'; 
-import bcrypt from 'bcryptjs';    
+import bcrypt from 'bcrypt';    
 
 /**
  * GET /api/companies

@@ -18,6 +18,7 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
     
     try {
+      // Attempt login
       const response = await loginOfficer(loginId, password);
       
       // Personalized Greeting based on Role
@@ -35,8 +36,24 @@ const LoginPage: React.FC = () => {
       else navigate('/dashboard');
       
     } catch (error: any) {
-      toast.error('Access Denied', {
-        description: 'Please check your Vessel ID/Email and Password.',
+      console.error("Login Failure:", error);
+
+      // --- LOGIC CHANGE ONLY: Detect the TYPE of error ---
+      let errorTitle = 'Access Denied';
+      let errorDesc = 'Please check your Vessel ID/Email and Password.';
+
+      // Case 1: Server is down or not reachable (Network Error)
+      if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
+        errorTitle = 'Connection Failed';
+        errorDesc = 'Cannot reach Backend (localhost:5000). Is the server running?';
+      } 
+      // Case 2: Backend rejected the password/email specifically
+      else if (error.message && error.message !== 'Failed to fetch') {
+        errorDesc = error.message;
+      }
+
+      toast.error(errorTitle, {
+        description: errorDesc,
       });
     } finally {
       setIsLoading(false);

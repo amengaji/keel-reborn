@@ -1,8 +1,8 @@
-//keel-backend/src/scripts/resetSuperAdmin.ts
+// keel-backend/src/scripts/resetSuperAdmin.ts
 
 import dotenv from 'dotenv';
 import path from 'path';
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt'; // ✅ IMPORTANT: native bcrypt ONLY
 
 // Load .env from backend root
 const envPath = path.resolve(__dirname, '../../.env');
@@ -19,35 +19,43 @@ const resetPassword = async () => {
 
     const email = 'superadmin@keel.com';
     const newPassword = 'admin123';
-    
-    // 1. Hash the new password
+
+    // 1️⃣ Hash password using bcrypt (same as login)
     const passwordHash = await bcrypt.hash(newPassword, 10);
 
-    // 2. Find the user
+    // 2️⃣ Find user
     const user = await User.findOne({ where: { email } });
 
     if (user) {
       console.log(`👤 Found user: ${email}`);
-      // Update password
+
       user.password_hash = passwordHash;
       await user.save();
-      console.log(`✅ Password successfully reset to: ${newPassword}`);
+
+      console.log(`✅ Password reset successful`);
+      console.log(`📧 Email: ${email}`);
+      console.log(`🔑 Password: ${newPassword}`);
     } else {
-      console.log(`⚠️ User ${email} not found. Creating new Super Admin...`);
-      
-      // Ensure Role Exists
-      const [role] = await Role.findOrCreate({ where: { name: 'SUPER_ADMIN' } });
+      console.log(`⚠️ User not found. Creating Super Admin...`);
+
+      // Ensure role exists
+      const [role] = await Role.findOrCreate({
+        where: { name: 'SUPER_ADMIN' }
+      });
 
       await User.create({
         first_name: 'Super',
         last_name: 'Admin',
-        email: email,
+        email,
         password_hash: passwordHash,
         role_id: role.id,
         status: 'Active',
         nationality: 'Global'
       });
-      console.log(`✅ Created new Super Admin: ${email} with password: ${newPassword}`);
+
+      console.log(`✅ Super Admin created`);
+      console.log(`📧 Email: ${email}`);
+      console.log(`🔑 Password: ${newPassword}`);
     }
 
   } catch (error) {
