@@ -3,260 +3,174 @@
 import { getDatabase } from "./database";
 
 /**
- * DailyLogDBInput
- * ---------------
- * Canonical TypeScript shape used by UI and DB layer.
- * camelCase ONLY in TypeScript.
+ * DailyLogRecord
+ * --------------
+ * Represents a single day's activity log using the Time Painter architecture.
  */
-export type DailyLogDBInput = {
+export type DailyLogRecord = {
   id: string;
-  date: string; // ISO date string (YYYY-MM-DD or full ISO)
-
-  /**
-   * Log type:
-   * DAILY   → Day work
-   * BRIDGE  → Sea watch (bridge)
-   * ENGINE  → Sea watch (engine)
-   * PORT    → Port watch (cargo / anchor / gangway / bunkering)
-   */
-  type: "DAILY" | "BRIDGE" | "ENGINE" | "PORT";
-
-  /**
-   * Port Watch sub-type
-   * Only applicable when type === "PORT"
-   */
-  portWatchType?: "CARGO" | "ANCHOR" | "GANGWAY" | "BUNKERING" | null;
-
-  startTime?: string | null;
-  endTime?: string | null;
-
-  summary: string;
-  remarks?: string | null;
-
-
-  // Bridge navigation fields
-  latDeg?: number | null;
-  latMin?: number | null;
-  latDir?: "N" | "S" | null;
-
-  lonDeg?: number | null;
-  lonMin?: number | null;
-  lonDir?: "E" | "W" | null;
-
-  // Bridge watchkeeping fields
-  courseDeg?: number | null;
-  speedKn?: number | null;
-  weather?: string | null;
-  steeringMinutes?: number | null;
-
-  // Lookout flag (BOOLEAN in UI, INTEGER in DB)
-  isLookout?: boolean | null;
-
-  // Daily Work category payload (JSON string array)
-  dailyWorkCategories?: string | null;
-
-  // Engine watch payload (JSON string)
-  machineryMonitored?: string | null;
+  date: string; // YYYY-MM-DD (Unique Constraint)
+  vesselName: string | null;
+  positionLat: string | null;
+  positionLong: string | null;
+  activityJson: string; // Time Painter Data (Array of 48 ints)
+  totalRest: number;
+  totalWork: number;
+  totalWatch: number;
+  remarks: string | null;
+  syncState: "DIRTY" | "SYNCED";
+  updatedAt: string;
 };
 
 /**
- * insertDailyLog
- * -------------
- * Inserts a new log entry.
+ * INIT: Ensure Table Exists & Migrate if Needed
  */
-export function insertDailyLog(log: DailyLogDBInput): void {
+export function ensureDailyLogsTable() {
   const db = getDatabase();
+  try {
+    // 1. Check if the table exists and has the new 'vessel_name' column
+    // We try a dummy select to test the schema
+    db.execSync(`SELECT vessel_name FROM daily_logs LIMIT 1`);
+  } catch (e) {
+    // 2. If SELECT fails, it means the column is missing (Old Schema).
+    // We must DROP and RECREATE to support the new Time Painter architecture.
+    console.log("Migrating daily_logs table to new schema...");
+    try {
+        db.execSync(`DROP TABLE IF EXISTS daily_logs`);
+    } catch(dropErr) {
+        console.error("Error dropping old table", dropErr);
+    }
+  }
 
-  db.runSync(
-    `
-    INSERT INTO daily_logs (
-      id,
-      date,
-      type,
-      port_watch_type,
-
-      start_time,
-      end_time,
-      summary,
-      remarks,
-      created_at,
-
-      lat_deg,
-      lat_min,
-      lat_dir,
-      lon_deg,
-      lon_min,
-      lon_dir,
-
-      course_deg,
-      speed_kn,
-      weather,
-      steering_minutes,
-      is_lookout,
-      daily_work_categories,
-      machinery_monitored
-    )
-    VALUES (
-      ?, ?, ?, ?,
-      ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?, ?,
-      ?
-    )
-
-    `,
-    [
-      log.id,
-      log.date,
-      log.type,
-      log.portWatchType ?? null,
-
-      log.startTime ?? null,
-      log.endTime ?? null,
-      log.summary,
-      log.remarks ?? null,
-      new Date().toISOString(),
-
-      log.latDeg ?? null,
-      log.latMin ?? null,
-      log.latDir ?? null,
-      log.lonDeg ?? null,
-      log.lonMin ?? null,
-      log.lonDir ?? null,
-
-      log.courseDeg ?? null,
-      log.speedKn ?? null,
-      log.weather ?? null,
-      log.steeringMinutes ?? null,
-      log.isLookout != null ? (log.isLookout ? 1 : 0) : null,
-
-      log.dailyWorkCategories ?? null, 
-      log.machineryMonitored ?? null,
-    ]
-  );
+  // 3. Create the Table (New Schema)
+  try {
+    db.execSync(`
+      CREATE TABLE IF NOT EXISTS daily_logs (
+        id TEXT PRIMARY KEY,
+        date TEXT NOT NULL UNIQUE,
+        vessel_name TEXT,
+        position_lat TEXT,
+        position_long TEXT,
+        activity_json TEXT DEFAULT '[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]',
+        total_rest REAL DEFAULT 0,
+        total_work REAL DEFAULT 0,
+        total_watch REAL DEFAULT 0,
+        remarks TEXT,
+        sync_state TEXT DEFAULT 'DIRTY',
+        updated_at TEXT
+      );
+    `);
+  } catch (e) {
+    console.error("Failed to init daily_logs table", e);
+  }
 }
 
 /**
- * updateDailyLog
- * -------------
- * Updates an existing log entry.
+ * GET: Retrieve Log by Date
  */
-export function updateDailyLog(log: DailyLogDBInput): void {
+export function getLogByDate(date: string): DailyLogRecord | null {
   const db = getDatabase();
-
-  db.runSync(
-    `
-    UPDATE daily_logs
-    SET
-      date = ?,
-      type = ?,
-      port_watch_type = ?,
-      start_time = ?,
-      end_time = ?,
-      summary = ?,
-      remarks = ?,
-
-      lat_deg = ?,
-      lat_min = ?,
-      lat_dir = ?,
-      lon_deg = ?,
-      lon_min = ?,
-      lon_dir = ?,
-
-      course_deg = ?,
-      speed_kn = ?,
-      weather = ?,
-      steering_minutes = ?,
-      is_lookout = ?,
-
-      daily_work_categories = ?,
-
-      machinery_monitored = ?
-    WHERE id = ?
-    `,
-    [
-      log.date,
-      log.type,
-      log.portWatchType ?? null,
-      log.startTime ?? null,
-      log.endTime ?? null,
-      log.summary,
-      log.remarks ?? null,
-
-      log.latDeg ?? null,
-      log.latMin ?? null,
-      log.latDir ?? null,
-      log.lonDeg ?? null,
-      log.lonMin ?? null,
-      log.lonDir ?? null,
-
-      log.courseDeg ?? null,
-      log.speedKn ?? null,
-      log.weather ?? null,
-      log.steeringMinutes ?? null,
-      log.isLookout != null ? (log.isLookout ? 1 : 0) : null,
-
-      log.machineryMonitored ?? null,
-
-      log.id,
-    ]
-  );
+  ensureDailyLogsTable();
+  
+  try {
+    const rows = db.getAllSync<any>(`SELECT * FROM daily_logs WHERE date = ? LIMIT 1`, [date]);
+    if (!rows || rows.length === 0) return null;
+    return mapRowToRecord(rows[0]);
+  } catch (e) {
+    console.error("Error fetching log by date:", e);
+    return null;
+  }
 }
 
 /**
- * deleteDailyLogById
- * -----------------
+ * GET ALL: Retrieve All Logs (Prevents Crash in Context)
  */
-export function deleteDailyLogById(id: string): void {
+export function getAllDailyLogs(): DailyLogRecord[] {
   const db = getDatabase();
-
-  db.runSync(
-    `
-    DELETE FROM daily_logs
-    WHERE id = ?
-    `,
-    [id]
-  );
+  ensureDailyLogsTable();
+  
+  try {
+    const rows = db.getAllSync<any>(`SELECT * FROM daily_logs ORDER BY date DESC`);
+    return rows.map(mapRowToRecord);
+  } catch (e) {
+    console.error("Error fetching all logs:", e);
+    return [];
+  }
 }
 
 /**
- * getAllDailyLogs
- * --------------
- * Reads logs from DB and maps snake_case → camelCase via aliases.
+ * UPSERT: Insert or Update Log
  */
-export function getAllDailyLogs(): DailyLogDBInput[] {
+export function upsertDailyLog(log: Partial<DailyLogRecord> & { date: string }) {
   const db = getDatabase();
+  ensureDailyLogsTable();
+  
+  const now = new Date().toISOString();
+  const id = log.id || `LOG_${log.date}`;
+  const defaultActivity = JSON.stringify(new Array(48).fill(0));
 
-  const result = db.getAllSync<DailyLogDBInput>(
-    `
-    SELECT
-      id,
-      date,
-      type,
-      port_watch_type AS portWatchType,
-      start_time AS startTime,
-      end_time AS endTime,
-      summary,
-      remarks,
+  try {
+    db.runSync(`
+      INSERT INTO daily_logs (
+          id, date, vessel_name, position_lat, position_long, 
+          activity_json, total_rest, total_work, total_watch, 
+          remarks, sync_state, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DIRTY', ?)
+      ON CONFLICT(date) DO UPDATE SET
+          vessel_name = excluded.vessel_name,
+          position_lat = excluded.position_lat,
+          position_long = excluded.position_long,
+          activity_json = excluded.activity_json,
+          total_rest = excluded.total_rest,
+          total_work = excluded.total_work,
+          total_watch = excluded.total_watch,
+          remarks = excluded.remarks,
+          sync_state = 'DIRTY',
+          updated_at = excluded.updated_at
+    `, [
+      id, 
+      log.date, 
+      log.vesselName || null, 
+      log.positionLat || null, 
+      log.positionLong || null,
+      log.activityJson || defaultActivity,
+      log.totalRest || 0, 
+      log.totalWork || 0, 
+      log.totalWatch || 0,
+      log.remarks || null, 
+      now
+    ]);
+  } catch (e) {
+    console.error("Error upserting daily log:", e);
+    throw e;
+  }
+}
 
-      lat_deg AS latDeg,
-      lat_min AS latMin,
-      lat_dir AS latDir,
-      lon_deg AS lonDeg,
-      lon_min AS lonMin,
-      lon_dir AS lonDir,
+/**
+ * DELETE: Remove Log
+ */
+export function deleteDailyLogById(id: string) {
+    const db = getDatabase();
+    ensureDailyLogsTable();
+    db.runSync(`DELETE FROM daily_logs WHERE id = ?`, [id]);
+}
 
-      course_deg AS courseDeg,
-      speed_kn AS speedKn,
-      weather,
-      steering_minutes AS steeringMinutes,
-      is_lookout AS isLookout,
-      daily_work_categories AS dailyWorkCategories,
-      machinery_monitored AS machineryMonitored
-    FROM daily_logs
-    ORDER BY date DESC, created_at DESC
-    `
-  );
-
-  return result ?? [];
+/**
+ * Helper: Map DB Row to TS Record
+ */
+function mapRowToRecord(row: any): DailyLogRecord {
+    return {
+        id: row.id,
+        date: row.date,
+        vesselName: row.vessel_name,
+        positionLat: row.position_lat,
+        positionLong: row.position_long,
+        activityJson: row.activity_json,
+        totalRest: row.total_rest,
+        totalWork: row.total_work,
+        totalWatch: row.total_watch,
+        remarks: row.remarks,
+        syncState: row.sync_state as "DIRTY" | "SYNCED",
+        updatedAt: row.updated_at
+    };
 }

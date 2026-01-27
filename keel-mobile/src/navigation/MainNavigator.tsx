@@ -15,7 +15,7 @@ import DataSyncScreen from "../screens/DataSyncScreen";
 // ✅ KEPT: Tasks & Daily
 import TaskSectionScreen from "../screens/tasks/TaskSectionScreen";
 import TaskDetailsScreen from "../screens/tasks/TaskDetailsScreen";
-import DailyScreen from "../screens/daily/DailyScreen";
+import DailyLogScreen from "../screens/daily/DailyLogScreen";
 
 // ✅ NEW: Safety Map is now accessed directly from Sea Service Dashboard
 import SafetyMapScreen from "../screens/vessel/SafetyMapScreen";
@@ -100,7 +100,7 @@ function MainLayout() {
           />
 
           {/* Operational Screens */}
-          <InnerStack.Screen name="Daily" component={DailyScreen} />
+          <InnerStack.Screen name="Daily" component={DailyLogScreen} />
           
           {/* Safety Map (Drill down from Sea Service Dashboard) */}
           <InnerStack.Screen 

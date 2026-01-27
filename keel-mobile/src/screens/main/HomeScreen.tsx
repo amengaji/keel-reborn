@@ -1,7 +1,7 @@
 //keel-mobile/src/screens/HomeScreen.tsx
 
-import React, { useEffect, useState } from "react";
-import { View, StyleSheet, ScrollView, TouchableOpacity, Modal } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
+import { View, StyleSheet, ScrollView, TouchableOpacity, Modal, Vibration } from "react-native";
 import {
   Text,
   Card,
@@ -24,24 +24,63 @@ import { KeelScreen } from "../../components/ui/KeelScreen";
 import { useSeaService } from "../../sea-service/SeaServiceContext";
 import { getSeaServiceSummary } from "../../sea-service/seaServiceStatus";
 import { useDailyLogs } from "../../daily-logs/DailyLogsContext";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { ensureSeedTasksExist, getAllTaskRecords } from "../../db/tasks";
 import { useAuth } from "../../auth/AuthContext";
 import ComplianceIndicatorCard from "../../components/home/ComplianceIndicatorCard";
 import api from "../../services/api";
 import DateInputField from "../../components/inputs/DateInputField"; 
+import { getAllDailyLogs, DailyLogRecord } from "../../db/dailyLogs";
+import { ComplianceTrend } from "../../components/home/ComplianceTrend";
+import { MilestoneModal } from "../../components/home/MilestoneModal";
 
 export default function HomeScreen() {
   const theme = useTheme();
   const navigation = useNavigation<any>();
   const { user, updateUser, refreshUser } = useAuth();
   const { payload } = useSeaService();
-  const { stcwComplianceStatus, logs } = useDailyLogs();
-
+  const { stcwComplianceStatus } = useDailyLogs();
+  
+  // State
+  const [logs, setLogs] = useState<DailyLogRecord[]>([]);
   const [taskStats, setTaskStats] = useState({ total: 0, completed: 0 });
   const [joinModalVisible, setJoinModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [celebrationVisible, setCelebrationVisible] = useState(false);
 
+  useFocusEffect(
+  useCallback(() => {
+    const data = getAllDailyLogs();
+    setLogs(data);
+    
+    if (data.length > 0) {
+      const sortedLogs = [...data].sort((a, b) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      
+      let currentStreak = 0;
+      for (const log of sortedLogs) {
+        if (log.totalRest >= 10) {
+          currentStreak++;
+        } else {
+          break; 
+        }
+      }
+      setStreak(currentStreak);
+
+      // ✅ Milestone Trigger: Exactly 30 days
+      if (currentStreak === 30) {
+        setCelebrationVisible(true);
+        Vibration.vibrate([0, 500, 100, 500]); // Special celebratory vibration pattern
+      }
+    }
+    // ... rest of useFocusEffect
+  }, [])
+);
+
+
+  // Load static data on mount
   useEffect(() => {
     ensureSeedTasksExist();
     const allTasks = getAllTaskRecords();
@@ -50,6 +89,42 @@ export default function HomeScreen() {
       completed: allTasks.filter(t => t.status === "COMPLETED").length
     });
   }, []);
+
+  // Refresh logs and stats whenever screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const data = getAllDailyLogs();
+      setLogs(data);
+      
+      // ✅ Calculate Safety Streak
+      if (data.length > 0) {
+        // Sort logs by date descending (newest first)
+        const sortedLogs = [...data].sort((a, b) => 
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        
+        let currentStreak = 0;
+        for (const log of sortedLogs) {
+          // If rest hours meet STCW minimum of 10h, increment streak
+          if (log.totalRest >= 10) {
+            currentStreak++;
+          } else {
+            // Reset streak at the most recent violation
+            break; 
+          }
+        }
+        setStreak(currentStreak);
+      } else {
+        setStreak(0);
+      }
+
+      const allTasks = getAllTaskRecords();
+      setTaskStats({
+        total: allTasks.length,
+        completed: allTasks.filter(t => t.status === "COMPLETED").length
+      });
+    }, [])
+  );
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -65,6 +140,27 @@ export default function HomeScreen() {
     <KeelScreen>
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         
+        {/* ✅ STREAK COUNTER SECTION */}
+        <View style={styles.streakContainer}>
+          <LinearGradient 
+            colors={['#10B981', '#059669']} 
+            start={{x: 0, y: 0}} end={{x: 1, y: 0}} 
+            style={styles.streakGradient}
+          >
+            <View style={styles.streakLeft}>
+              <Activity color="#FFF" size={24} />
+              <View style={{marginLeft: 12}}>
+                <Text style={styles.streakTitle}>Compliance Streak</Text>
+                <Text style={styles.streakSub}>Days since last STCW violation</Text>
+              </View>
+            </View>
+            <View style={styles.streakRight}>
+              <Text style={styles.streakNumber}>{streak}</Text>
+              <Text style={styles.streakDays}>DAYS</Text>
+            </View>
+          </LinearGradient>
+        </View>
+
         {/* HERO SECTION */}
         <Surface style={styles.heroWrapper} elevation={0}>
           <LinearGradient colors={['#3194A0', '#1A2426']} style={styles.heroGradient}>
@@ -129,6 +225,9 @@ export default function HomeScreen() {
           />
         </View>
 
+        {/* NEW COMPLIANCE TREND CHART */}
+        <ComplianceTrend logs={logs} />
+
         {/* COMPLIANCE */}
         <Text style={styles.sectionTitle}>Compliance & Readiness</Text>
 
@@ -136,7 +235,7 @@ export default function HomeScreen() {
           title="Sea Service Profile"
           status={seaService.inProgressSections > 0 ? "ATTENTION" : "ON_TRACK"}
           summary={`${seaService.completedSections} of ${seaService.totalSections} sections finalized`}
-          onPress={() => navigation.navigate("SeaService")} // Pointing to Tab
+          onPress={() => navigation.navigate("SeaService")}
         />
 
         <WatchkeepingCompliance />
@@ -148,7 +247,7 @@ export default function HomeScreen() {
           onPress={() => navigation.navigate("Tasks")}
         />
 
-        {/* QUICK ACTIONS - CLEANED UP */}
+        {/* QUICK ACTIONS */}
         <View style={styles.actionSection}>
           <Text style={styles.sectionTitle}>Operational Actions</Text>
           <View style={styles.actionGrid}>
@@ -157,9 +256,15 @@ export default function HomeScreen() {
               icon={<Database size={20} color="#FFF" />} 
               onPress={() => navigation.navigate("Daily")}
             />
-            {/* REMOVED: Vessel Info Button (Redundant) */}
           </View>
         </View>
+
+        {/* MILESTONE CELEBRATION MODAL */}
+        <MilestoneModal 
+          visible={celebrationVisible} 
+          onClose={() => setCelebrationVisible(false)} 
+          days={streak} 
+        />
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -178,9 +283,7 @@ export default function HomeScreen() {
   );
 }
 
-// ... (Rest of the helper components: StatusOption, JoinVesselModal, KPICard, ActionBtn, WatchkeepingCompliance, styles)
-// KEEP THEM EXACTLY AS THEY WERE IN YOUR FILE
-// I am omitting them here for brevity, but you should keep the existing helper code block at the bottom of the file.
+// --- HELPER COMPONENTS ---
 
 const StatusOption = ({ label, active, color, onPress }: any) => (
   <TouchableOpacity onPress={onPress} style={[styles.statusOption, active && { backgroundColor: color, borderColor: color }]}>
@@ -269,13 +372,13 @@ const ActionBtn = ({ title, icon, onPress, outlined }: any) => (
 
 function WatchkeepingCompliance() {
   const navigation = useNavigation<any>();
-  const { stcwComplianceStatus, loading, logs } = useDailyLogs();
+  const { stcwComplianceStatus, loading, logs: ctxLogs } = useDailyLogs();
   if (loading) return null;
   return (
     <ComplianceIndicatorCard
       title="Watchkeeping (STCW)"
-      status={logs.length === 0 ? "ATTENTION" : stcwComplianceStatus === "NON_COMPLIANT" ? "RISK" : "ON_TRACK"}
-      summary={logs.length === 0 ? "No records found" : stcwComplianceStatus === "NON_COMPLIANT" ? "Rest violation detected" : "Requirements met"}
+      status={ctxLogs.length === 0 ? "ATTENTION" : stcwComplianceStatus === "NON_COMPLIANT" ? "RISK" : "ON_TRACK"}
+      summary={ctxLogs.length === 0 ? "No records found" : stcwComplianceStatus === "NON_COMPLIANT" ? "Rest violation detected" : "Requirements met"}
       onPress={() => navigation.navigate("Daily")}
     />
   );
@@ -283,6 +386,50 @@ function WatchkeepingCompliance() {
 
 const styles = StyleSheet.create({
   scrollContainer: { padding: 16 },
+  streakContainer: {
+    marginBottom: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 4,
+  },
+  streakGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  streakLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  streakTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  streakSub: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  streakRight: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  streakNumber: {
+    color: '#FFF',
+    fontSize: 22,
+    fontWeight: '900',
+    lineHeight: 24,
+  },
+  streakDays: {
+    color: '#FFF',
+    fontSize: 8,
+    fontWeight: '800',
+  },
   heroWrapper: { borderRadius: 24, overflow: 'hidden', marginBottom: 16 },
   heroGradient: { padding: 20 },
   heroTopRow: { flexDirection: 'row', alignItems: 'center' },
@@ -301,8 +448,6 @@ const styles = StyleSheet.create({
   alertGradient: { padding: 16 },
   alertTitle: { color: '#FFF', fontSize: 16, fontWeight: '800', marginBottom: 2 },
   alertSub: { color: 'rgba(255,255,255,0.8)', fontSize: 12 },
-  statusToggleContainer: { marginBottom: 20 },
-  statusToggleRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   statusOption: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
   statusOptionText: { fontWeight: '700', fontSize: 13, color: '#6B7280' },
   kpiGrid: { flexDirection: 'row', gap: 12, marginBottom: 24 },

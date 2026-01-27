@@ -13,7 +13,7 @@ import SeaServiceScreen from "../screens/sea-service/SeaServiceScreen";
 // ✅ FIXED: Screens are now in 'tasks' deck
 import TaskListScreen from "../screens/tasks/TaskListScreen";
 // ✅ FIXED: Screens are now in 'daily' deck
-import DailyScreen from "../screens/daily/DailyScreen";
+import DailyScreen from "../screens/daily/DailyLogScreen";
 // ✅ FIXED: Screens are now in 'profile' deck
 import ProfileScreen from "../screens/profile/ProfileScreen";
 import SettingsScreen from "../screens/profile/SettingsScreen";
