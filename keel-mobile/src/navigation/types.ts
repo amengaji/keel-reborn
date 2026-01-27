@@ -1,6 +1,8 @@
 //keel-mobile/src/navigation/types.ts
 
 import { NavigatorScreenParams } from "@react-navigation/native";
+import Task from '../../../keel-backend/src/models/Task';
+import { TaskRecord } from "../db/tasks";
 
 /**
  * ============================================================
@@ -35,6 +37,7 @@ export type MainStackParamList = {
   // We align these params with TasksStackParamList for consistency
   Tasks: NavigatorScreenParams<TasksStackParamList>;
   TaskSection: { sectionKey: string; sectionTitle: string };
+  TaskList: { groupTitle: string; tasks: TaskRecord[] };
   TaskDetails: { taskKey: string };
 
   // Feature: Daily Logs / Watchkeeping

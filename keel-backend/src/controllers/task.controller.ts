@@ -16,6 +16,73 @@ const STCW_MAP: Record<string, string> = {
   'Function 7': 'Radio Communications'
 };
 
+/**
+ * ============================================================
+ * GET MOBILE TASKS (SYNC ENDPOINT) - UPDATED
+ * ============================================================
+ */
+export const getMobileTasks = async (req: Request, res: Response) => {
+  try {
+    // @ts-ignore
+    const user = req.user;
+    const rank = req.query.rank as string;
+
+    if (!rank) {
+      return res.status(400).json({ message: "Rank query parameter is required." });
+    }
+
+    const visibilityClause = user.role === 'SUPER_ADMIN' 
+      ? {} 
+      : {
+          [Op.or]: [
+            { company_id: null },
+            { company_id: user.company_id }
+          ]
+        };
+
+    // Filter by Exact Rank Match for now
+    const rankClause = { trainee_type: rank };
+
+    const tasks = await Task.findAll({
+      where: {
+        ...visibilityClause,
+        ...rankClause
+      },
+      // ✅ UPDATED: Added all requested metadata fields
+      attributes: [
+        'id', 'code', 'title', 'description', 'instructions', 
+        'category', 'function_code', 'trainee_type', 'mandatory',
+        'stcw_code', 'safety_level', 'frequency'
+      ]
+    });
+
+    // Map to Mobile Schema
+    const mobileData = tasks.map(t => ({
+      id: t.id,
+      task_key: t.code,        
+      title: t.title,          // This is the Group Title (e.g. "COLREGS")
+      description: t.description || t.title, // This is the specific item (e.g. "Rule 01")
+      
+      // ✅ NEW FIELDS
+      instructions: t.instructions,
+      stcw_code: t.stcw_code,
+      safety_level: t.safety_level,
+      frequency: t.frequency,
+
+      section: t.function_code, 
+      category: t.category,     
+      rank: t.trainee_type,
+      min_evidence: t.mandatory ? 1 : 0 
+    }));
+
+    res.json(mobileData);
+
+  } catch (error: any) {
+    console.error("Mobile Sync Error:", error);
+    res.status(500).json({ message: "Failed to fetch mobile tasks", error: error.message });
+  }
+};
+
 // --- UPLOAD EVIDENCE ---
 export const uploadEvidence = async (req: Request, res: Response) => {
   try {
@@ -306,70 +373,3 @@ export const deleteAllTasks = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * ============================================================
- * GET MOBILE TASKS (SYNC ENDPOINT)
- * ============================================================
- * Purpose: Serve a flat list of tasks for the Mobile App SQLite Sync.
- * Filter:
- * 1. By Rank (req.query.rank)
- * 2. By Visibility (Global + User's Company)
- */
-export const getMobileTasks = async (req: Request, res: Response) => {
-  try {
-    // @ts-ignore
-    const user = req.user;
-    const rank = req.query.rank as string;
-
-    if (!rank) {
-      return res.status(400).json({ message: "Rank query parameter is required." });
-    }
-
-    // 1. Build Visibility Clause
-    // Same rule as Web: See Global Tasks + My Company Tasks
-    const visibilityClause = user.role === 'SUPER_ADMIN' 
-      ? {} 
-      : {
-          [Op.or]: [
-            { company_id: null },
-            { company_id: user.company_id }
-          ]
-        };
-
-    // 2. Build Rank Clause
-    // Mobile sends e.g. "Deck Cadet". DB has 'trainee_type'.
-    // We filter strict exact match OR tasks applicable to 'ALL' if you support that.
-    const rankClause = { trainee_type: rank };
-
-    const tasks = await Task.findAll({
-      where: {
-        ...visibilityClause,
-        ...rankClause
-      },
-      // Select only fields needed for mobile sync to save bandwidth
-      attributes: [
-        'id', 'code', 'title', 'description', 'instructions', 
-        'category', 'function_code', 'trainee_type', 'mandatory'
-      ]
-    });
-
-    // 3. Map to Mobile Schema
-    // Mobile DB expects: { id, task_key, title, description, rank, ... }
-    const mobileData = tasks.map(t => ({
-      id: t.id,
-      task_key: t.code,        // Maps to 'code' (e.g. TRB-123)
-      title: t.title,
-      description: t.description || t.instructions, // Fallback if description empty
-      section: t.function_code, // e.g. 'Function 1'
-      category: t.category,     // e.g. 'Safety'
-      rank: t.trainee_type,
-      min_evidence: t.mandatory ? 1 : 0 // Simple logic for now
-    }));
-
-    res.json(mobileData);
-
-  } catch (error: any) {
-    console.error("Mobile Sync Error:", error);
-    res.status(500).json({ message: "Failed to fetch mobile tasks", error: error.message });
-  }
-};

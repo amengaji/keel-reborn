@@ -1,141 +1,116 @@
-//keel-mobile/src/screens/TaskListScreen.tsx
+//keel-mobile/src/screens/tasks/TaskListScreen.tsx
 
-/**
- * ============================================================
- * Task List Screen (SQLite-backed)
- * ============================================================
- *
- * PURPOSE:
- * - Display all training tasks
- * - Load tasks from local SQLite
- * - Preserve existing UI & navigation
- *
- * IMPORTANT:
- * - No custom props added to KeelCard
- * - Status rendered inside card body
- * - Offline-first
- */
+import React, { useState } from "react";
+import { View, StyleSheet, FlatList, TouchableOpacity } from "react-native";
+import { IconButton, Text, useTheme } from "react-native-paper";
+import { useRoute, useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context"; // ✅ Import
 
-import React, { useEffect, useState } from "react";
-import { View, StyleSheet, FlatList } from "react-native";
-import { Text, useTheme } from "react-native-paper";
 import { KeelScreen } from "../../components/ui/KeelScreen";
-import { KeelCard } from "../../components/ui/KeelCard";
-import { KeelButton } from "../../components/ui/KeelButton";
-import { useNavigation } from "@react-navigation/native";
-import { useToast } from "../../components/toast/useToast";
+import { TaskRecord } from "../../db/tasks";
 
-import {
-  ensureSeedTasksExist,
-  getAllTaskRecords,
-  TaskRecord,
-} from "../../db/tasks";
-
-/**
- * ------------------------------------------------------------
- * Helper: map taskKey → numeric id
- * ------------------------------------------------------------
- */
-function mapTaskKeyToId(taskKey: string): number {
-  const parts = taskKey.split(".");
-  const n = Number(parts[1]);
-  return Number.isFinite(n) ? n : 0;
-}
+type RouteParams = { groupTitle: string; tasks: TaskRecord[]; };
 
 export default function TaskListScreen() {
   const theme = useTheme();
+  const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const toast = useToast();
+  const insets = useSafeAreaInsets(); // ✅ Hook
+  const { groupTitle, tasks } = route.params as RouteParams;
+  const [activeTab, setActiveTab] = useState<"MANDATORY" | "OPTIONAL">("MANDATORY");
 
-  // ------------------------------------------------------------
-  // State
-  // ------------------------------------------------------------
-  const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const visibleTasks = tasks.sort((a, b) => a.taskKey.localeCompare(b.taskKey, undefined, { numeric: true })); 
 
-  // ------------------------------------------------------------
-  // Load tasks from SQLite
-  // ------------------------------------------------------------
-  useEffect(() => {
-    try {
-      ensureSeedTasksExist();
-      const allTasks = getAllTaskRecords();
-      setTasks(allTasks);
-    } catch (err) {
-      console.error("Failed to load tasks:", err);
-      toast.error("Failed to load tasks.");
+  const renderItem = ({ item, index }: { item: TaskRecord; index: number }) => {
+    const isLast = index === visibleTasks.length - 1;
+    let iconName = "checkbox-blank-circle-outline";
+    let iconColor = theme.colors.outline;
+    let iconBg = "transparent";
+
+    if (item.status === "COMPLETED") {
+        iconName = "check";
+        iconColor = "white";
+        iconBg = "#10B981"; 
+    } else if (item.status === "IN_PROGRESS") {
+        iconName = "circle-slice-5";
+        iconColor = "#F59E0B"; 
+        iconBg = "#FEF3C7"; 
     }
-  }, [toast]);
 
-  // ------------------------------------------------------------
-  // Render
-  // ------------------------------------------------------------
+    return (
+      <View style={styles.stepContainer}>
+        <View style={styles.timelineCol}>
+             <View style={[styles.stepIcon, { 
+                 backgroundColor: iconBg, 
+                 borderColor: item.status === 'NOT_STARTED' ? theme.colors.outline : 'transparent', 
+                 borderWidth: item.status === 'NOT_STARTED' ? 2 : 0 
+             }]}>
+                 {item.status !== 'NOT_STARTED' && <IconButton icon={iconName} iconColor={iconColor} size={14} style={{ margin: 0 }} />}
+             </View>
+             {!isLast && <View style={[styles.stepLine, { backgroundColor: theme.colors.outline + "40" }]} />}
+        </View>
+
+        <TouchableOpacity 
+            style={[styles.stepCard, { borderColor: theme.colors.outline }]}
+            onPress={() => navigation.navigate("TaskDetails", { taskKey: item.taskKey })}
+            activeOpacity={0.7}
+        >
+             <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Text variant="labelSmall" style={{ color: theme.colors.primary, fontWeight: '700' }}>{item.taskKey}</Text>
+                        {item.frequency && (
+                             <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginLeft: 8 }}>{item.frequency.replace('_', ' ')}</Text>
+                        )}
+                    </View>
+                    <Text variant="bodyMedium" style={{ fontWeight: '600', lineHeight: 20 }}>{item.taskDescription}</Text>
+                </View>
+                <IconButton icon="chevron-right" size={20} iconColor={theme.colors.outline} />
+             </View>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   return (
-    <KeelScreen>
-      <Text variant="titleLarge" style={styles.title}>
-        Tasks
-      </Text>
+    <KeelScreen style={{ paddingHorizontal: 16 }}>
+      <View style={styles.header}>
+        <IconButton icon="arrow-left" onPress={() => navigation.goBack()} style={{ marginLeft: -12 }} />
+        <View style={{ flex: 1 }}>
+            <Text variant="labelMedium" style={{ color: theme.colors.secondary }}>Section Task</Text>
+            <Text variant="titleLarge" style={styles.title} numberOfLines={1}>{groupTitle}</Text>
+        </View>
+      </View>
+
+      <View style={styles.tabBar}>
+        <Text onPress={() => setActiveTab("MANDATORY")} style={[styles.tabItem, activeTab === "MANDATORY" && { color: theme.colors.primary, borderBottomColor: theme.colors.primary }]}>
+          Mandatory ({visibleTasks.length})
+        </Text>
+        <Text onPress={() => setActiveTab("OPTIONAL")} style={[styles.tabItem, activeTab === "OPTIONAL" && { color: theme.colors.primary, borderBottomColor: theme.colors.primary }]}>
+          Optional (0)
+        </Text>
+      </View>
 
       <FlatList
-        data={tasks}
+        data={visibleTasks}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => {
-          const numericId = mapTaskKeyToId(item.taskKey);
-
-          return (
-            <KeelCard title={`Task ${numericId}`} subtitle={item.taskTitle}>
-              {/* Task Status */}
-              <Text
-                variant="labelMedium"
-                style={[
-                  styles.status,
-                  {
-                    color:
-                      item.status === "COMPLETED"
-                        ? theme.colors.primary
-                        : theme.colors.onSurfaceVariant,
-                  },
-                ]}
-              >
-                {item.status === "COMPLETED"
-                  ? "Completed"
-                  : item.status === "IN_PROGRESS"
-                  ? "In Progress"
-                  : "Not Started"}
-              </Text>
-
-              {/* Action */}
-              <View style={styles.cardFooter}>
-                <KeelButton
-                  mode="secondary"
-                  onPress={() =>
-                    navigation.navigate("TaskDetails", { id: numericId })
-                  }
-                >
-                  Open
-                </KeelButton>
-              </View>
-            </KeelCard>
-          );
-        }}
+        renderItem={renderItem}
+        // ✅ FIX: Ensure list scrolls ABOVE the system nav bar
+        contentContainerStyle={{ paddingBottom: insets.bottom + 24, paddingTop: 16 }}
       />
     </KeelScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  title: {
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-  list: {
-    paddingBottom: 24,
-  },
-  status: {
-    marginTop: 4,
-  },
-  cardFooter: {
-    marginTop: 12,
-    alignItems: "flex-end",
-  },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, marginTop: 4 },
+  title: { fontWeight: "800" },
+  tabBar: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", marginBottom: 8 },
+  tabItem: { flex: 1, textAlign: "center", paddingVertical: 10, fontWeight: "600", borderBottomWidth: 2, borderColor: "transparent", color: "#6B7280" },
+  stepContainer: { flexDirection: 'row', minHeight: 70 },
+  timelineCol: { width: 40, alignItems: 'center' },
+  stepIcon: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', zIndex: 1, marginTop: 12 },
+  stepLine: { flex: 1, width: 2, marginVertical: 0 },
+  stepCard: { flex: 1, marginBottom: 12, padding: 12, borderRadius: 12, borderWidth: 1, backgroundColor: 'white', justifyContent: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }
 });

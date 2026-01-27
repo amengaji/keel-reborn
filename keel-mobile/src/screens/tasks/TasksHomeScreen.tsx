@@ -2,57 +2,71 @@
 
 /**
  * ============================================================
- * TasksHomeScreen — SECTION OVERVIEW (LIVE DATA)
+ * TASKS DASHBOARD — REDESIGN
  * ============================================================
- *
- * UPDATES:
- * - Groups by 'sectionId' (Function) instead of 'categoryId'
- * - Maps Function Codes (1, 2, 3) to Readable Titles (Navigation, Cargo...)
+ * * CONCEPT: "The Command Center"
+ * - Grid layout for Functions (Tiles)
+ * - Hero card for Global Progress
+ * - High-contrast, maritime aesthetics
  */
 
 import React, { useState, useCallback } from "react";
-import { View, StyleSheet, FlatList } from "react-native";
-import { Text, useTheme, ProgressBar, ActivityIndicator } from "react-native-paper";
+import { View, StyleSheet, FlatList, Dimensions } from "react-native";
+import { Text, useTheme, IconButton, ActivityIndicator, TouchableRipple } from "react-native-paper";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { KeelScreen } from "../../components/ui/KeelScreen";
-import { KeelCard } from "../../components/ui/KeelCard";
-import { KeelButton } from "../../components/ui/KeelButton";
-import { useToast } from "../../components/toast/useToast";
-import { getAllTaskRecords } from "../../db/tasks";
+import { KeelProgressBar } from "../../components/ui/KeelProgressBar";
+import { getAllTaskRecords, TaskRecord } from "../../db/tasks";
 
-// STCW FUNCTION MAP
-const STCW_MAP: Record<string, string> = {
-  '1': 'Navigation',
-  'Function 1': 'Navigation',
-  '2': 'Cargo Handling & Stowage',
-  'Function 2': 'Cargo Handling & Stowage',
-  '3': 'Ship Operations & Care',
-  'Function 3': 'Ship Operations & Care',
-  '4': 'Marine Engineering',
-  'Function 4': 'Marine Engineering',
-  '5': 'Electrical & Control',
-  'Function 5': 'Electrical & Control',
-  '6': 'Maintenance & Repair',
-  'Function 6': 'Maintenance & Repair',
-  '7': 'Radio Communications',
-  'Function 7': 'Radio Communications'
+// --- MAPPINGS ---
+// Maps Section ID (Function) to Icon & Color
+const FUNCTION_META: Record<string, { icon: string; color: string; label: string }> = {
+  '1': { icon: 'compass-outline', color: '#3194A0', label: 'Navigation' },
+  'Function 1': { icon: 'compass-outline', color: '#3194A0', label: 'Navigation' },
+  
+  '2': { icon: 'package-variant-closed', color: '#F59E0B', label: 'Cargo Handling' },
+  'Function 2': { icon: 'package-variant-closed', color: '#F59E0B', label: 'Cargo Handling' },
+  
+  '3': { icon: 'ferry', color: '#10B981', label: 'Ship Ops & Care' },
+  'Function 3': { icon: 'ferry', color: '#10B981', label: 'Ship Ops & Care' },
+  
+  '4': { icon: 'engine', color: '#EF4444', label: 'Marine Engineering' },
+  'Function 4': { icon: 'engine', color: '#EF4444', label: 'Marine Engineering' },
+  
+  '5': { icon: 'flash-outline', color: '#8B5CF6', label: 'Electrical' },
+  'Function 5': { icon: 'flash-outline', color: '#8B5CF6', label: 'Electrical' },
+  
+  '6': { icon: 'tools', color: '#6B7280', label: 'Maintenance' },
+  'Function 6': { icon: 'tools', color: '#6B7280', label: 'Maintenance' },
+  
+  '7': { icon: 'radio-handheld', color: '#EC4899', label: 'Radio Comms' },
+  'Function 7': { icon: 'radio-handheld', color: '#EC4899', label: 'Radio Comms' },
 };
 
-type SectionData = {
+type FunctionStat = {
   key: string;
   title: string;
+  icon: string;
+  color: string;
   total: number;
   completed: number;
   progress: number;
 };
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const NUM_COLUMNS = 2;
+const GAP = 12;
+const ITEM_WIDTH = (SCREEN_WIDTH - (GAP * 3)) / NUM_COLUMNS; // Calculate exact tile width
+
 export default function TasksHomeScreen() {
   const theme = useTheme();
-  const toast = useToast();
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
 
-  const [sections, setSections] = useState<SectionData[]>([]);
+  const [stats, setStats] = useState<FunctionStat[]>([]);
+  const [globalProgress, setGlobalProgress] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
@@ -66,105 +80,157 @@ export default function TasksHomeScreen() {
       const allTasks = getAllTaskRecords();
 
       if (allTasks.length === 0) {
-        setSections([]);
+        setStats([]);
         setLoading(false);
         return;
       }
 
-      // GROUP BY SECTION (FUNCTION)
-      const groups: Record<string, SectionData> = {};
+      // 1. Group by Function (Section)
+      const groups: Record<string, FunctionStat> = {};
+      let totalTasks = 0;
+      let totalCompleted = 0;
 
       allTasks.forEach((task) => {
-        // Use sectionId (Function) or fallback
-        const sectionKey = task.sectionId || "General";
+        // Normalize Section Key (e.g. "Function 1" -> "1")
+        const rawSec = task.sectionId || "General";
+        // Try to find a clean key if "Function X" is used
+        const cleanKey = rawSec.replace('Function ', ''); 
         
-        // Map to readable title
-        const displayTitle = STCW_MAP[sectionKey] 
-          ? `Function ${sectionKey.replace('Function ', '')}: ${STCW_MAP[sectionKey]}`
-          : sectionKey;
+        const meta = FUNCTION_META[rawSec] || FUNCTION_META[cleanKey] || { 
+            icon: 'text-box-check-outline', 
+            color: theme.colors.primary, 
+            label: rawSec 
+        };
 
-        if (!groups[sectionKey]) {
-          groups[sectionKey] = {
-            key: sectionKey,
-            title: displayTitle,
+        if (!groups[rawSec]) {
+          groups[rawSec] = {
+            key: rawSec,
+            title: meta.label,
+            icon: meta.icon,
+            color: meta.color,
             total: 0,
             completed: 0,
             progress: 0
           };
         }
 
-        groups[sectionKey].total += 1;
+        groups[rawSec].total += 1;
+        totalTasks += 1;
+
         if (task.status === "COMPLETED") {
-          groups[sectionKey].completed += 1;
+          groups[rawSec].completed += 1;
+          totalCompleted += 1;
         }
       });
 
-      const sectionList = Object.values(groups).map(group => ({
-        ...group,
-        progress: group.total === 0 ? 0 : group.completed / group.total
+      // 2. Calculate Progress
+      const list = Object.values(groups).map(g => ({
+        ...g,
+        progress: g.total === 0 ? 0 : g.completed / g.total
       }));
 
-      // Sort by Function Number (e.g. "1", "2") if possible
-      sectionList.sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
+      // Sort by Function Number
+      list.sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
 
-      setSections(sectionList);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to load task sections");
+      setStats(list);
+      setGlobalProgress(totalTasks === 0 ? 0 : totalCompleted / totalTasks);
+
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <KeelScreen>
-      <View style={styles.header}>
-        <Text variant="titleLarge" style={styles.title}>Tasks</Text>
-        <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
-          Training Record Book
+  // --- RENDER HERO CARD ---
+  const renderHero = () => (
+    <View style={[styles.heroCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
+      <View style={styles.heroRow}>
+        <View>
+          <Text variant="titleMedium" style={{ fontWeight: '700', color: theme.colors.onSurface }}>
+            Overall Competency
+          </Text>
+          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+            Training Record Book Progress
+          </Text>
+        </View>
+        <Text variant="displaySmall" style={{ fontWeight: '800', color: theme.colors.primary }}>
+          {Math.round(globalProgress * 100)}%
         </Text>
+      </View>
+      <KeelProgressBar progress={globalProgress} height={10} style={{ marginTop: 16 }} />
+    </View>
+  );
+
+  // --- RENDER GRID TILE ---
+  const renderTile = ({ item }: { item: FunctionStat }) => (
+    <View style={[styles.tileContainer, { width: ITEM_WIDTH }]}>
+      <TouchableRipple
+        onPress={() => navigation.navigate("TaskSection", { 
+            sectionKey: item.key, 
+            sectionTitle: item.title 
+        })}
+        style={[styles.tile, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}
+        rippleColor={item.color + "20"}
+      >
+        <View style={styles.tileContent}>
+          {/* Header: Icon + Percent */}
+          <View style={styles.tileHeader}>
+            <View style={[styles.iconBox, { backgroundColor: item.color + "15" }]}>
+                <IconButton icon={item.icon} iconColor={item.color} size={24} style={{ margin: 0 }} />
+            </View>
+            <Text variant="labelLarge" style={{ fontWeight: '700', color: item.color }}>
+                {Math.round(item.progress * 100)}%
+            </Text>
+          </View>
+
+          {/* Title */}
+          <Text variant="titleSmall" style={styles.tileTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+
+          {/* Footer: Counter + Bar */}
+          <View style={styles.tileFooter}>
+            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}>
+                {item.completed} / {item.total} Tasks
+            </Text>
+            <KeelProgressBar 
+                progress={item.progress} 
+                height={4} 
+                color={item.color} 
+                trackColor={item.color + "20"} 
+            />
+          </View>
+        </View>
+      </TouchableRipple>
+    </View>
+  );
+
+  return (
+    <KeelScreen style={{ paddingHorizontal: GAP }}>
+      {/* Header Title */}
+      <View style={styles.header}>
+        <Text variant="headlineMedium" style={styles.pageTitle}>Tasks</Text>
+        <IconButton icon="sync" size={20} onPress={loadData} />
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" /></View>
+        <ActivityIndicator style={{ marginTop: 50 }} />
       ) : (
         <FlatList
-          data={sections}
+          data={stats}
           keyExtractor={(item) => item.key}
-          contentContainerStyle={styles.list}
+          numColumns={NUM_COLUMNS}
+          ListHeaderComponent={renderHero}
+          renderItem={renderTile}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          columnWrapperStyle={{ gap: GAP }}
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text variant="bodyLarge" style={{ opacity: 0.5 }}>No tasks found.</Text>
-              <Text variant="bodySmall" style={{ opacity: 0.5, marginTop: 4 }}>Run "Data Sync" to fetch your TRB.</Text>
-            </View>
+            <Text style={{ textAlign: 'center', marginTop: 40, opacity: 0.5 }}>
+                No tasks found. Please sync.
+            </Text>
           }
-          renderItem={({ item }) => (
-            <KeelCard>
-              <View style={styles.cardRow}>
-                <View style={styles.statusStripWrap}>
-                  <View style={[styles.statusStrip, { backgroundColor: item.progress === 1 ? theme.colors.primary : theme.colors.surfaceVariant }]} />
-                </View>
-                <View style={styles.cardContent}>
-                  <View style={styles.titleRow}>
-                    <Text variant="titleMedium" style={styles.sectionTitle} numberOfLines={2}>{item.title}</Text>
-                    <KeelButton
-                      mode="secondary"
-                      onPress={() => navigation.navigate("TaskSection", {
-                        sectionKey: item.key, // Passing 'Function 1' or '1'
-                        sectionTitle: item.title,
-                      })}
-                    >
-                      Open
-                    </KeelButton>
-                  </View>
-                  <Text variant="labelMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                    Progress: {item.completed} / {item.total} tasks
-                  </Text>
-                  <ProgressBar progress={item.progress} color={theme.colors.primary} style={styles.progress} />
-                </View>
-              </View>
-            </KeelCard>
-          )}
         />
       )}
     </KeelScreen>
@@ -172,17 +238,31 @@ export default function TasksHomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { marginBottom: 4 },
-  title: { fontWeight: "700", marginBottom: 4 },
-  subtitle: { marginBottom: 16 },
-  list: { paddingBottom: 24 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", height: 300 },
-  emptyContainer: { alignItems: 'center', marginTop: 40 },
-  cardRow: { flexDirection: "row", alignItems: "stretch" },
-  statusStripWrap: { paddingVertical: 10 },
-  statusStrip: { width: 4, flex: 1, borderRadius: 2 },
-  cardContent: { flex: 1, paddingLeft: 12, paddingVertical: 10 },
-  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  sectionTitle: { fontWeight: "700", flex: 1, paddingRight: 8 },
-  progress: { height: 4, borderRadius: 2, marginTop: 6 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 4 },
+  pageTitle: { fontWeight: '800' },
+  
+  // Hero Card
+  heroCard: {
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    // Soft Shadow
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2
+  },
+  heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+
+  // Grid Tile
+  tileContainer: { marginBottom: 12 },
+  tile: {
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 160, // Fixed height for uniformity
+    overflow: 'hidden'
+  },
+  tileContent: { flex: 1, padding: 14, justifyContent: 'space-between' },
+  tileHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  iconBox: { borderRadius: 8, padding: 0, width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  tileTitle: { fontWeight: '700', marginTop: 8, flex: 1 }, // Pushes content
+  tileFooter: { justifyContent: 'flex-end' },
 });

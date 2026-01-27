@@ -19,6 +19,7 @@ import DailyScreen from "../screens/daily/DailyScreen";
 
 // ✅ NEW: Safety Map is now accessed directly from Sea Service Dashboard
 import SafetyMapScreen from "../screens/vessel/SafetyMapScreen";
+import TaskListScreen from "../screens/tasks/TaskListScreen";
 
 const RootStack = createNativeStackNavigator<MainStackParamList>();
 const InnerStack = createNativeStackNavigator<MainStackParamList>();
@@ -87,7 +88,12 @@ function MainLayout() {
 
           {/* Task Drill-Downs */}
           <InnerStack.Screen name="TaskSection" component={TaskSectionScreen} />
-          
+          {/* ✅ ADDED: THIS WAS MISSING */}
+          <InnerStack.Screen 
+            name="TaskList" 
+            component={TaskListScreen} 
+            options={{ animation: "slide_from_right" }}
+          />
           <InnerStack.Screen 
             name="TaskDetails" 
             component={TaskDetailsScreen as any} 

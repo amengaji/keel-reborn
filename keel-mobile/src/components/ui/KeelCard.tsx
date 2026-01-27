@@ -8,10 +8,10 @@
  * PURPOSE:
  * - Standard card container across KEEL
  * - Used for:
- *   • Task cards
- *   • Section cards
- *   • Summary cards
- *   • Future pressable cards
+ * • Task cards
+ * • Section cards
+ * • Summary cards
+ * • Future pressable cards
  *
  * DESIGN RULES:
  * - MUST respect react-native-paper theme
@@ -40,6 +40,11 @@ type KeelCardProps = {
 
   /** Optional external style override (rare use only) */
   style?: ViewStyle;
+
+  /** * Optional click handler 
+   * - Enables Touch/Ripple effect automatically
+   */
+  onPress?: () => void;
 };
 
 /**
@@ -52,6 +57,7 @@ export const KeelCard: React.FC<KeelCardProps> = ({
   subtitle,
   children,
   style,
+  onPress,
 }) => {
   const theme = useTheme();
 
@@ -66,6 +72,7 @@ export const KeelCard: React.FC<KeelCardProps> = ({
    */
   return (
     <Card
+      onPress={onPress}
       style={[
         styles.card,
         {
@@ -121,6 +128,9 @@ const styles = StyleSheet.create({
 
     // Explicitly remove shadow/elevation
     elevation: 0,
+
+    // Essential for ripple effect to respect borderRadius
+    overflow: 'hidden', 
   },
 
   content: {

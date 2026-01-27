@@ -7,9 +7,9 @@
  *
  * RESPONSIBILITY (CENTRAL, NON-NEGOTIABLE):
  * - Handle ALL system safe areas:
- *   • Android status bar
- *   • Android system navigation (3-button / gesture)
- *   • iOS notch / home indicator
+ * • Android status bar
+ * • Android system navigation (3-button / gesture)
+ * • iOS notch / home indicator
  *
  * WHY THIS EXISTS:
  * - AppHeader is rendered OUTSIDE screens
@@ -27,7 +27,7 @@
  */
 
 import React from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, ViewStyle } from "react-native";
 import { useTheme } from "react-native-paper";
 import {
   SafeAreaView,
@@ -36,16 +36,18 @@ import {
 
 type KeelScreenProps = {
   children: React.ReactNode;
+  /** Optional style override (e.g. to remove default padding for Grids) */
+  style?: ViewStyle; 
 };
 
-export const KeelScreen: React.FC<KeelScreenProps> = ({ children }) => {
+export const KeelScreen: React.FC<KeelScreenProps> = ({ children, style }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
     <SafeAreaView
       // ✅ ENABLE ALL EDGES — THIS IS CRITICAL
-      edges={[ "left", "right"]}
+      edges={["left", "right"]}
       style={[
         styles.safeArea,
         { backgroundColor: theme.colors.background },
@@ -62,6 +64,8 @@ export const KeelScreen: React.FC<KeelScreenProps> = ({ children }) => {
           {
             paddingTop: insets.top,
           },
+          // ✅ Allow style overrides (This fixes the Dashboard error)
+          style, 
         ]}
       >
         {children}
