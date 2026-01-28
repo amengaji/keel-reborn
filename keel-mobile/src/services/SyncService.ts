@@ -16,17 +16,37 @@ let isSyncing = false;
 let syncStatusListener: ((syncing: boolean) => void) | null = null;
 
 /**
- * Sync Engine with Priority Queue
- * 1. Text-based Daily Logs (High Priority / Low Bandwidth)
- * 2. Compressed Image Evidence (Medium Priority / High Bandwidth)
+ * Sync Engine with Priority Queue & Connectivity Guard
  */
 export const SyncService = {
   onSyncStatusChange: (callback: (syncing: boolean) => void) => {
     syncStatusListener = callback;
   },
 
+  /**
+   * ✅ Connectivity Ping
+   * Verifies if the Shore API is actually reachable over VSAT/Iridium
+   */
+  checkSatelliteConnectivity: async (): Promise<boolean> => {
+    try {
+      // We use a HEAD request or a tiny endpoint to minimize data usage
+      // This just checks if the server responds within a tight 5s window
+      await api.get('/health-check', { timeout: 5000 }); 
+      return true;
+    } catch (error) {
+      console.log("🛰️ Satellite link check failed. Shore office unreachable.");
+      return false;
+    }
+  },
+
   runSync: async () => {
     if (isSyncing) return;
+    
+    // Step 0: Pre-flight connectivity check
+    // If the ship's internet is "dead air", we don't even show the HUD
+    const isOnline = await SyncService.checkSatelliteConnectivity();
+    if (!isOnline) return;
+
     isSyncing = true;
     if (syncStatusListener) syncStatusListener(true);
     
@@ -36,7 +56,6 @@ export const SyncService = {
         ensureTaskAttachmentsTable();
 
         // --- PHASE 1: PRIORITY DAILY LOGS (TEXT) ---
-        // We do this first because text data is tiny and critical for compliance.
         const allLogs = getAllDailyLogs();
         const dirtyLogs = allLogs.filter(log => log.syncState === 'DIRTY');
 
@@ -48,43 +67,35 @@ export const SyncService = {
                     if (res.status === 200 || res.status === 201) {
                         upsertDailyLog({ ...log, syncState: 'SYNCED' });
                     } else {
-                        console.warn("Log sync rejected by server, pausing queue.");
-                        break; 
+                        throw new Error("Server error");
                     }
                 } catch (e) {
-                    console.error("Network lost during Phase 1. Logs will resume later.");
-                    // Return early to prevent trying to upload heavy images without network
-                    return; 
+                    console.error("Link lost during Phase 1.");
+                    return; // Fail-fast
                 }
             }
             await SecureStore.setItemAsync('last_sync_logs', new Date().toISOString());
-            console.log("✅ Phase 1 Complete.");
         }
 
         // --- PHASE 2: EVIDENCE ATTACHMENTS (HEAVY DATA) ---
-        // Only starts if Phase 1 didn't crash or lose connection.
         const pendingAttachments = getPendingAttachments();
         
         if (pendingAttachments.length > 0) {
             console.log(`📡 Phase 2: Uploading ${pendingAttachments.length} attachments...`);
             for (const item of pendingAttachments) {
                 const info = await FileSystem.getInfoAsync(item.localUri);
-                if (!info.exists) {
-                    console.warn(`File ${item.id} missing locally, skipping.`);
-                    continue; 
-                }
+                if (!info.exists) continue; 
 
                 const success = await uploadSingleAttachment(item);
                 if (!success) {
-                    console.log("🛰️ Connection unstable in Phase 2. Stopping to preserve data.");
+                    console.log("🛰️ Connection unstable in Phase 2. Pausing.");
                     break; 
                 }
                 await SecureStore.setItemAsync('last_sync_attachments', new Date().toISOString());
             }
-            console.log("✅ Phase 2 Complete.");
         }
 
-        // --- PHASE 3: METADATA & REFRESH ---
+        // --- PHASE 3: METADATA REFRESH ---
         await SecureStore.setItemAsync('last_sync_tasks', new Date().toISOString());
 
     } catch (error) {
@@ -98,13 +109,12 @@ export const SyncService = {
 };
 
 /**
- * Helper: Compresses (if image) and Uploads
+ * Helper: Compresses and Uploads
  */
 const uploadSingleAttachment = async (item: TaskAttachmentRecord): Promise<boolean> => {
     try {
         let uploadUri = item.localUri;
 
-        // Smart Compression
         if (item.kind === 'PHOTO' || item.mimeType?.startsWith('image/')) {
             try {
                 const manipulatedImage = await ImageManipulator.manipulateAsync(
@@ -114,7 +124,7 @@ const uploadSingleAttachment = async (item: TaskAttachmentRecord): Promise<boole
                 );
                 uploadUri = manipulatedImage.uri;
             } catch (manipError) {
-                console.warn("Compression failed, sending original.");
+                console.warn("Compression failed.");
             }
         }
 
