@@ -10,6 +10,7 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { getAllDailyLogs, upsertDailyLog } from '../db/dailyLogs';
+import { getAllWatches } from '../db/watchkeeping'; // ✅ Import Watchkeeping DB
 import * as SecureStore from 'expo-secure-store';
 
 let isSyncing = false;
@@ -29,8 +30,6 @@ export const SyncService = {
    */
   checkSatelliteConnectivity: async (): Promise<boolean> => {
     try {
-      // We use a HEAD request or a tiny endpoint to minimize data usage
-      // This just checks if the server responds within a tight 5s window
       await api.get('/health-check', { timeout: 5000 }); 
       return true;
     } catch (error) {
@@ -42,8 +41,6 @@ export const SyncService = {
   runSync: async () => {
     if (isSyncing) return;
     
-    // Step 0: Pre-flight connectivity check
-    // If the ship's internet is "dead air", we don't even show the HUD
     const isOnline = await SyncService.checkSatelliteConnectivity();
     if (!isOnline) return;
 
@@ -66,12 +63,10 @@ export const SyncService = {
                     const res = await api.post('/daily-logs/sync', log);
                     if (res.status === 200 || res.status === 201) {
                         upsertDailyLog({ ...log, syncState: 'SYNCED' });
-                    } else {
-                        throw new Error("Server error");
                     }
                 } catch (e) {
                     console.error("Link lost during Phase 1.");
-                    return; // Fail-fast
+                    return; 
                 }
             }
             await SecureStore.setItemAsync('last_sync_logs', new Date().toISOString());
@@ -91,12 +86,27 @@ export const SyncService = {
                     console.log("🛰️ Connection unstable in Phase 2. Pausing.");
                     break; 
                 }
-                await SecureStore.setItemAsync('last_sync_attachments', new Date().toISOString());
             }
+            await SecureStore.setItemAsync('last_sync_attachments', new Date().toISOString());
         }
 
         // --- PHASE 3: METADATA REFRESH ---
         await SecureStore.setItemAsync('last_sync_tasks', new Date().toISOString());
+
+        // --- PHASE 4: WATCHKEEPING LOGS (NEW) ---
+        // We sync ALL logs because SQLite doesn't track 'dirty' for watches yet.
+        // The backend handles deduplication via 'local_id'.
+        const allWatches = getAllWatches();
+        if (allWatches.length > 0) {
+            console.log(`📡 Phase 4: Syncing ${allWatches.length} watch records...`);
+            try {
+                // Send in bulk to save bandwidth
+                await api.post('/watchkeeping/sync', { logs: allWatches });
+                console.log("✅ Watchkeeping synced.");
+            } catch (e) {
+                console.error("Failed to sync watchkeeping:", e);
+            }
+        }
 
     } catch (error) {
         console.error("Critical Sync Failure:", error);

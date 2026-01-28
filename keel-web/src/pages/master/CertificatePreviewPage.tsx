@@ -6,7 +6,6 @@ import { useReactToPrint } from 'react-to-print';
 import { ArrowLeft, Printer, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Import your existing template and services
 import SteeringCertificate from './SteeringCertificate';
 import { cadetService } from '../../services/cadetService';
 
@@ -16,15 +15,14 @@ const CertificatePreviewPage: React.FC = () => {
   const componentRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [cadetData, setCadetData] = useState<any>(null);
+  const [watchStats, setWatchStats] = useState<any>({ steering_hours: 0 });
 
-  // --- PRINT HANDLER (Updated for v3) ---
   const handlePrint = useReactToPrint({
-    contentRef: componentRef, // ✅ Fixed: 'content' renamed to 'contentRef' in v3
+    contentRef: componentRef, 
     documentTitle: `Steering_Cert_${cadetData?.last_name || 'Cadet'}`,
     onAfterPrint: () => toast.success("Certificate generated successfully")
   });
 
-  // --- DATA FETCHING ---
   useEffect(() => {
     if (!cadetId) return;
     loadData();
@@ -32,12 +30,17 @@ const CertificatePreviewPage: React.FC = () => {
 
   const loadData = async () => {
     try {
-      // Fetch cadet profile
-      const data = await cadetService.getById(parseInt(cadetId!));
-      setCadetData(data);
+      // 1. Fetch Profile
+      const profile = await cadetService.getById(parseInt(cadetId!));
+      setCadetData(profile);
+
+      // 2. Fetch Watchkeeping Stats (Real DB Hours)
+      const stats = await cadetService.getWatchStats(parseInt(cadetId!));
+      setWatchStats(stats);
+
     } catch (err) {
       console.error(err);
-      toast.error("Error", { description: "Could not load cadet data for certificate." });
+      toast.error("Error", { description: "Could not sync sea service data." });
     } finally {
       setLoading(false);
     }
@@ -48,7 +51,7 @@ const CertificatePreviewPage: React.FC = () => {
       <div className="h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="animate-spin text-primary" size={32} />
-          <p className="text-sm font-medium text-muted-foreground">Preparing Document...</p>
+          <p className="text-sm font-medium text-muted-foreground">Calculating Sea Time...</p>
         </div>
       </div>
     );
@@ -58,8 +61,6 @@ const CertificatePreviewPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
-      
-      {/* TOOLBAR */}
       <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-4">
           <button 
@@ -70,7 +71,9 @@ const CertificatePreviewPage: React.FC = () => {
           </button>
           <div>
             <h1 className="text-lg font-bold text-slate-800">Certificate Preview</h1>
-            <p className="text-xs text-slate-500">Review details before signing</p>
+            <p className="text-xs text-slate-500">
+               Based on {watchStats.total_logs || 0} verified watch entries
+            </p>
           </div>
         </div>
 
@@ -90,24 +93,21 @@ const CertificatePreviewPage: React.FC = () => {
         </div>
       </div>
 
-      {/* DOCUMENT PREVIEW AREA */}
       <div className="flex-1 overflow-auto p-8 flex justify-center">
         <div className="shadow-2xl">
-          {/* We wrap the component in a div with a ref for the print library */}
           <div ref={componentRef}>
             <SteeringCertificate 
               traineeName={`${cadetData.first_name} ${cadetData.last_name}`}
               rank={cadetData.rank || "Deck Cadet"}
               indos={cadetData.indos_number || "N/A"}
               vesselName={cadetData.vessel || "MV KEEL TRAINER"}
-              // TODO: Fetch real completion date and hours from SeaServiceService
               completionDate={new Date().toLocaleDateString()}
-              hoursSteered={60} // Placeholder until SeaService logic is connected
+              // ✅ REAL DATA INJECTED HERE
+              hoursSteered={watchStats.steering_hours || 0} 
             />
           </div>
         </div>
       </div>
-
     </div>
   );
 };

@@ -37,8 +37,8 @@ export const initializeAppDatabase = async () => {
  *
  * SEA SERVICE (UPGRADED IN THIS STEP):
  * - sea_service_records now supports:
- *   - Multiple records (history)
- *   - Exactly ONE active DRAFT at a time (enforced by DB index)
+ * - Multiple records (history)
+ * - Exactly ONE active DRAFT at a time (enforced by DB index)
  *
  * NEW TABLES (UNCHANGED HERE):
  * - task_records
@@ -130,6 +130,25 @@ export function initDatabase(): void {
       created_at TEXT NOT NULL
     );
   `);
+
+  /* ==========================================================
+ * WATCHKEEPING (NEW — SAFE ADDITIVE)
+ * ========================================================== */
+database.execSync(`
+  CREATE TABLE IF NOT EXISTS watchkeeping (
+    id TEXT PRIMARY KEY NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    watch_type TEXT NOT NULL,
+    ship_state TEXT NOT NULL,
+    location TEXT NOT NULL,
+    cargo_ops INTEGER NOT NULL,
+    cadet_discipline TEXT NOT NULL,
+    remarks TEXT,
+    created_at TEXT NOT NULL
+  );
+`);
+
 
   ensureColumns(database, "daily_logs", [
     { name: "port_watch_type", type: "TEXT" },

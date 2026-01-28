@@ -67,6 +67,14 @@ export const cadetService = {
     return true;
   },
 
+  getWatchStats: async (id: number) => {
+    const res = await fetch(`http://localhost:5000/api/watchkeeping/stats/${id}`, { 
+        headers: getAuthHeaders() 
+    });
+    if (!res.ok) return { steering_hours: 0, bridge_hours: 0, night_hours: 0 };
+    return res.json();
+  },
+
   // DELETE ALL cadet profiles
   deleteAll: async () => {
     const res = await fetch(`${API_URL}/all`, {
@@ -76,4 +84,6 @@ export const cadetService = {
     if (!res.ok) throw new Error('Failed to delete all trainees');
     return true;
   }
+
+  
 };

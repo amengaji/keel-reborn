@@ -22,6 +22,7 @@ import companyRoutes from './routes/company.routes';
 import importRoutes from './routes/import.routes'; 
 import reportsRoutes from './routes/reports.routes'; 
 import dailyLogRoutes from './routes/dailyLog.routes';
+import watchkeepingRoutes from './routes/watchkeeping.routes'; // ✅ NEW IMPORT
 
 // Models
 import Task from './models/Task';
@@ -31,9 +32,7 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 
-// --- 1. CORS CONFIGURATION (THE FIX) ---
-// We use origin: '*' to allow ALL connections.
-// We removed credentials: true because it conflicts with wildcard origin.
+// --- 1. CORS CONFIGURATION ---
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -44,6 +43,11 @@ app.use(express.json());
 
 // --- 2. PUBLIC ROUTES ---
 app.use('/api/auth', authRoutes);
+
+// This allows the mobile app to verify connectivity without a token
+app.get('/api/health-check', (req, res) => {
+  res.status(200).json({ status: 'online', timestamp: new Date() });
+});
 
 // --- 3. GLOBAL SECURITY BARRIER ---
 app.use(authenticate); 
@@ -60,6 +64,7 @@ app.use('/api/companies', companyRoutes);
 app.use('/api/import', importRoutes); 
 app.use('/api/reports', reportsRoutes);
 app.use('/api/daily-logs', dailyLogRoutes);
+app.use('/api/watchkeeping', watchkeepingRoutes); // ✅ NEW ROUTE REGISTERED
 
 const startServer = async () => {
   try {
