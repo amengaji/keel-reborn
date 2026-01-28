@@ -28,6 +28,9 @@ export type TaskRecord = {
   updatedAt: string;
 };
 
+// ✅ SESSION LOCK: Prevents multiple contexts from re-syncing/re-logging in the same session.
+let SESSION_SYNC_COMPLETE = false;
+
 function ensureColumnsExist() {
   const db = getDatabase();
   try {
@@ -44,11 +47,18 @@ function ensureColumnsExist() {
 }
 
 export const syncTasksFromShore = (serverTasks: any[]): Promise<void> => {
+  // ✅ GATEKEEPER: Return immediately if already synced this session
+  if (SESSION_SYNC_COMPLETE) {
+    return Promise.resolve();
+  }
+
   const db = getDatabase();
   ensureColumnsExist();
 
   return new Promise((resolve, reject) => {
     try {
+      console.log(`>>> TASKS RECEIVED: ${serverTasks.length}`);
+      
       db.withTransactionSync(() => {
         serverTasks.forEach(task => {
           const taskKey = task.task_key || task.code || `R-${task.id}`;
@@ -66,7 +76,6 @@ export const syncTasksFromShore = (serverTasks: any[]): Promise<void> => {
              ) VALUES (?, ?, ?, ?, 'NOT_STARTED', ?, NULL, NULL, NULL, ?, 'SYNCED', ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
             [
               localId, taskKey, task.title, task.description, 
-              // ✅ FIX: Force remarks to NULL on initial sync. Do NOT use description.
               null, 
               task.id, now, now,
               task.section, task.category,
@@ -91,6 +100,9 @@ export const syncTasksFromShore = (serverTasks: any[]): Promise<void> => {
           );
         });
       });
+
+      console.log(">>> TASKS SAVED TO DB");
+      SESSION_SYNC_COMPLETE = true; // ✅ Set the lock after successful transaction
       resolve();
     } catch (error) {
       console.error("Task Sync Failed:", error);
@@ -101,7 +113,7 @@ export const syncTasksFromShore = (serverTasks: any[]): Promise<void> => {
 
 export function getAllTaskRecords(): TaskRecord[] {
   const db = getDatabase();
-  ensureColumnsExist(); 
+  // Columns are checked during sync or on first read
   const result = db.getAllSync<any>(`SELECT * FROM task_records ORDER BY task_key ASC`);
   return result.map(row => ({
       id: row.id,
@@ -134,7 +146,6 @@ export function upsertTaskStatus(args: {
   remarks?: string | null;
 }): void {
   const db = getDatabase();
-  ensureColumnsExist();
   const nowIso = new Date().toISOString();
   const id = `TASK_${args.taskKey}`;
 
@@ -148,7 +159,6 @@ export function upsertTaskStatus(args: {
 
 export function getTaskByKey(taskKey: string): TaskRecord | null {
   const db = getDatabase();
-  ensureColumnsExist(); 
   const id = `TASK_${taskKey}`;
   const rows = db.getAllSync<any>(`SELECT * FROM task_records WHERE id = ? LIMIT 1`, [id]);
   if (!rows || rows.length === 0) return null;
@@ -178,4 +188,7 @@ export function getTaskByKey(taskKey: string): TaskRecord | null {
   };
 }
 
-export function ensureSeedTasksExist() { return; }
+export function ensureSeedTasksExist() { 
+  // This can remain empty if the sync from context handles seeding
+  return; 
+}

@@ -8,27 +8,26 @@ import { DailyLogRecord } from "../../db/dailyLogs";
 interface Props {
   logs: DailyLogRecord[];
   onSelectDate: (date: string) => void;
-  onDelete: (id: string) => void; // ✅ Added onDelete
+  onDelete: (id: string) => void;
 }
 
 export const DailyHistoryList = ({ logs, onSelectDate, onDelete }: Props) => {
   const getBlockColor = (val: number) => {
-    if (val === 1) return "#F59E0B"; // Work
-    if (val === 2) return "#3B82F6"; // Watch
-    return "#10B981"; // Rest
+    switch(val) {
+        case 1: return "#F59E0B"; // Work
+        case 2: return "#3B82F6"; // Sea Watch
+        case 3: return "#8B5CF6"; // Port Watch
+        default: return "#10B981"; // Rest
+    }
   };
 
   const handleLongPress = (log: DailyLogRecord) => {
     Alert.alert(
       "Delete Daily Log",
-      `Are you sure you want to delete all records for ${log.date}? This cannot be undone.`,
+      `Are you sure you want to delete all records for ${log.date}?`,
       [
         { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete", 
-          style: "destructive", 
-          onPress: () => onDelete(log.id) 
-        }
+        { text: "Delete", style: "destructive", onPress: () => onDelete(log.id) }
       ]
     );
   };
@@ -39,10 +38,7 @@ export const DailyHistoryList = ({ logs, onSelectDate, onDelete }: Props) => {
       return (
         <View style={styles.miniTimeline}>
           {data.map((v, i) => (
-            <View 
-              key={i} 
-              style={[styles.miniBlock, { backgroundColor: getBlockColor(v) }]} 
-            />
+            <View key={i} style={[styles.miniBlock, { backgroundColor: getBlockColor(v) }]} />
           ))}
         </View>
       );
@@ -61,11 +57,23 @@ export const DailyHistoryList = ({ logs, onSelectDate, onDelete }: Props) => {
       ) : (
         logs.map((log) => {
           const isCompliant = log.totalRest >= 10;
+          
+          // Calculate Split Watch Hours
+          let seaWatch = 0;
+          let portWatch = 0;
+          try {
+             const data: number[] = JSON.parse(log.activityJson);
+             data.forEach(v => {
+                 if (v === 2) seaWatch += 0.5;
+                 if (v === 3) portWatch += 0.5;
+             });
+          } catch(e) {}
+
           return (
             <TouchableOpacity 
               key={log.id} 
               onPress={() => onSelectDate(log.date)}
-              onLongPress={() => handleLongPress(log)} // ✅ Added Long Press
+              onLongPress={() => handleLongPress(log)}
               activeOpacity={0.7}
               delayLongPress={500}
             >
@@ -74,12 +82,12 @@ export const DailyHistoryList = ({ logs, onSelectDate, onDelete }: Props) => {
                   <View>
                     <Text variant="titleMedium" style={styles.dateText}>{log.date}</Text>
                     <Text variant="bodySmall" style={{ color: '#6B7280' }}>
-                      {log.positionLat ? `Pos: ${log.positionLat}` : "No position logged"}
+                      {log.positionLat ? `Lat: ${log.positionLat}` : "No position logged"}
                     </Text>
                   </View>
                   <View style={[styles.complianceBadge, { backgroundColor: isCompliant ? '#D1FAE5' : '#FEE2E2' }]}>
                     <RNText style={{ fontSize: 10, fontWeight: '800', color: isCompliant ? '#065F46' : '#991B1B' }}>
-                      {isCompliant ? "COMPLIANT" : "NON-COMPLIANT"}
+                      {isCompliant ? "COMPLIANT" : "VIOLATION"}
                     </RNText>
                   </View>
                 </View>
@@ -87,21 +95,34 @@ export const DailyHistoryList = ({ logs, onSelectDate, onDelete }: Props) => {
                 {renderTimelinePreview(log.activityJson)}
 
                 <View style={styles.cardFooter}>
-                  <View style={styles.stat}>
+                  <View style={styles.statGroup}>
                     <RNText style={styles.statLabel}>REST</RNText>
                     <RNText style={styles.statValue}>{log.totalRest}h</RNText>
                   </View>
-                  <View style={styles.stat}>
+                  
+                  <View style={styles.statGroup}>
                     <RNText style={styles.statLabel}>WORK</RNText>
                     <RNText style={styles.statValue}>{log.totalWork}h</RNText>
                   </View>
-                  <View style={styles.stat}>
-                    <RNText style={styles.statLabel}>WATCH</RNText>
-                    <RNText style={styles.statValue}>{log.totalWatch}h</RNText>
+
+                  {/* Split Watch Display */}
+                  <View style={styles.watchStats}>
+                    {seaWatch > 0 && (
+                        <View style={styles.miniStat}>
+                            <View style={[styles.dot, {backgroundColor: '#3B82F6'}]} />
+                            <RNText style={styles.watchValue}>{seaWatch}h Sea</RNText>
+                        </View>
+                    )}
+                    {portWatch > 0 && (
+                        <View style={styles.miniStat}>
+                            <View style={[styles.dot, {backgroundColor: '#8B5CF6'}]} />
+                            <RNText style={styles.watchValue}>{portWatch}h Port</RNText>
+                        </View>
+                    )}
                   </View>
                 </View>
                 
-                <RNText style={styles.hintText}>Hold card to delete</RNText>
+                <RNText style={styles.hintText}>Hold to delete</RNText>
               </Surface>
             </TouchableOpacity>
           );
@@ -118,19 +139,15 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
   dateText: { fontWeight: '800', color: '#1F2937' },
   complianceBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  miniTimeline: { 
-    flexDirection: 'row', 
-    height: 14, 
-    borderRadius: 4, 
-    overflow: 'hidden', 
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB'
-  },
+  miniTimeline: { flexDirection: 'row', height: 14, borderRadius: 4, overflow: 'hidden', backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#E5E7EB' },
   miniBlock: { flex: 1, height: '100%' },
-  cardFooter: { flexDirection: 'row', marginTop: 12, gap: 20 },
-  stat: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-  statLabel: { fontSize: 10, fontWeight: '700', color: '#9CA3AF' },
+  cardFooter: { flexDirection: 'row', marginTop: 12, justifyContent: 'space-between', alignItems: 'center' },
+  statGroup: { alignItems: 'flex-start' },
+  statLabel: { fontSize: 9, fontWeight: '700', color: '#9CA3AF' },
   statValue: { fontSize: 14, fontWeight: '800', color: '#374151' },
+  watchStats: { alignItems: 'flex-end', gap: 2 },
+  miniStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  watchValue: { fontSize: 11, fontWeight: '700', color: '#4B5563' },
   hintText: { fontSize: 9, color: '#D1D5DB', textAlign: 'right', marginTop: 8, fontStyle: 'italic' }
 });

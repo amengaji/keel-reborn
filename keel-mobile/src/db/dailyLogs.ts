@@ -17,6 +17,7 @@ export type DailyLogRecord = {
   totalRest: number;
   totalWork: number;
   totalWatch: number;
+  totalSteering: number; // ✅ Added to type
   remarks: string | null;
   syncState: "DIRTY" | "SYNCED";
   updatedAt: string;
@@ -28,13 +29,13 @@ export type DailyLogRecord = {
 export function ensureDailyLogsTable() {
   const db = getDatabase();
   try {
-    // 1. Check if the table exists and has the new 'vessel_name' column
-    // We try a dummy select to test the schema
-    db.execSync(`SELECT vessel_name FROM daily_logs LIMIT 1`);
+    // 1. Check if the table exists and has the 'total_steering' column
+    // We try a dummy select to test the schema for the newest field
+    db.execSync(`SELECT total_steering FROM daily_logs LIMIT 1`);
   } catch (e) {
     // 2. If SELECT fails, it means the column is missing (Old Schema).
-    // We must DROP and RECREATE to support the new Time Painter architecture.
-    console.log("Migrating daily_logs table to new schema...");
+    // We must DROP and RECREATE to support the new Steering tracking.
+    console.log("Migrating daily_logs table to include steering...");
     try {
         db.execSync(`DROP TABLE IF EXISTS daily_logs`);
     } catch(dropErr) {
@@ -55,6 +56,7 @@ export function ensureDailyLogsTable() {
         total_rest REAL DEFAULT 0,
         total_work REAL DEFAULT 0,
         total_watch REAL DEFAULT 0,
+        total_steering REAL DEFAULT 0,
         remarks TEXT,
         sync_state TEXT DEFAULT 'DIRTY',
         updated_at TEXT
@@ -110,12 +112,13 @@ export function upsertDailyLog(log: Partial<DailyLogRecord> & { date: string }) 
   const defaultActivity = JSON.stringify(new Array(48).fill(0));
 
   try {
+    // ✅ Updated to include total_steering in both INSERT and UPDATE
     db.runSync(`
       INSERT INTO daily_logs (
           id, date, vessel_name, position_lat, position_long, 
-          activity_json, total_rest, total_work, total_watch, 
+          activity_json, total_rest, total_work, total_watch, total_steering,
           remarks, sync_state, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DIRTY', ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DIRTY', ?)
       ON CONFLICT(date) DO UPDATE SET
           vessel_name = excluded.vessel_name,
           position_lat = excluded.position_lat,
@@ -124,6 +127,7 @@ export function upsertDailyLog(log: Partial<DailyLogRecord> & { date: string }) 
           total_rest = excluded.total_rest,
           total_work = excluded.total_work,
           total_watch = excluded.total_watch,
+          total_steering = excluded.total_steering,
           remarks = excluded.remarks,
           sync_state = 'DIRTY',
           updated_at = excluded.updated_at
@@ -137,6 +141,7 @@ export function upsertDailyLog(log: Partial<DailyLogRecord> & { date: string }) 
       log.totalRest || 0, 
       log.totalWork || 0, 
       log.totalWatch || 0,
+      log.totalSteering || 0, // ✅ New argument
       log.remarks || null, 
       now
     ]);
@@ -169,6 +174,7 @@ function mapRowToRecord(row: any): DailyLogRecord {
         totalRest: row.total_rest,
         totalWork: row.total_work,
         totalWatch: row.total_watch,
+        totalSteering: row.total_steering || 0, // ✅ Correctly mapping database field
         remarks: row.remarks,
         syncState: row.sync_state as "DIRTY" | "SYNCED",
         updatedAt: row.updated_at

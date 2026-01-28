@@ -5,40 +5,10 @@ import { getDatabase } from "./database";
  * ============================================================
  * Task Attachments — Local DB Adapter (Offline-First)
  * ============================================================
- *
- * PURPOSE:
- * - Persist task evidence (photos, PDFs) locally
- * - One task → many attachments
- * - PSC / audit safe
- * - Future backend sync ready
- *
- * IMPORTANT RULES:
- * - NO UI imports
- * - NO toast calls
- * - NO file-system side effects here
- * - Screens decide WHEN to block actions (e.g. COMPLETED)
- *
- * TABLE:
- * - task_attachments
- *
- * DELETION MODEL:
- * - Soft delete via deleted_at
- * - UI should prevent deletes after COMPLETED
  */
 
-/* ============================================================
-   Types
-   ============================================================ */
-
-/**
- * Attachment kind.
- * Keep literals stable for future sync.
- */
 export type TaskAttachmentKind = "PHOTO" | "DOCUMENT";
 
-/**
- * Sync states (mirrors tasks.ts for consistency).
- */
 export type SyncState =
   | "LOCAL_ONLY"
   | "DIRTY"
@@ -46,32 +16,23 @@ export type SyncState =
   | "SYNCED"
   | "CONFLICT";
 
-/**
- * Canonical attachment record returned by this adapter.
- */
 export type TaskAttachmentRecord = {
-  id: string;                 // primary key (UUID / stable id)
-  taskKey: string;            // e.g. "D.1"
-  kind: TaskAttachmentKind;   // PHOTO | DOCUMENT
+  id: string;                 
+  taskKey: string;            
+  kind: TaskAttachmentKind;   
   fileName: string;
   localUri: string;
   mimeType: string | null;
   sizeBytes: number | null;
-  createdAt: string;          // ISO timestamp
-  createdBy: string | null;   // placeholder (future user id)
+  createdAt: string;          
+  createdBy: string | null;   
   syncState: SyncState;
-  deletedAt: string | null;   // soft delete marker
+  deletedAt: string | null;   
 };
-
-/* ============================================================
-   Table creation (idempotent)
-   ============================================================ */
 
 /**
  * ensureTaskAttachmentsTable
- *
  * Creates the task_attachments table if it does not exist.
- * Safe to call multiple times.
  */
 export function ensureTaskAttachmentsTable(): void {
   const db = getDatabase();
@@ -93,18 +54,14 @@ export function ensureTaskAttachmentsTable(): void {
   `);
 }
 
-/* ============================================================
-   Queries
-   ============================================================ */
-
 /**
  * getAttachmentsForTask
- *
  * Returns all NON-DELETED attachments for a task.
  */
 export function getAttachmentsForTask(
   taskKey: string
 ): TaskAttachmentRecord[] {
+  ensureTaskAttachmentsTable();
   const db = getDatabase();
 
   const rows = db.getAllSync<TaskAttachmentRecord>(
@@ -134,9 +91,6 @@ export function getAttachmentsForTask(
 
 /**
  * insertTaskAttachment
- *
- * Inserts a new attachment record.
- * File must already exist locally.
  */
 export function insertTaskAttachment(args: {
   id: string;
@@ -148,6 +102,7 @@ export function insertTaskAttachment(args: {
   sizeBytes?: number | null;
   createdBy?: string | null;
 }): void {
+  ensureTaskAttachmentsTable();
   const db = getDatabase();
   const nowIso = new Date().toISOString();
 
@@ -187,13 +142,11 @@ export function insertTaskAttachment(args: {
 
 /**
  * softDeleteTaskAttachment
- *
- * Marks an attachment as deleted.
- * Actual file cleanup (if any) is handled by the caller.
  */
 export function softDeleteTaskAttachment(
   attachmentId: string
 ): void {
+  ensureTaskAttachmentsTable();
   const db = getDatabase();
   const nowIso = new Date().toISOString();
 
@@ -207,50 +160,48 @@ export function softDeleteTaskAttachment(
   );
 }
 
-/* ============================================================
-   Sync Engine Support
-   ============================================================ */
-
 /**
  * getPendingAttachments
- *
- * Returns attachments that need to be uploaded to the server.
- * Criteria: sync_state is 'LOCAL_ONLY' or 'DIRTY', and NOT deleted locally.
- * (Deleted items sync differently - omitted for simplicity)
  */
 export function getPendingAttachments(): TaskAttachmentRecord[] {
+  // ✅ CRITICAL FIX: Ensure table exists before querying
+  ensureTaskAttachmentsTable();
   const db = getDatabase();
 
-  const rows = db.getAllSync<TaskAttachmentRecord>(
-    `
-    SELECT
-      id,
-      task_key AS taskKey,
-      kind,
-      file_name AS fileName,
-      local_uri AS localUri,
-      mime_type AS mimeType,
-      size_bytes AS sizeBytes,
-      created_at AS createdAt,
-      created_by AS createdBy,
-      sync_state AS syncState,
-      deleted_at AS deletedAt
-    FROM task_attachments
-    WHERE (sync_state = 'LOCAL_ONLY' OR sync_state = 'DIRTY')
-      AND deleted_at IS NULL
-    LIMIT 50
-    `
-  );
+  try {
+    const rows = db.getAllSync<any>(
+      `
+      SELECT
+        id,
+        task_key AS taskKey,
+        kind,
+        file_name AS fileName,
+        local_uri AS localUri,
+        mime_type AS mimeType,
+        size_bytes AS sizeBytes,
+        created_at AS createdAt,
+        created_by AS createdBy,
+        sync_state AS syncState,
+        deleted_at AS deletedAt
+      FROM task_attachments
+      WHERE (sync_state = 'LOCAL_ONLY' OR sync_state = 'DIRTY')
+        AND deleted_at IS NULL
+      LIMIT 50
+      `
+    );
 
-  return rows ?? [];
+    return rows ?? [];
+  } catch (error) {
+    console.error("Failed to fetch pending attachments:", error);
+    return [];
+  }
 }
 
 /**
  * markAttachmentAsSynced
- *
- * Updates status to SYNCED after successful upload.
  */
 export function markAttachmentAsSynced(id: string): void {
+  ensureTaskAttachmentsTable();
   const db = getDatabase();
   db.runSync(
     `UPDATE task_attachments SET sync_state = 'SYNCED' WHERE id = ?`,

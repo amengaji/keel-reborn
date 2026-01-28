@@ -1,6 +1,6 @@
 //keel-mobile/src/screens/DataSyncScreen.tsx
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { View, StyleSheet, Alert, Platform } from "react-native";
 import { Text, ActivityIndicator, useTheme, ProgressBar } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
@@ -22,9 +22,13 @@ export default function DataSyncScreen() {
   const [status, setStatus] = useState("Initializing...");
   const [progress, setProgress] = useState(0.1);
 
+  // ✅ PREVENT LOOP: Ref to track if sync has already started
+  const syncStarted = useRef(false);
+
   useEffect(() => {
-    // Only run if we have a user context (AuthNavigator handles the null case)
-    if (user) {
+    // Only run if we have a user and haven't started yet
+    if (user && !syncStarted.current) {
+        syncStarted.current = true;
         runSyncSequence();
     }
   }, [user]); 
@@ -35,15 +39,13 @@ export default function DataSyncScreen() {
       setStatus("Checking Profile...");
       setProgress(0.3);
       
+      // Note: This refresh will update the 'user' object in AuthContext,
+      // but our syncStarted ref prevents this function from re-triggering.
       await refreshUser(); 
       
       const rawRank = user?.rank || "DECK_CADET";
 
-      // ✅ FIX: Robust Normalization Logic
-      // 1. Remove parentheses and content inside: "Deck Cadet (BSC)" -> "Deck Cadet"
-      // 2. Trim spaces
-      // 3. Space to Underscore
-      // 4. Uppercase
+      // Robust Normalization Logic
       const formattedRank = rawRank
         .replace(/\s*\(.*?\)\s*/g, '') 
         .trim()
@@ -51,7 +53,7 @@ export default function DataSyncScreen() {
         .toUpperCase();
 
       console.log(`>>> RAW RANK: ${rawRank}`);
-      console.log(`>>> NORMALIZED RANK: ${formattedRank}`); // Should be DECK_CADET
+      console.log(`>>> NORMALIZED RANK: ${formattedRank}`); 
 
       // 2. SYNC TASKS
       setStatus(`Syncing ${formattedRank} Tasks...`);
@@ -84,6 +86,8 @@ export default function DataSyncScreen() {
 
     } catch (e) {
       console.error("Sync Fatal Error", e);
+      // Reset ref so user can retry
+      syncStarted.current = false;
       Alert.alert(
         "Sync Failed",
         "Could not load data. Check connection.",

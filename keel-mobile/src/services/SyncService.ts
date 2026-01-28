@@ -4,72 +4,91 @@ import api from './api';
 import { 
   getPendingAttachments, 
   markAttachmentAsSynced, 
-  TaskAttachmentRecord 
+  TaskAttachmentRecord,
+  ensureTaskAttachmentsTable
 } from '../db/taskAttachments';
 import * as FileSystem from 'expo-file-system/legacy';
+import { getAllDailyLogs, upsertDailyLog } from '../db/dailyLogs';
+import * as SecureStore from 'expo-secure-store';
 
-/**
- * Sync Engine
- * Handles uploading offline data to the backend.
- */
+let isSyncing = false;
+let syncStatusListener: ((syncing: boolean) => void) | null = null;
+
 export const SyncService = {
-  
-  /**
-   * Main Sync Function
-   * Call this when:
-   * 1. App opens (DataSyncScreen)
-   * 2. User pulls to refresh
-   * 3. Network connection is restored
-   */
+  onSyncStatusChange: (callback: (syncing: boolean) => void) => {
+    syncStatusListener = callback;
+  },
+
   runSync: async () => {
-    console.log("🔄 Starting Sync...");
+    if (isSyncing) return;
+    isSyncing = true;
+    if (syncStatusListener) syncStatusListener(true);
+    
+    console.log("🔄 Starting Resumable Global Sync...");
     
     try {
-        // 1. Sync Attachments
-        // NOTE: This DB call is now synchronous (Offline-First Adapter)
-        const pendingItems = getPendingAttachments();
+        ensureTaskAttachmentsTable();
 
-        if (pendingItems.length === 0) {
-            console.log("✅ No pending attachments.");
-            return;
-        }
-
-        console.log(`Found ${pendingItems.length} pending attachments. Uploading...`);
+        // --- 1. RESUMABLE ATTACHMENTS ---
+        // We fetch only LOCAL_ONLY or DIRTY items. 
+        // Once marked SYNCED, getPendingAttachments will naturally skip them on resume.
+        const pendingAttachments = getPendingAttachments();
         
-        // Upload one by one to ensure reliability
-        for (const item of pendingItems) {
-            await uploadSingleAttachment(item);
+        for (const item of pendingAttachments) {
+            // Pre-flight check: skip if file no longer exists
+            const info = await FileSystem.getInfoAsync(item.localUri);
+            if (!info.exists) {
+                console.warn(`File missing for ${item.id}, marking skipped.`);
+                continue; 
+            }
+
+            const success = await uploadSingleAttachment(item);
+            if (!success) {
+                console.log("🛰️ Connection interrupted. Stopping queue to resume later.");
+                break; // Exit loop, keeping items as DIRTY/LOCAL_ONLY for next run
+            }
+            await SecureStore.setItemAsync('last_sync_attachments', new Date().toISOString());
         }
 
-        // Future: Sync Daily Logs here...
+        // --- 2. RESUMABLE DAILY LOGS ---
+        const dirtyLogs = getAllDailyLogs().filter(log => log.syncState === 'DIRTY');
+        
+        for (const log of dirtyLogs) {
+            try {
+                const res = await api.post('/daily-logs/sync', log);
+                if (res.status === 200 || res.status === 201) {
+                    upsertDailyLog({ ...log, syncState: 'SYNCED' });
+                } else {
+                    break; // stop on server error or timeout
+                }
+            } catch (e) {
+                console.error(`Failed to push log for ${log.date}. Network likely lost.`);
+                break; // STOP loop here. Remaining logs stay DIRTY and resume next time.
+            }
+        }
+        await SecureStore.setItemAsync('last_sync_logs', new Date().toISOString());
+
+        await SecureStore.setItemAsync('last_sync_tasks', new Date().toISOString());
 
     } catch (error) {
-        console.error("Sync Cycle Error:", error);
+        console.error("Critical Sync Cycle Error:", error);
+    } finally {
+      isSyncing = false;
+      if (syncStatusListener) syncStatusListener(false);
+      console.log("✅ Sync Cycle Paused or Finished.");
     }
   }
 };
 
 /**
- * Helper: Uploads a single file to the backend
+ * Helper: Uploads a single file. Returns boolean for success.
  */
-const uploadSingleAttachment = async (item: TaskAttachmentRecord) => {
+const uploadSingleAttachment = async (item: TaskAttachmentRecord): Promise<boolean> => {
     try {
-        // 1. Check if file exists locally
-        // Using legacy API because we used it to save the file
-        const info = await FileSystem.getInfoAsync(item.localUri);
-        
-        if (!info.exists) {
-            console.warn(`⚠️ File missing for ${item.id}, skipping.`);
-            // Optional: Mark as failed or deleted in DB to prevent infinite retry loops
-            return;
-        }
-
-        // 2. Prepare Form Data
         const formData = new FormData();
         formData.append('taskId', item.taskKey);
         formData.append('description', `Uploaded from mobile (${item.kind})`);
         
-        // Append the file properly for React Native
         const fileData = {
             uri: item.localUri,
             name: item.fileName,
@@ -78,25 +97,19 @@ const uploadSingleAttachment = async (item: TaskAttachmentRecord) => {
         
         formData.append('file', fileData);
 
-        // 3. Upload
         console.log(`Uploading ${item.fileName}...`);
         const res = await api.post('/tasks/evidence', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-            timeout: 30000 // 30s timeout for satellite connections
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 45000 // Increased timeout for slow VSAT
         });
 
-        // 4. Update Local DB on Success
         if (res.status === 200 || res.status === 201) {
             markAttachmentAsSynced(item.id);
-            console.log(`✅ Uploaded ${item.fileName}`);
-        } else {
-            console.warn(`⚠️ Upload failed for ${item.fileName} (Status: ${res.status})`);
+            return true;
         }
-
+        return false;
     } catch (error) {
-        console.error(`❌ Failed to upload ${item.id}`, error);
-        // We leave it as 'LOCAL_ONLY' / 'DIRTY' to try again next sync
+        console.error(`❌ Upload failed for ${item.id}`, error);
+        return false; 
     }
 };

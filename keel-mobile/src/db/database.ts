@@ -1,5 +1,23 @@
 //keel-mobile/src/db/database.ts
 import * as SQLite from "expo-sqlite";
+import { ensureDailyLogsTable } from "./dailyLogs";
+import { ensureSeedTasksExist } from "./tasks";
+
+let isDbInitialized = false;
+
+export const initializeAppDatabase = async () => {
+  if (isDbInitialized) return;
+  
+  console.log(">>> [DB] STARTING ONE-TIME INITIALIZATION");
+  try {
+    ensureDailyLogsTable(); // Schema checks
+    ensureSeedTasksExist(); // Task seeding
+    isDbInitialized = true;
+    console.log(">>> [DB] INITIALIZATION COMPLETE");
+  } catch (error) {
+    console.error(">>> [DB] INIT FAILED:", error);
+  }
+};
 
 /**
  * ============================================================
