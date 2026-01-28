@@ -8,13 +8,18 @@ import {
   ensureTaskAttachmentsTable
 } from '../db/taskAttachments';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as ImageManipulator from 'expo-image-manipulator'; // ✅ New Import
+import * as ImageManipulator from 'expo-image-manipulator';
 import { getAllDailyLogs, upsertDailyLog } from '../db/dailyLogs';
 import * as SecureStore from 'expo-secure-store';
 
 let isSyncing = false;
 let syncStatusListener: ((syncing: boolean) => void) | null = null;
 
+/**
+ * Sync Engine with Priority Queue
+ * 1. Text-based Daily Logs (High Priority / Low Bandwidth)
+ * 2. Compressed Image Evidence (Medium Priority / High Bandwidth)
+ */
 export const SyncService = {
   onSyncStatusChange: (callback: (syncing: boolean) => void) => {
     syncStatusListener = callback;
@@ -25,67 +30,91 @@ export const SyncService = {
     isSyncing = true;
     if (syncStatusListener) syncStatusListener(true);
     
-    console.log("🔄 Starting Resumable Sync with Smart Compression...");
+    console.log("🔄 Starting Priority Sync Engine...");
     
     try {
         ensureTaskAttachmentsTable();
 
-        // --- 1. RESUMABLE ATTACHMENTS (Images compressed on-the-fly) ---
+        // --- PHASE 1: PRIORITY DAILY LOGS (TEXT) ---
+        // We do this first because text data is tiny and critical for compliance.
+        const allLogs = getAllDailyLogs();
+        const dirtyLogs = allLogs.filter(log => log.syncState === 'DIRTY');
+
+        if (dirtyLogs.length > 0) {
+            console.log(`📡 Phase 1: Pushing ${dirtyLogs.length} priority logs...`);
+            for (const log of dirtyLogs) {
+                try {
+                    const res = await api.post('/daily-logs/sync', log);
+                    if (res.status === 200 || res.status === 201) {
+                        upsertDailyLog({ ...log, syncState: 'SYNCED' });
+                    } else {
+                        console.warn("Log sync rejected by server, pausing queue.");
+                        break; 
+                    }
+                } catch (e) {
+                    console.error("Network lost during Phase 1. Logs will resume later.");
+                    // Return early to prevent trying to upload heavy images without network
+                    return; 
+                }
+            }
+            await SecureStore.setItemAsync('last_sync_logs', new Date().toISOString());
+            console.log("✅ Phase 1 Complete.");
+        }
+
+        // --- PHASE 2: EVIDENCE ATTACHMENTS (HEAVY DATA) ---
+        // Only starts if Phase 1 didn't crash or lose connection.
         const pendingAttachments = getPendingAttachments();
-        for (const item of pendingAttachments) {
-            const info = await FileSystem.getInfoAsync(item.localUri);
-            if (!info.exists) continue; 
+        
+        if (pendingAttachments.length > 0) {
+            console.log(`📡 Phase 2: Uploading ${pendingAttachments.length} attachments...`);
+            for (const item of pendingAttachments) {
+                const info = await FileSystem.getInfoAsync(item.localUri);
+                if (!info.exists) {
+                    console.warn(`File ${item.id} missing locally, skipping.`);
+                    continue; 
+                }
 
-            const success = await uploadSingleAttachment(item);
-            if (!success) break; 
-            
-            await SecureStore.setItemAsync('last_sync_attachments', new Date().toISOString());
+                const success = await uploadSingleAttachment(item);
+                if (!success) {
+                    console.log("🛰️ Connection unstable in Phase 2. Stopping to preserve data.");
+                    break; 
+                }
+                await SecureStore.setItemAsync('last_sync_attachments', new Date().toISOString());
+            }
+            console.log("✅ Phase 2 Complete.");
         }
 
-        // --- 2. RESUMABLE DAILY LOGS ---
-        const dirtyLogs = getAllDailyLogs().filter(log => log.syncState === 'DIRTY');
-        for (const log of dirtyLogs) {
-            try {
-                const res = await api.post('/daily-logs/sync', log);
-                if (res.status === 200 || res.status === 201) {
-                    upsertDailyLog({ ...log, syncState: 'SYNCED' });
-                } else break;
-            } catch (e) { break; }
-        }
-        await SecureStore.setItemAsync('last_sync_logs', new Date().toISOString());
+        // --- PHASE 3: METADATA & REFRESH ---
         await SecureStore.setItemAsync('last_sync_tasks', new Date().toISOString());
 
     } catch (error) {
-        console.error("Critical Sync Error:", error);
+        console.error("Critical Sync Failure:", error);
     } finally {
       isSyncing = false;
       if (syncStatusListener) syncStatusListener(false);
+      console.log("🏁 Global Sync Cycle Finished.");
     }
   }
 };
 
 /**
- * Helper: Compresses and Uploads
+ * Helper: Compresses (if image) and Uploads
  */
 const uploadSingleAttachment = async (item: TaskAttachmentRecord): Promise<boolean> => {
     try {
         let uploadUri = item.localUri;
 
-        // ✅ SMART COMPRESSION LOGIC
-        // Only compress if it's a photo. Documents (PDFs) are skipped.
+        // Smart Compression
         if (item.kind === 'PHOTO' || item.mimeType?.startsWith('image/')) {
-            console.log(`🗜️ Compressing ${item.fileName}...`);
             try {
                 const manipulatedImage = await ImageManipulator.manipulateAsync(
                     item.localUri,
-                    [{ resize: { width: 1200 } }], // Resize to max 1200px width
+                    [{ resize: { width: 1200 } }],
                     { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
                 );
                 uploadUri = manipulatedImage.uri;
-                console.log(`✅ Compressed: ${item.fileName}`);
             } catch (manipError) {
-                console.warn("Compression failed, uploading original:", manipError);
-                // Fallback to original if compression fails
+                console.warn("Compression failed, sending original.");
             }
         }
 
@@ -103,7 +132,7 @@ const uploadSingleAttachment = async (item: TaskAttachmentRecord): Promise<boole
 
         const res = await api.post('/tasks/evidence', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
-            timeout: 60000 // Extended timeout for satellite
+            timeout: 60000 
         });
 
         if (res.status === 200 || res.status === 201) {
