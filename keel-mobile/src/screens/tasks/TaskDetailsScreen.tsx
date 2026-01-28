@@ -33,7 +33,8 @@ import { KeelCard } from "../../components/ui/KeelCard";
 import { useToast } from "../../components/toast/useToast";
 import TaskAttachments from "../../components/tasks/TaskAttachments";
 
-import { getTaskByKey, upsertTaskStatus } from "../../db/tasks";
+// Import the updated TaskStatus type
+import { getTaskByKey, upsertTaskStatus, TaskStatus } from "../../db/tasks";
 import { getStaticTaskByKey } from "../../tasks/taskCatalog.static";
 
 import {
@@ -74,7 +75,7 @@ export default function TaskDetailsScreen({ route }: Props) {
   const [taskTitle, setTaskTitle] = useState(""); 
   const [competence, setCompetence] = useState("Loading..."); 
   const [instructions, setInstructions] = useState("");
-  const [status, setStatus] = useState<"NOT_STARTED" | "IN_PROGRESS" | "COMPLETED">("NOT_STARTED");
+  const [status, setStatus] = useState<TaskStatus>("NOT_STARTED");
 
   // Metadata
   const [stcwCode, setStcwCode] = useState<string | null>(null);
@@ -140,31 +141,32 @@ export default function TaskDetailsScreen({ route }: Props) {
     toast.success("Task Started");
   };
 
-  // ✅ VALIDATION LOGIC
-  const handleRequestComplete = () => {
-    // 1. Journal Check
-    if (!cadetNotes || cadetNotes.trim().length < 5) {
-        toast.error("Journal entry is required.");
+  /**
+   * Validation Logic: Ensures Journal and Evidence are present before submission.
+   */
+  const handleRequestApproval = () => {
+    // 1. Journal Check: Minimum 10 characters for a valid entry
+    if (!cadetNotes || cadetNotes.trim().length < 10) {
+        toast.error("A detailed journal entry is required for approval.");
         return;
     }
 
-    // 2. Evidence Check
-    // If evidenceType is present AND not "NONE", we require at least 1 attachment
+    // 2. Evidence Check: Required if task metadata specifies PHOTO/DOCUMENT
     const requiresEvidence = evidenceType && evidenceType !== 'NONE';
     if (requiresEvidence && attachments.length === 0) {
-        toast.error("Evidence (Photo/Document) is required.");
+        toast.error("At least one photo or document is required as evidence.");
         return;
     }
 
-    // If all good, show confirmation
     setShowSubmitConfirm(true);
   };
 
-  const handleSubmitTask = () => {
-    upsertTaskStatus({ taskKey, status: "COMPLETED", remarks: cadetNotes });
-    setStatus("COMPLETED");
+  const handleSubmitForReview = () => {
+    // Transition to PENDING_REVIEW instead of COMPLETED
+    upsertTaskStatus({ taskKey, status: "PENDING_REVIEW", remarks: cadetNotes });
+    setStatus("PENDING_REVIEW");
     setShowSubmitConfirm(false);
-    toast.success("Task Completed");
+    toast.success("Submitted for Officer Review");
   };
 
   const handleSaveJournal = () => {
@@ -177,17 +179,6 @@ export default function TaskDetailsScreen({ route }: Props) {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setShowFullInstructions(!showFullInstructions);
   };
-
-  // --- JOURNAL FORMATTING TOOLS ---
-  const insertText = (wrapper: string) => {
-    setCadetNotes(prev => `${prev} ${wrapper} `);
-  };
-
-  const formatTools = [
-    { icon: "format-bold", action: () => insertText("**") },
-    { icon: "format-italic", action: () => insertText("_") },
-    { icon: "format-list-bulleted", action: () => setCadetNotes(prev => prev + "\n• ") },
-  ];
 
   // --- ATTACHMENTS ---
   function reloadAttachments() {
@@ -234,7 +225,7 @@ export default function TaskDetailsScreen({ route }: Props) {
       localUri: docDir + name, mimeType: kind === 'PHOTO' ? 'image/jpeg' : 'application/pdf', sizeBytes: 0
     });
     reloadAttachments();
-    toast.success("Attached");
+    toast.success("Evidence Attached");
   }
 
   async function ensureEvidenceDirExists() {
@@ -256,9 +247,19 @@ export default function TaskDetailsScreen({ route }: Props) {
     setShowDeleteConfirm(false);
   };
 
-  // --- UI CONSTANTS & HELPERS ---
-  const FOOTER_HEIGHT = 80;
-  const isTaskActive = status !== 'NOT_STARTED';
+  // --- UI HELPERS ---
+  const FOOTER_HEIGHT = 90;
+  const isEditable = status === 'IN_PROGRESS';
+  const isLocked = status === 'PENDING_REVIEW' || status === 'COMPLETED';
+
+  const getStatusConfig = (s: TaskStatus) => {
+    switch(s) {
+      case 'COMPLETED': return { label: 'VERIFIED', bg: '#D1FAE5', text: '#065F46' };
+      case 'PENDING_REVIEW': return { label: 'PENDING REVIEW', bg: '#E0F2FE', text: '#0369A1' };
+      case 'IN_PROGRESS': return { label: 'IN PROGRESS', bg: '#FEF3C7', text: '#92400E' };
+      default: return { label: 'NOT STARTED', bg: '#F3F4F6', text: '#6B7280' };
+    }
+  };
 
   const getSafetyColor = (l: string | null) => {
     if (!l || l === 'None') return theme.colors.primary;
@@ -267,31 +268,12 @@ export default function TaskDetailsScreen({ route }: Props) {
     return '#10B981';
   };
 
-  // ✅ LOCKED CARD COMPONENT (Reusable)
   const LockedCard = ({ text, icon = "lock-outline" }: { text: string, icon?: string }) => (
-    <Surface 
-        style={{ 
-            borderRadius: 12, 
-            borderWidth: 2, 
-            borderColor: '#E5E7EB', 
-            borderStyle: 'dashed', // Dashed border for "Slot" feel
-            backgroundColor: '#F9FAFB',
-            alignItems: 'center', 
-            justifyContent: 'center',
-            paddingVertical: 24,
-            opacity: 0.8
-        }}
-        elevation={0}
-    >
-        <View style={{ 
-            width: 40, height: 40, borderRadius: 20, 
-            backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', marginBottom: 8 
-        }}>
+    <Surface style={styles.lockedCard} elevation={0}>
+        <View style={styles.lockedIconCircle}>
             <IconButton icon={icon} size={20} iconColor="#9CA3AF" style={{ margin: 0 }} />
         </View>
-        <Text variant="bodySmall" style={{ color: '#6B7280', fontWeight: '600' }}>
-            {text}
-        </Text>
+        <Text variant="bodySmall" style={{ color: '#6B7280', fontWeight: '600' }}>{text}</Text>
     </Surface>
   );
 
@@ -300,28 +282,22 @@ export default function TaskDetailsScreen({ route }: Props) {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0} 
       >
         {/* ================= HEADER ================= */}
-        <Surface style={[styles.headerContainer, { paddingTop: 4 }]} elevation={1}>
-           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingRight: 16 }}>
-               <IconButton icon="arrow-left" onPress={() => navigation.goBack()} size={24} style={{ margin: 0, marginLeft: -8 }} />
-               <View style={[styles.statusBadge, { 
-                    backgroundColor: status === 'COMPLETED' ? '#D1FAE5' : status === 'IN_PROGRESS' ? '#FEF3C7' : '#F3F4F6',
-               }]}>
-                   <Text style={{ 
-                       fontSize: 10, fontWeight: '800', 
-                       color: status === 'COMPLETED' ? '#065F46' : status === 'IN_PROGRESS' ? '#92400E' : '#6B7280'
-                   }}>
-                       {status.replace('_', ' ')}
+        <Surface style={styles.headerContainer} elevation={1}>
+           <View style={styles.headerTopRow}>
+               <IconButton icon="arrow-left" onPress={() => navigation.goBack()} size={24} style={{ marginLeft: -8 }} />
+               <View style={[styles.statusBadge, { backgroundColor: getStatusConfig(status).bg }]}>
+                   <Text style={[styles.statusBadgeText, { color: getStatusConfig(status).text }]}>
+                       {getStatusConfig(status).label}
                    </Text>
                </View>
            </View>
            <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-               <Text variant="labelMedium" style={{ color: theme.colors.secondary, fontWeight: '700', marginBottom: 2 }}>
-                   {taskTitle.toUpperCase()}
+               <Text variant="labelMedium" style={{ color: theme.colors.secondary, fontWeight: '700' }}>
+                   {taskKey}
                </Text>
-               <Text variant="headlineSmall" style={{ fontWeight: '800', lineHeight: 28, color: '#1F2937' }}>
+               <Text variant="headlineSmall" style={styles.competenceTitle}>
                    {competence}
                </Text>
            </View>
@@ -332,7 +308,7 @@ export default function TaskDetailsScreen({ route }: Props) {
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: FOOTER_HEIGHT + insets.bottom + 40 }}
             showsVerticalScrollIndicator={false}
         >
-            {/* 1. STATS GRID */}
+            {/* STATS GRID */}
             <View style={styles.statsGrid}>
                 <View style={[styles.statCard, { backgroundColor: '#F0F9FF', borderColor: '#BAE6FD' }]}>
                     <IconButton icon="book-open-page-variant" size={20} iconColor="#0284C7" style={styles.statIcon} />
@@ -351,87 +327,72 @@ export default function TaskDetailsScreen({ route }: Props) {
                 </View>
             </View>
 
-            {/* 2. INSTRUCTIONS */}
+            {/* INSTRUCTIONS */}
             <TouchableRipple onPress={toggleInstructions} style={styles.instructionContainer}>
                 <View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                        <Text variant="titleSmall" style={{ fontWeight: '700', color: theme.colors.onSurface }}>Task Information</Text>
-                        <IconButton icon={showFullInstructions ? "chevron-up" : "chevron-down"} size={16} style={{ margin: 0 }} />
+                        <Text variant="titleSmall" style={{ fontWeight: '700' }}>Task Information</Text>
+                        <IconButton icon={showFullInstructions ? "chevron-up" : "chevron-down"} size={16} />
                     </View>
-                    <Text 
-                        variant="bodyMedium" 
-                        style={{ color: theme.colors.onSurfaceVariant, lineHeight: 20 }}
-                        numberOfLines={showFullInstructions ? undefined : 2}
-                    >
+                    <Text variant="bodyMedium" style={{ lineHeight: 20 }} numberOfLines={showFullInstructions ? undefined : 2}>
                         {instructions}
                     </Text>
                 </View>
             </TouchableRipple>
 
-            {/* 3. TRAINEE JOURNAL */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 8 }}>
-                <Text variant="titleMedium" style={styles.sectionHeader}>Trainee Journal</Text>
-                {!isEditingNotes && isTaskActive && (
+            {/* TRAINEE JOURNAL */}
+            <View style={styles.sectionHeaderRow}>
+                <Text variant="titleMedium" style={styles.sectionHeaderText}>Trainee Journal</Text>
+                {isEditable && !isEditingNotes && (
                     <IconButton icon="pencil" mode="contained-tonal" size={18} iconColor={theme.colors.primary} onPress={() => setIsEditingNotes(true)} />
                 )}
             </View>
 
-            {isTaskActive ? (
-                isEditingNotes ? (
-                    <View style={[styles.editorContainer, { borderColor: theme.colors.primary }]}>
-                        <View style={styles.toolbar}>
-                            {formatTools.map((tool, idx) => (
-                                <TouchableOpacity key={idx} onPress={tool.action} style={styles.toolBtn}>
-                                    <IconButton icon={tool.icon} size={20} iconColor={theme.colors.onSurface} style={{ margin: 0 }} />
-                                </TouchableOpacity>
-                            ))}
-                            <View style={{ flex: 1 }} />
-                            <Button compact onPress={() => setIsEditingNotes(false)}>Done</Button>
-                        </View>
-                        <NativeTextInput 
-                            ref={notesInputRef}
-                            multiline 
-                            style={[styles.textArea, { color: theme.colors.onSurface }]} 
-                            value={cadetNotes} 
-                            onChangeText={setCadetNotes} 
-                            placeholder="Type your journal entry here..."
-                            placeholderTextColor={theme.colors.onSurfaceDisabled}
-                            autoFocus
-                        />
-                        <View style={styles.editorFooter}>
-                            <Button mode="contained" onPress={handleSaveJournal} style={{ borderRadius: 8 }}>Save Entry</Button>
-                        </View>
+            {status === 'NOT_STARTED' ? (
+                <LockedCard text="Start task to enable journal" />
+            ) : isEditingNotes ? (
+                <View style={[styles.editorContainer, { borderColor: theme.colors.primary }]}>
+                    <NativeTextInput 
+                        ref={notesInputRef}
+                        multiline 
+                        style={styles.textArea} 
+                        value={cadetNotes} 
+                        onChangeText={setCadetNotes} 
+                        placeholder="Detail your practical performance..."
+                        autoFocus
+                    />
+                    <View style={styles.editorFooter}>
+                        <Button mode="contained" onPress={handleSaveJournal}>Save Entry</Button>
                     </View>
-                ) : (
-                    <KeelCard onPress={() => setIsEditingNotes(true)} style={{ minHeight: 120, justifyContent: 'center', borderColor: theme.colors.outlineVariant }}>
-                        {cadetNotes ? (
-                            <Text variant="bodyMedium" style={{ lineHeight: 22 }}>{cadetNotes}</Text>
-                        ) : (
-                            <View style={{ alignItems: 'center', opacity: 0.5, paddingVertical: 12 }}>
-                                <IconButton icon="notebook-edit-outline" size={28} />
-                                <Text variant="bodySmall">Tap to write your journal entry...</Text>
-                            </View>
-                        )}
-                    </KeelCard>
-                )
+                </View>
             ) : (
-                <LockedCard text="Start task to enable journal" icon="lock-outline" />
+                <KeelCard onPress={() => isEditable && setIsEditingNotes(true)} style={styles.journalDisplayCard}>
+                    {cadetNotes ? (
+                        <Text variant="bodyMedium" style={{ lineHeight: 22 }}>{cadetNotes}</Text>
+                    ) : (
+                        <View style={styles.emptyJournalPlaceholder}>
+                            <IconButton icon="notebook-edit-outline" size={28} />
+                            <Text variant="bodySmall">Tap to write your journal entry...</Text>
+                        </View>
+                    )}
+                </KeelCard>
             )}
 
-            {/* 4. EVIDENCE */}
-            {(!evidenceType || evidenceType.includes('PHOTO') || evidenceType.includes('DOCUMENT')) && (
+            {/* EVIDENCE SECTION */}
+            {(!evidenceType || evidenceType !== 'NONE') && (
                 <>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 8 }}>
-                        <Text variant="titleMedium" style={styles.sectionHeader}>Evidence & Attachments</Text>
-                        {/* Show requirement badge if evidence is mandatory */}
-                        {evidenceType && evidenceType !== 'NONE' && (
-                             <View style={{ backgroundColor: '#FEF2F2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: '#FECACA' }}>
-                                 <Text style={{ fontSize: 10, fontWeight: '700', color: '#DC2626' }}>REQUIRED</Text>
+                    <View style={styles.sectionHeaderRow}>
+                        <Text variant="titleMedium" style={styles.sectionHeaderText}>Evidence & Attachments</Text>
+                        {evidenceType && (
+                             <View style={styles.requiredBadge}>
+                                 <Text style={styles.requiredBadgeText}>REQUIRED</Text>
                              </View>
                         )}
                     </View>
 
-                    {isTaskActive ? (
+                    {status === 'NOT_STARTED' ? (
+                        <LockedCard text="Start task to upload evidence" icon="camera-off" />
+                    ) : (
                         <TaskAttachments 
                             taskInstanceId={taskKey} 
                             taskStatus={status} 
@@ -443,30 +404,24 @@ export default function TaskDetailsScreen({ route }: Props) {
                             onOpen={handleOpenAttachment} 
                             onDelete={handleRequestDelete} 
                         />
-                    ) : (
-                        <LockedCard text="Start task to upload evidence" icon="camera-off" />
                     )}
                 </>
             )}
-
         </ScrollView>
 
         {/* ================= FOOTER ================= */}
         <Surface style={[styles.footer, { paddingBottom: insets.bottom + 16 }]} elevation={4}>
             {status === 'NOT_STARTED' && (
-                <KeelButton mode="primary" onPress={() => setShowStartConfirm(true)}>
-                    Start Task
-                </KeelButton>
+                <KeelButton mode="primary" onPress={() => setShowStartConfirm(true)}>Start Task</KeelButton>
             )}
             {status === 'IN_PROGRESS' && (
-                <KeelButton mode="primary" onPress={handleRequestComplete}>
-                    Mark as Complete
-                </KeelButton>
+                <KeelButton mode="primary" onPress={handleRequestApproval}>Submit for Approval</KeelButton>
+            )}
+            {status === 'PENDING_REVIEW' && (
+                <KeelButton mode="outline" disabled icon="clock-outline" onPress={() => {}}>Pending Officer Review</KeelButton>
             )}
             {status === 'COMPLETED' && (
-                <KeelButton mode="outline" disabled onPress={() => {}}>
-                    Pending Officer Verification
-                </KeelButton>
+                <KeelButton mode="outline" disabled icon="check-decagram" onPress={() => {}}>Task Verified</KeelButton>
             )}
         </Surface>
 
@@ -476,18 +431,18 @@ export default function TaskDetailsScreen({ route }: Props) {
       <Portal>
         <Dialog visible={showStartConfirm} onDismiss={() => setShowStartConfirm(false)}>
             <Dialog.Title>Start Task?</Dialog.Title>
-            <Dialog.Content><Text variant="bodyMedium">This will unlock the journal and allow you to upload evidence.</Text></Dialog.Content>
+            <Dialog.Content><Text>This will unlock the journal and allow evidence upload.</Text></Dialog.Content>
             <Dialog.Actions>
                 <Button onPress={() => setShowStartConfirm(false)}>Cancel</Button>
                 <Button onPress={handleStartTask}>Start</Button>
             </Dialog.Actions>
         </Dialog>
         <Dialog visible={showSubmitConfirm} onDismiss={() => setShowSubmitConfirm(false)}>
-            <Dialog.Title>Complete Task?</Dialog.Title>
-            <Dialog.Content><Text variant="bodyMedium">Are you sure you want to submit this task?</Text></Dialog.Content>
+            <Dialog.Title>Submit for Approval?</Dialog.Title>
+            <Dialog.Content><Text>Once submitted, you cannot edit your journal or evidence until reviewed.</Text></Dialog.Content>
             <Dialog.Actions>
                 <Button onPress={() => setShowSubmitConfirm(false)}>Cancel</Button>
-                <Button onPress={handleSubmitTask}>Complete</Button>
+                <Button onPress={handleSubmitForReview}>Submit</Button>
             </Dialog.Actions>
         </Dialog>
         <Dialog visible={showDeleteConfirm} onDismiss={() => setShowDeleteConfirm(false)}>
@@ -498,49 +453,40 @@ export default function TaskDetailsScreen({ route }: Props) {
             </Dialog.Actions>
         </Dialog>
       </Portal>
-
     </KeelScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  headerContainer: { 
-      backgroundColor: 'white', 
-      borderBottomWidth: 1, 
-      borderBottomColor: '#F3F4F6',
-  },
-  sectionHeader: { 
-      fontWeight: '700', 
-      color: '#1F2937', 
-  },
-  statusBadge: { 
-      paddingHorizontal: 12, 
-      paddingVertical: 6, 
-      borderRadius: 12,
-  },
+  headerContainer: { backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16 },
+  headerTitle: { fontWeight: '700', color: '#1F2937' },
+  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  statusBadgeText: { fontSize: 10, fontWeight: '800' },
+  competenceTitle: { fontWeight: '800', lineHeight: 28, color: '#1F2937' },
   
-  // STATS GRID
   statsGrid: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  statCard: {
-      flex: 1, borderRadius: 12, padding: 12, borderWidth: 1,
-      alignItems: 'flex-start', minHeight: 90, justifyContent: 'space-between'
-  },
+  statCard: { flex: 1, borderRadius: 12, padding: 12, borderWidth: 1, alignItems: 'flex-start', minHeight: 90, justifyContent: 'space-between' },
   statIcon: { margin: 0, marginLeft: -4, marginTop: -4 },
-  statLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginTop: 4 },
-  statValue: { fontSize: 13, fontWeight: '800', marginTop: 2 },
+  statLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  statValue: { fontSize: 13, fontWeight: '800' },
 
-  // INSTRUCTIONS
-  instructionContainer: {
-      backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB'
-  },
+  instructionContainer: { backgroundColor: '#F9FAFB', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' },
 
-  // EDITOR
-  editorContainer: { borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', overflow: 'hidden', marginBottom: 16 },
-  toolbar: { flexDirection: 'row', alignItems: 'center', padding: 8, borderBottomWidth: 1, borderBottomColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
-  toolBtn: { padding: 4, marginRight: 4 },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 8 },
+  sectionHeaderText: { fontWeight: '700', color: '#1F2937' },
+  requiredBadge: { backgroundColor: '#FEF2F2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: '#FECACA' },
+  requiredBadgeText: { fontSize: 10, fontWeight: '700', color: '#DC2626' },
+
+  editorContainer: { borderWidth: 1, borderRadius: 12, backgroundColor: '#FFFFFF', overflow: 'hidden' },
   textArea: { padding: 16, minHeight: 140, fontSize: 16, textAlignVertical: 'top' },
   editorFooter: { alignItems: 'flex-end', padding: 8, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
   
-  // FOOTER
+  journalDisplayCard: { minHeight: 120, justifyContent: 'center', borderColor: '#F3F4F6' },
+  emptyJournalPlaceholder: { alignItems: 'center', opacity: 0.5, paddingVertical: 12 },
+
+  lockedCard: { borderRadius: 12, borderWidth: 2, borderColor: '#E5E7EB', borderStyle: 'dashed', backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center', paddingVertical: 24, opacity: 0.8 },
+  lockedIconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#E5E7EB', backgroundColor: 'white' },
 });

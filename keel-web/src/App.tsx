@@ -34,6 +34,7 @@ import CTOApprovalQueue from './pages/cto/CTOApprovalQueue';
 import MasterDashboard from './pages/master/MasterDashboard';
 import MasterCertificationHub from './pages/master/MasterCertificationHub';
 import MasterApprovalQueue from './pages/master/MasterApprovalQueue';
+import CertificatePreviewPage from './pages/master/CertificatePreviewPage';
 
 
 export default function App() {
@@ -77,6 +78,7 @@ export default function App() {
                 <Route path="/master-dashboard" element={<MasterDashboard />} />
                 <Route path="/master-certification" element={<MasterCertificationHub />} />
                 <Route path="/master-approvals" element={<MasterApprovalQueue />} />
+                <Route path="/master-certification/preview/:cadetId" element={<CertificatePreviewPage />} />
             </Route>
 
             {/* OPERATIONAL ROUTES (SHORE ADMIN & MANAGERS) */}

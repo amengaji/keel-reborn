@@ -165,6 +165,7 @@ const MasterCertificationHub: React.FC = () => {
                   <ShieldCheck size={14} /> REVIEW FINAL TASKS
                 </button>
                 <button 
+                  onClick={() => navigate(`/master-certification/preview/${trainee.id}`)}
                   className="w-full py-3 bg-primary text-white text-xs font-bold rounded-xl hover:brightness-110 transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
                 >
                   <Award size={14} /> GENERATE STEERING CERT

@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import * as AssignmentController from '../controllers/assignment.controller';
 import { authenticate } from '../middleware/auth.middleware';
-import { checkRole } from '../middleware/role.middleware'; // Assuming you have this, if not, we rely on check inside controller or just auth
+import { checkRole } from '../middleware/role.middleware'; 
 
 const router = Router();
 
@@ -14,24 +14,49 @@ const router = Router();
  * ============================================================================
  */
 
-// 1. Initialize TRB (Bulk Assign) - Usually triggered by Admin or Auto-hook
+// 1. Initialize TRB (Bulk Assign) - Triggered by Admin or Auto-hook
 router.post('/initialize', authenticate, AssignmentController.initializeTRB);
 
-router.get('/cto/pending', authenticate, checkRole(['CTO', 'MASTER']), AssignmentController.getPendingCTOApprovals);
-router.put('/:assignmentId/cto-sign', authenticate, checkRole(['CTO', 'MASTER']), AssignmentController.ctoSignOff);
+// 2. MOBILE SYNC: Receive "Pending Review" status from App
+// ✅ This was missing. It allows the Cadet to submit a task.
+router.post('/sync-status', authenticate, AssignmentController.syncMobileStatus);
 
-// 2. MASTER: Get Pending Approvals
-// Returns tasks where cadet has finished, but Master hasn't signed yet.
-router.get('/master/pending', authenticate, AssignmentController.getPendingMasterApprovals);
+// 3. CTO: Get Pending Approvals & Sign Off
+// Only CTOs and Masters should access these
+router.get(
+    '/cto/pending', 
+    authenticate, 
+    checkRole(['CTO', 'MASTER', 'SUPER_ADMIN']), 
+    AssignmentController.getPendingCTOApprovals
+);
 
-// 3. MASTER: Sign Off / Approve a specific task assignment
-// We use PUT because we are updating an existing assignment record
-router.put('/:assignmentId/sign-off', authenticate, AssignmentController.masterSignOff);
+router.put(
+    '/:assignmentId/cto-sign', 
+    authenticate, 
+    checkRole(['CTO', 'MASTER', 'SUPER_ADMIN']), 
+    AssignmentController.ctoSignOff
+);
 
+// 4. MASTER: Get Pending Approvals
+// Returns tasks verified by CTO but pending Master's signature
+router.get(
+    '/master/pending', 
+    authenticate, 
+    checkRole(['MASTER', 'SUPER_ADMIN']), 
+    AssignmentController.getPendingMasterApprovals
+);
 
-// 4. Get a specific cadet's progress (Placeholder for future drill-down)
+// 5. MASTER: Sign Off / Approve a specific task assignment
+// Final step in the chain
+router.put(
+    '/:assignmentId/sign-off', 
+    authenticate, 
+    checkRole(['MASTER', 'SUPER_ADMIN']), 
+    AssignmentController.masterSignOff
+);
+
+// 6. Get a specific cadet's progress (Placeholder for future drill-down)
 router.get('/user/:userId', authenticate, async (req, res) => {
-  // TODO: Implement getAssignmentsForUser in controller if needed later
   res.status(501).json({ message: 'Not implemented yet' });
 });
 

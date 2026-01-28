@@ -15,15 +15,20 @@ const getAuthHeaders = () => {
 
 export const cadetService = {
   // GET all cadets (Trainees)
-  // FIXED: Returns raw SQL data so that nested vessel associations are preserved for counting.
   getAll: async () => {
     const res = await fetch(API_URL, { headers: getAuthHeaders() });
     if (!res.ok) throw new Error('Failed to fetch trainee data');
 
     const json = await res.json();
-    
     // Return raw data directly. The UI components handle name formatting.
     return Array.isArray(json?.data) ? json.data : json;
+  },
+
+  // ✅ ADDED: GET Single Cadet by ID
+  getById: async (id: number) => {
+    const res = await fetch(`${API_URL}/${id}`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch trainee profile');
+    return res.json();
   },
 
   // CREATE new cadet profile
@@ -39,7 +44,7 @@ export const cadetService = {
     return json;
   },
 
-  // UPDATE existing cadet profile (NEW)
+  // UPDATE existing cadet profile
   update: async (id: string | number, data: any) => {
     const res = await fetch(`${API_URL}/${id}`, {
       method: 'PUT',

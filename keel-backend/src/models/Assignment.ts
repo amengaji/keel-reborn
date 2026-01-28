@@ -7,7 +7,7 @@ class Assignment extends Model {
   public id!: number;
   public user_id!: number;      // The Cadet
   public task_id!: number;      // The Task from Syllabus
-  public status!: string;       // 'Not Started', 'In Progress', 'Completed'
+  public status!: string;       // 'Not Started', 'In Progress', 'Pending Review', 'Review', 'Completed'
   public progress!: number;     // 0 to 100
   
   // --- SIGNATURE CHAIN ---
@@ -33,8 +33,9 @@ Assignment.init(
       allowNull: false,
       references: { model: 'tasks', key: 'id' }
     },
+    // ✅ ADDED 'Pending Review' to ENUM
     status: {
-      type: DataTypes.ENUM('Not Started', 'In Progress', 'Completed'),
+      type: DataTypes.ENUM('Not Started', 'In Progress', 'Pending Review', 'Review', 'Completed'),
       defaultValue: 'Not Started'
     },
     progress: {

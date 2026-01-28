@@ -34,17 +34,61 @@ export const initializeTRB = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * ============================================================
+ * MOBILE SYNC STATUS UPDATE
+ * This receives the 'PENDING_REVIEW' status from the app.
+ * ============================================================
+ */
+export const syncMobileStatus = async (req: Request, res: Response) => {
+    try {
+        // @ts-ignore
+        const userId = req.user.id;
+        const { taskKey, status, evidenceUrl } = req.body;
+
+        // 1. Find the task ID based on the taskKey (e.g. "D-1.1")
+        const task = await Task.findOne({ where: { code: taskKey } });
+        if (!task) return res.status(404).json({ message: "Task code not found" });
+
+        // 2. Find or Create the Assignment
+        const [assignment, created] = await Assignment.findOrCreate({
+            where: { user_id: userId, task_id: task.id },
+            defaults: { status: 'Not Started', progress: 0 }
+        });
+
+        // 3. Update Status
+        if (status === 'PENDING_REVIEW') {
+            await assignment.update({ 
+                status: 'Pending Review',
+                progress: 100, // Submission implies work is done
+                evidence_url: evidenceUrl || assignment.evidence_url 
+            });
+        } else if (status === 'IN_PROGRESS') {
+             await assignment.update({ status: 'In Progress' });
+        }
+
+        res.json({ message: "Status synced", status: assignment.status });
+    } catch (error: any) {
+        console.error("Sync Error:", error);
+        res.status(500).json({ message: "Sync failed", error: error.message });
+    }
+};
+
 // --- CTO APPROVALS (STEP 1) ---
 
 /**
  * GET PENDING CTO APPROVALS
- * Criteria: Progress 100%, but CTO has NOT signed yet.
+ * Criteria: Status is 'Pending Review' AND CTO has NOT signed yet.
  */
 export const getPendingCTOApprovals = async (req: Request, res: Response) => {
   try {
     const pendingTasks = await Assignment.findAll({
       where: {
-        progress: { [Op.gte]: 100 }, // Work is done
+        // ✅ UPDATED: Look for explicit status OR 100% progress
+        [Op.or]: [
+             { status: 'Pending Review' },
+             { progress: { [Op.gte]: 100 } } 
+        ],
         cto_id: null // Not verified by CTO yet
       },
       include: [

@@ -1,8 +1,15 @@
 //keel-mobile/src/db/tasks.ts
+
 import { getDatabase } from "./database";
 import { Platform } from "react-native";
 
-export type TaskStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
+/**
+ * NOT_STARTED: Initial state
+ * IN_PROGRESS: Cadet is working on it
+ * PENDING_REVIEW: Cadet has submitted, waiting for Officer signature
+ * COMPLETED: Officer has signed off
+ */
+export type TaskStatus = "NOT_STARTED" | "IN_PROGRESS" | "PENDING_REVIEW" | "COMPLETED";
 export type SyncState = "LOCAL_ONLY" | "DIRTY" | "SYNCING" | "SYNCED" | "CONFLICT";
 
 export type TaskRecord = {
@@ -28,9 +35,13 @@ export type TaskRecord = {
   updatedAt: string;
 };
 
-// ✅ SESSION LOCK: Prevents multiple contexts from re-syncing/re-logging in the same session.
+// SESSION LOCK: Prevents multiple contexts from re-syncing/re-logging in the same session.
 let SESSION_SYNC_COMPLETE = false;
 
+/**
+ * Ensures all necessary columns exist in the SQLite table.
+ * Added support for the updated maritime training metadata.
+ */
 function ensureColumnsExist() {
   const db = getDatabase();
   try {
@@ -47,7 +58,7 @@ function ensureColumnsExist() {
 }
 
 export const syncTasksFromShore = (serverTasks: any[]): Promise<void> => {
-  // ✅ GATEKEEPER: Return immediately if already synced this session
+  // GATEKEEPER: Return immediately if already synced this session
   if (SESSION_SYNC_COMPLETE) {
     return Promise.resolve();
   }
@@ -65,7 +76,7 @@ export const syncTasksFromShore = (serverTasks: any[]): Promise<void> => {
           const localId = `TASK_${taskKey}`;
           const now = new Date().toISOString();
 
-          // 1. INSERT
+          // 1. INSERT if it doesn't exist
           db.runSync(
             `INSERT OR IGNORE INTO task_records (
               id, task_key, task_title, task_description, status, 
@@ -84,7 +95,7 @@ export const syncTasksFromShore = (serverTasks: any[]): Promise<void> => {
             ]
           );
 
-          // 2. UPDATE (Keep local status/remarks if they exist, only update metadata)
+          // 2. UPDATE (Keep local status/remarks if they exist, update metadata only)
           db.runSync(
             `UPDATE task_records 
              SET task_title = ?, task_description = ?, remote_id = ?, updated_at = ?, 
@@ -102,7 +113,7 @@ export const syncTasksFromShore = (serverTasks: any[]): Promise<void> => {
       });
 
       console.log(">>> TASKS SAVED TO DB");
-      SESSION_SYNC_COMPLETE = true; // ✅ Set the lock after successful transaction
+      SESSION_SYNC_COMPLETE = true; 
       resolve();
     } catch (error) {
       console.error("Task Sync Failed:", error);
@@ -111,9 +122,11 @@ export const syncTasksFromShore = (serverTasks: any[]): Promise<void> => {
   });
 };
 
+/**
+ * Retrieves all tasks for the list views.
+ */
 export function getAllTaskRecords(): TaskRecord[] {
   const db = getDatabase();
-  // Columns are checked during sync or on first read
   const result = db.getAllSync<any>(`SELECT * FROM task_records ORDER BY task_key ASC`);
   return result.map(row => ({
       id: row.id,
@@ -139,6 +152,10 @@ export function getAllTaskRecords(): TaskRecord[] {
   }));
 }
 
+/**
+ * Updates or Inserts a task status. 
+ * Marks the record as 'DIRTY' so the SyncService knows to push it to the server.
+ */
 export function upsertTaskStatus(args: {
   taskKey: string;
   taskTitle?: string;
@@ -157,6 +174,9 @@ export function upsertTaskStatus(args: {
   );
 }
 
+/**
+ * Fetches a single task by its key (e.g., 'D-1.1')
+ */
 export function getTaskByKey(taskKey: string): TaskRecord | null {
   const db = getDatabase();
   const id = `TASK_${taskKey}`;
@@ -189,6 +209,5 @@ export function getTaskByKey(taskKey: string): TaskRecord | null {
 }
 
 export function ensureSeedTasksExist() { 
-  // This can remain empty if the sync from context handles seeding
   return; 
 }
