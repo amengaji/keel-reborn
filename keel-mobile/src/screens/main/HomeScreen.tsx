@@ -1,4 +1,4 @@
-// keel-mobile/src/screens/HomeScreen.tsx
+// keel-mobile/src/screens/main/HomeScreen.tsx
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { View, StyleSheet, ScrollView, TouchableOpacity, Modal, Vibration, Animated } from "react-native";
@@ -36,6 +36,7 @@ import DateInputField from "../../components/inputs/DateInputField";
 import { getAllDailyLogs, DailyLogRecord } from "../../db/dailyLogs";
 import { ComplianceTrend } from "../../components/home/ComplianceTrend";
 import { MilestoneModal } from "../../components/home/MilestoneModal";
+import { reviewService } from "../../services/reviewService";
 
 import { SyncService } from "../../services/SyncService";
 import { getPendingAttachments } from "../../db/taskAttachments";
@@ -55,6 +56,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [streak, setStreak] = useState(0);
   const [celebrationVisible, setCelebrationVisible] = useState(false);
+  const [reviewCount, setReviewCount] = useState(0);
 
   // Sync State
   const [joinModalVisible, setJoinModalVisible] = useState(false);
@@ -112,6 +114,10 @@ export default function HomeScreen() {
         total: allTasks.length,
         completed: allTasks.filter(t => t.status === "COMPLETED").length
       });
+      if (user?.id) {
+        const revs = await reviewService.getMyReviews(user.id);
+        setReviewCount(revs.length);
+      }
     } catch (e) {
       console.error("UI Update Error:", e);
     }
@@ -240,6 +246,12 @@ export default function HomeScreen() {
 
           <ComplianceTrend logs={logs} />
           <Text style={styles.sectionTitle}>Compliance & Readiness</Text>
+          <ComplianceIndicatorCard 
+            title="Monthly Master Statements" 
+            status={reviewCount === 0 ? "ATTENTION" : "ON_TRACK"} 
+            summary={reviewCount === 0 ? "No statements signed for this voyage" : `${reviewCount} statement(s) signed and verified`} 
+            onPress={() => navigation.navigate("Profile")} 
+          />
           <ComplianceIndicatorCard title="Sea Service Profile" status={seaService.inProgressSections > 0 ? "ATTENTION" : "ON_TRACK"} summary={`${seaService.completedSections} of ${seaService.totalSections} sections finalized`} onPress={() => navigation.navigate("SeaService")} />
           <WatchkeepingCompliance />
           <ComplianceIndicatorCard title="Training Tasks (TRB)" status={taskStats.completed < taskStats.total ? "ATTENTION" : "ON_TRACK"} summary={`${taskStats.completed} completed • ${(taskStats.total || 0) - taskStats.completed} pending`} onPress={() => navigation.navigate("Tasks")} />

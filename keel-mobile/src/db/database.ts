@@ -10,6 +10,7 @@ export const initializeAppDatabase = async () => {
   
   console.log(">>> [DB] STARTING ONE-TIME INITIALIZATION");
   try {
+    initDatabase();
     ensureDailyLogsTable(); // Schema checks
     ensureSeedTasksExist(); // Task seeding
     isDbInitialized = true;

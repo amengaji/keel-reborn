@@ -35,7 +35,7 @@ import MasterDashboard from './pages/master/MasterDashboard';
 import MasterCertificationHub from './pages/master/MasterCertificationHub';
 import MasterApprovalQueue from './pages/master/MasterApprovalQueue';
 import CertificatePreviewPage from './pages/master/CertificatePreviewPage';
-
+import MasterReviewPage from './pages/master/MasterReviewPage';
 
 export default function App() {
   return (
@@ -79,6 +79,7 @@ export default function App() {
                 <Route path="/master-certification" element={<MasterCertificationHub />} />
                 <Route path="/master-approvals" element={<MasterApprovalQueue />} />
                 <Route path="/master-certification/preview/:cadetId" element={<CertificatePreviewPage />} />
+                <Route path="/master-reviews/:cadetId" element={<MasterReviewPage />} />
             </Route>
 
             {/* OPERATIONAL ROUTES (SHORE ADMIN & MANAGERS) */}

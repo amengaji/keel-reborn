@@ -1,12 +1,13 @@
 // keel-web/src/pages/CadetsPage.tsx
-
 import React, { useEffect, useState } from 'react';
 import { 
   Users, Plus, Search, Upload, Filter, 
   Trash2, Mail, Phone, Anchor, Edit,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  ArrowUpDown
+  ArrowUpDown,
+  ClipboardCheck
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { cadetService } from '../services/cadetService'; 
 import ImportCadetModal from '../components/trainees/ImportCadetModal';
 import AddCadetModal from '../components/trainees/AddCadetModal';
@@ -14,10 +15,12 @@ import DeleteConfirmationModal from '../components/common/DeleteConfirmationModa
 import { toast } from 'sonner';
 
 const CadetsPage: React.FC = () => {
+  const navigate = useNavigate();
   // --- ROLE IDENTIFICATION ---
   const userJson = localStorage.getItem('keel_user');
   const user = userJson ? JSON.parse(userJson) : null;
   const isCTO = user?.role === 'CTO'; 
+  const isMaster = user?.role === 'MASTER';
 
   // --- STATE MANAGEMENT ---
   const [cadets, setCadets] = useState<any[]>([]); 
@@ -199,7 +202,7 @@ const CadetsPage: React.FC = () => {
           </p>
         </div>
 
-        {!isCTO && (
+        {!isCTO && !isMaster && (
           <div className="flex gap-2">
             {/* DELETE ALL BUTTON (NEW) */}
             {cadets.length > 0 && (
@@ -355,24 +358,37 @@ const CadetsPage: React.FC = () => {
                              </div>
                           </td>
                           <td className="p-4 text-right">
-                             {!isCTO && (
-                               <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                {/* ✅ Action for Master to review a Cadet */}
+                                {isMaster && (
                                   <button 
-                                    onClick={() => handleEditClick(cadet)}
+                                    onClick={() => navigate(`/master-reviews/${cadet.id}`)}
                                     className="p-2 bg-background hover:bg-primary/10 rounded-lg text-muted-foreground hover:text-primary border border-border shadow-xs transition-colors"
-                                    title="Edit Profile"
+                                    title="Monthly Review"
                                   >
-                                    <Edit size={16} />
+                                    <ClipboardCheck size={16} />
                                   </button>
-                                  <button 
-                                     onClick={() => confirmDelete(cadet)}
-                                     className="p-2 bg-background hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive border border-border shadow-xs transition-colors"
-                                     title="Delete Profile"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                               </div>
-                             )}
+                                )}
+
+                                {!isCTO && !isMaster && (
+                                  <>
+                                    <button 
+                                      onClick={() => handleEditClick(cadet)}
+                                      className="p-2 bg-background hover:bg-primary/10 rounded-lg text-muted-foreground hover:text-primary border border-border shadow-xs transition-colors"
+                                      title="Edit Profile"
+                                    >
+                                      <Edit size={16} />
+                                    </button>
+                                    <button 
+                                       onClick={() => confirmDelete(cadet)}
+                                       className="p-2 bg-background hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive border border-border shadow-xs transition-colors"
+                                       title="Delete Profile"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </>
+                                )}
+                             </div>
                           </td>
                        </tr>
                     ))
@@ -402,17 +418,14 @@ const CadetsPage: React.FC = () => {
         <ImportCadetModal 
           isOpen={isImportOpen} 
           onClose={() => setIsImportOpen(false)} 
-          // @ts-ignore - Ignoring mismatched type temporarily
           onImport={() => {
-             // 1. Close Modal
-             setIsImportOpen(false);
-             // 2. Refresh List from DB
-             refreshData();
+              setIsImportOpen(false);
+              refreshData();
           }} 
         />
       )}
 
-      {/* ADD/EDIT MODAL - KEY ADDED TO FIX POPULATION BUG */}
+      {/* ADD/EDIT MODAL */}
       {!isCTO && isAddOpen && (
         <AddCadetModal
           key={editingCadet ? editingCadet.id : 'new-cadet'}

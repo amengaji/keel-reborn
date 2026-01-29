@@ -1,6 +1,6 @@
-// keel-mobile/src/screens/ProfileScreen.tsx
+// keel-mobile/src/screens/profile/ProfileScreen.tsx
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Image, Modal, Alert } from "react-native";
 import {
   Text,
@@ -11,6 +11,7 @@ import {
   Divider,
   TextInput,
   Button,
+  ActivityIndicator,
 } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from 'expo-blur';
@@ -19,21 +20,18 @@ import { Dropdown } from 'react-native-element-dropdown';
 import { 
   ShieldCheck, User, Mail, Anchor, Phone, 
   MapPin, FileText, Siren, Camera, Plus, Trash2, 
-  Fingerprint, Info, Image as ImageIcon, X
+  Fingerprint, Info, Image as ImageIcon, X, History, Star
 } from "lucide-react-native";
 
 import { KeelScreen } from "../../components/ui/KeelScreen";
 import { useAuth } from "../../auth/AuthContext";
 import DateInputField from "../../components/inputs/DateInputField";
 import PhotoCaptureModal from "../../components/profile/PhotoCaptureModal";
-import { RELATIONSHIPS } from "../../constants/maritime"; // FIXED: Local import
+import { RELATIONSHIPS } from "../../constants/maritime"; 
+import { reviewService } from "../../services/reviewService"; // ✅ New Service
 
 const { width } = Dimensions.get('window');
 
-/**
- * PIXEL-PERFECT TEAL CARD
- * Standardized padding: 24px Top/Bottom, 20px Left/Right.
- */
 const ProfileTealCard = ({ children }: { children: React.ReactNode }) => (
   <Surface style={styles.tealCard} elevation={0}>{children}</Surface>
 );
@@ -45,6 +43,28 @@ export default function ProfileScreen() {
   const [cameraVisible, setCameraVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [mobiles, setMobiles] = useState<string[]>(user?.mobileNumbers || [""]);
+  
+  // ✅ Review State
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  useEffect(() => {
+    if (user && user.id) {
+      fetchReviews(user.id);
+    }
+  }, [user]);
+
+  const fetchReviews = async (userId: number) => {
+    try {
+      setLoadingReviews(true);
+      const data = await reviewService.getMyReviews(userId);
+      setReviews(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("Reviews load failed");
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
 
   const relationshipData = RELATIONSHIPS.map(rel => ({ label: rel, value: rel }));
 
@@ -80,7 +100,7 @@ export default function ProfileScreen() {
     <KeelScreen>
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         
-        {/* 1) IDENTITY HERO (STUNNING TEAL GRADIENT) */}
+        {/* 1) IDENTITY HERO */}
         <Surface style={styles.heroWrapper} elevation={0}>
           <LinearGradient colors={['#3194A0', '#0A1214']} style={styles.heroGradient}>
             <View style={styles.heroTopRow}>
@@ -104,15 +124,44 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Divider style={styles.heroDivider} />
-            <View style={styles.statusRow}>
+            <div style={styles.statusRow}>
               <View style={styles.statusItem}><ShieldCheck size={14} color="#4ADE80" /><Text style={styles.statusText}>VERIFIED</Text></View>
               <View style={styles.statusItem}><Fingerprint size={14} color="#FFF" /><Text style={styles.statusText}>BIOMETRICS</Text></View>
               <View style={styles.statusItem}><Info size={14} color="#FFF" /><Text style={styles.statusText}>SYNCED</Text></View>
-            </View>
+            </div>
           </LinearGradient>
         </Surface>
 
-        {/* 2) PERSONAL PARTICULARS (TEAL CARD) */}
+        {/* ✅ NEW SECTION: MONTHLY TRAINING REVIEWS */}
+        <SectionHeader icon={<History size={18} color="#3194A0" />} title="MONTHLY STATEMENTS" />
+        <ProfileTealCard>
+          {loadingReviews ? (
+            <ActivityIndicator color="#3194A0" style={{ marginVertical: 20 }} />
+          ) : reviews.length === 0 ? (
+            <Text style={styles.emptyReviewText}>No formal monthly reviews signed by the Master yet.</Text>
+          ) : (
+            reviews.map((rev, idx) => (
+              <View key={rev.id} style={{ marginBottom: idx === reviews.length - 1 ? 0 : 20 }}>
+                <View style={styles.reviewHeader}>
+                  <Text style={styles.reviewMonth}>{new Date(0, rev.review_month - 1).toLocaleString('en', { month: 'long' })} {rev.review_year}</Text>
+                  <View style={styles.reviewStars}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} size={12} color={i < rev.performance_score ? "#F59E0B" : "#E5E7EB"} fill={i < rev.performance_score ? "#F59E0B" : "transparent"} />
+                    ))}
+                  </View>
+                </View>
+                <Text style={styles.reviewComment}>"{rev.comments}"</Text>
+                <View style={styles.reviewerRow}>
+                  <ShieldCheck size={10} color="#3194A0" />
+                  <Text style={styles.reviewerName}>Digitally Signed: {rev.reviewer?.rank || 'Master'}</Text>
+                </View>
+                {idx !== reviews.length - 1 && <Divider style={{ marginTop: 16, opacity: 0.1 }} />}
+              </View>
+            ))
+          )}
+        </ProfileTealCard>
+
+        {/* 2) PERSONAL PARTICULARS */}
         <SectionHeader icon={<User size={18} color="#3194A0" />} title="PERSONAL PARTICULARS" />
         <ProfileTealCard>
           <TextInput label="Full Name" value={user?.name} onChangeText={(v) => handleUpdateField('name', v)} mode="outlined" dense style={styles.input} activeOutlineColor="#3194A0" outlineColor="rgba(49, 148, 160, 0.2)" />
@@ -132,7 +181,7 @@ export default function ProfileScreen() {
           <TextInput label="City" value={user?.city} onChangeText={(v) => handleUpdateField('city', v)} mode="outlined" dense style={styles.input} activeOutlineColor="#3194A0" outlineColor="rgba(49, 148, 160, 0.2)" />
         </ProfileTealCard>
 
-        {/* 3) CONTACT DETAILS (TEAL CARD) */}
+        {/* 3) CONTACT DETAILS */}
         <SectionHeader icon={<Phone size={18} color="#3194A0" />} title="CONTACT DETAILS" />
         <ProfileTealCard>
           {mobiles.map((num, idx) => (
@@ -145,7 +194,7 @@ export default function ProfileScreen() {
           <TextInput label="Email Address" value={user?.email} mode="outlined" dense style={styles.input} disabled outlineColor="rgba(49, 148, 160, 0.1)" />
         </ProfileTealCard>
 
-        {/* 4) STATUTORY DOCUMENTS (TEAL CARD) */}
+        {/* 4) STATUTORY DOCUMENTS */}
         <SectionHeader icon={<FileText size={18} color="#3194A0" />} title="STATUTORY DOCUMENTS" />
         <ProfileTealCard>
           <Text style={styles.subLabel}>PASSPORT</Text>
@@ -164,11 +213,10 @@ export default function ProfileScreen() {
           </View>
         </ProfileTealCard>
 
-        {/* 5) EMERGENCY CONTACT (TEAL CARD + SEARCHABLE DROPDOWN) */}
+        {/* 5) EMERGENCY CONTACT */}
         <SectionHeader icon={<Siren size={18} color="#FF5252" />} title="EMERGENCY CONTACT (NOK)" />
         <ProfileTealCard>
           <TextInput label="NOK Full Name" value={user?.nokName} onChangeText={(v) => handleUpdateField('nokName', v)} mode="outlined" dense style={styles.input} activeOutlineColor="#3194A0" outlineColor="rgba(49, 148, 160, 0.2)" />
-          
           <Text style={styles.dropdownLabel}>RELATIONSHIP</Text>
           <Dropdown
             style={styles.dropdown}
@@ -183,7 +231,6 @@ export default function ProfileScreen() {
             onChange={item => handleUpdateField('nokRelation', item.value)}
             renderLeftIcon={() => <User color="#3194A0" size={18} style={{marginRight: 10}} />}
           />
-
           <TextInput label="Contact Number" value={user?.nokContact} onChangeText={(v) => handleUpdateField('nokContact', v)} mode="outlined" dense style={[styles.input, {marginTop: 16}]} keyboardType="phone-pad" activeOutlineColor="#3194A0" outlineColor="rgba(49, 148, 160, 0.2)" />
         </ProfileTealCard>
 
@@ -195,7 +242,7 @@ export default function ProfileScreen() {
       <Modal visible={menuVisible} transparent animationType="slide">
         <View style={styles.menuOverlay}>
           <BlurView intensity={90} tint="dark" style={styles.menuContent}>
-            <View style={styles.menuHandle} />
+            <div style={styles.menuHandle} />
             <Text style={styles.menuTitle}>UPDATE PROFILE PHOTO</Text>
             <TouchableOpacity style={styles.menuItem} onPress={() => {setCameraVisible(true); setMenuVisible(false);}}>
               <View style={[styles.menuIconBox, { backgroundColor: '#3194A0' }]}><Camera size={22} color="#FFF" /></View>
@@ -238,23 +285,29 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 12, marginLeft: 4 },
   sectionHeaderText: { fontSize: 11, fontWeight: '900', color: '#3194A0', letterSpacing: 1.5, marginLeft: 10 },
   
-  // PIXEL PERFECT TEAL CARD
   tealCard: { borderRadius: 24, paddingHorizontal: 20, paddingVertical: 24, marginBottom: 20, backgroundColor: '#FFF', borderWidth: 1.5, borderColor: 'rgba(49, 148, 160, 0.2)' },
   input: { marginBottom: 16, backgroundColor: 'transparent' },
   row: { flexDirection: 'row', alignItems: 'center' },
   subLabel: { fontSize: 10, fontWeight: '900', opacity: 0.5, marginBottom: 12, textTransform: 'uppercase' },
   cardDivider: { marginVertical: 15, opacity: 0.3 },
-  // Dropdown
   dropdown: { height: 50, borderColor: 'rgba(49, 148, 160, 0.2)', borderWidth: 1.5, borderRadius: 8, paddingHorizontal: 15 },
   dropdownLabel: { fontSize: 10, fontWeight: '900', opacity: 0.5, marginBottom: 8, textTransform: 'uppercase', color: '#3194A0' },
   placeholderStyle: { fontSize: 14, color: 'rgba(0,0,0,0.3)' },
   selectedTextStyle: { fontSize: 14, fontWeight: '700', color: '#3194A0' },
-  // Menu
   menuOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   menuContent: { padding: 24, borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: 'hidden' },
   menuHandle: { width: 40, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   menuTitle: { fontSize: 12, fontWeight: '900', textAlign: 'center', marginBottom: 24, color: 'rgba(255,255,255,0.5)' },
   menuItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.05)', padding: 16, borderRadius: 20 },
   menuIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  menuItemText: { color: '#FFF', marginLeft: 16, fontSize: 16, fontWeight: '700' }
+  menuItemText: { color: '#FFF', marginLeft: 16, fontSize: 16, fontWeight: '700' },
+
+  // ✅ New Review Section Styles
+  emptyReviewText: { fontSize: 12, fontStyle: 'italic', color: '#94A3B8', textAlign: 'center', paddingVertical: 10 },
+  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  reviewMonth: { fontSize: 13, fontWeight: '800', color: '#1A2426' },
+  reviewStars: { flexDirection: 'row', gap: 2 },
+  reviewComment: { fontSize: 12, lineHeight: 18, color: '#4B5563', fontStyle: 'italic' },
+  reviewerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 6 },
+  reviewerName: { fontSize: 9, fontWeight: '800', color: '#3194A0', textTransform: 'uppercase', letterSpacing: 0.5 }
 });

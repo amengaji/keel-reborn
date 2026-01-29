@@ -23,6 +23,7 @@ import importRoutes from './routes/import.routes';
 import reportsRoutes from './routes/reports.routes'; 
 import dailyLogRoutes from './routes/dailyLog.routes';
 import watchkeepingRoutes from './routes/watchkeeping.routes'; // ✅ NEW IMPORT
+import monthlyReviewRoutes from './routes/monthlyReview.routes';
 
 // Models
 import Task from './models/Task';
@@ -65,6 +66,7 @@ app.use('/api/import', importRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/daily-logs', dailyLogRoutes);
 app.use('/api/watchkeeping', watchkeepingRoutes); // ✅ NEW ROUTE REGISTERED
+app.use('/api/reviews', monthlyReviewRoutes);
 
 const startServer = async () => {
   try {
