@@ -52,7 +52,6 @@ const MasterReviewPage: React.FC = () => {
     } catch (err: any) {
       console.error("Review Page Load Error:", err);
       setError(err.message || "Failed to load cadet data.");
-      toast.error("Data Load Error", { description: "Could not retrieve trainee records." });
     } finally {
       setLoading(false);
     }
@@ -61,7 +60,7 @@ const MasterReviewPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!comments || comments.trim().length < 20) {
-      return toast.error("Validation Error", { description: "Please provide a more detailed monthly statement (min 20 chars)." });
+      return toast.error("Validation Error", { description: "Review must be at least 20 characters." });
     }
 
     try {
@@ -82,12 +81,9 @@ const MasterReviewPage: React.FC = () => {
         })
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Submission failed");
-      }
+      if (!res.ok) throw new Error("Submission failed");
 
-      toast.success("Review Submitted", { description: "The monthly statement has been recorded and signed." });
+      toast.success("Review Signed Successfully");
       setComments('');
       loadData(); 
     } catch (err: any) {
@@ -97,20 +93,18 @@ const MasterReviewPage: React.FC = () => {
     }
   };
 
-  // ✅ CRITICAL: Handle Loading & Error States to prevent white screen
   if (loading) return (
-    <div className="h-[60vh] flex flex-col items-center justify-center gap-4 text-slate-400">
+    <div className="h-[60vh] flex flex-col items-center justify-center gap-4 text-muted-foreground">
       <Loader2 className="animate-spin text-primary" size={40} />
       <p className="font-bold text-xs uppercase tracking-widest">Retrieving Training Records...</p>
     </div>
   );
 
   if (error || !cadet) return (
-    <div className="h-[60vh] flex flex-col items-center justify-center gap-4 text-slate-400">
+    <div className="h-[60vh] flex flex-col items-center justify-center gap-4 text-muted-foreground">
       <AlertTriangle className="text-orange-500" size={48} />
-      <p className="font-bold text-lg text-slate-700">Error Loading Review Page</p>
-      <p className="text-sm">{error || "The requested cadet could not be found."}</p>
-      <button onClick={() => navigate(-1)} className="mt-4 px-6 py-2 bg-primary text-white rounded-xl font-bold">Go Back</button>
+      <p className="font-bold text-lg text-foreground">Error Loading Review Page</p>
+      <button onClick={() => navigate(-1)} className="mt-4 px-6 py-2 bg-primary text-primary-foreground rounded-xl font-bold">Go Back</button>
     </div>
   );
 
@@ -118,89 +112,89 @@ const MasterReviewPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       {/* HEADER */}
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 bg-white shadow-sm">
+        <button onClick={() => navigate(-1)} className="p-2 hover:bg-accent rounded-full transition-colors border border-border bg-card text-card-foreground shadow-sm">
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-800">Monthly Training Review</h1>
-          <p className="text-slate-500 text-sm font-medium">Appraising {cadet.first_name} {cadet.last_name} • <span className="text-primary font-bold">{cadet.rank}</span></p>
+          <h1 className="text-2xl font-black tracking-tight text-foreground">Monthly Training Review</h1>
+          <p className="text-muted-foreground text-sm font-medium">Appraising {cadet.first_name} {cadet.last_name} • <span className="text-primary font-bold">{cadet.rank}</span></p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT: FORM */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+          <div className="bg-card border border-border rounded-3xl p-8 shadow-sm">
             <div className="flex items-center gap-3 mb-8 text-primary">
               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <ClipboardCheck size={22} />
               </div>
               <div>
-                <h2 className="font-black uppercase text-xs tracking-widest">New Monthly Statement</h2>
-                <p className="text-[10px] text-slate-400 font-bold">Formal Master's Assessment</p>
+                <h2 className="font-black uppercase text-xs tracking-widest text-foreground">New Monthly Statement</h2>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Formal Master's Assessment</p>
               </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-wider">Period Month</label>
+                  <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-wider">Period Month</label>
                   <select 
                     value={month} 
                     onChange={(e) => setMonth(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
+                    className="w-full bg-accent/50 border border-border rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground"
                   >
                     {Array.from({ length: 12 }, (_, i) => (
-                      <option key={i + 1} value={i + 1}>{new Date(0, i).toLocaleString('en', { month: 'long' })}</option>
+                      <option key={i + 1} value={i + 1} className="bg-card text-foreground">{new Date(0, i).toLocaleString('en', { month: 'long' })}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-wider">Period Year</label>
+                  <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-wider">Period Year</label>
                   <input 
                     type="number" 
                     value={year} 
                     onChange={(e) => setYear(Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    className="w-full bg-accent/50 border border-border rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-foreground"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-wider">Performance Rating (1-5 Stars)</label>
-                <div className="flex gap-2">
+                <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-wider">Performance Rating</label>
+                <div className="flex flex-wrap gap-2">
                   {[1, 2, 3, 4, 5].map((s) => (
                     <button
                       key={s}
                       type="button"
                       onClick={() => setScore(s)}
-                      className={`flex-1 p-4 rounded-2xl border transition-all flex items-center justify-center gap-2 font-black text-sm ${
-                        score === s ? 'bg-primary text-white border-primary shadow-xl shadow-primary/20 -translate-y-1' : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-primary/50'
+                      className={`flex-1 min-w-[60px] p-4 rounded-2xl border transition-all flex items-center justify-center gap-2 font-black text-sm ${
+                        score === s ? 'bg-primary text-primary-foreground border-primary shadow-lg' : 'bg-accent/50 border-border text-muted-foreground hover:border-primary/50'
                       }`}
                     >
-                      {s} <Star size={14} fill={score === s ? 'white' : 'transparent'} />
+                      {s} <Star size={14} fill={score === s ? 'currentColor' : 'transparent'} />
                     </button>
                   ))}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-wider">Master's Remarks / Guidance</label>
+                <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 tracking-wider">Master's Remarks</label>
                 <textarea 
                   rows={5}
                   value={comments}
                   onChange={(e) => setComments(e.target.value)}
-                  placeholder="Detail the cadet's progress, strengths, and areas requiring more practical training..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-5 text-sm font-medium outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+                  placeholder="Detail the cadet's progress..."
+                  className="w-full bg-accent/50 border border-border rounded-2xl p-5 text-sm font-medium outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none text-foreground placeholder:text-muted-foreground"
                 />
               </div>
 
               <button 
                 type="submit"
                 disabled={submitting}
-                className="w-full py-5 bg-slate-900 text-white font-black rounded-2xl shadow-xl shadow-slate-200 flex items-center justify-center gap-3 hover:bg-slate-800 active:scale-[0.98] transition-all disabled:opacity-50"
+                className="w-full py-5 bg-primary text-primary-foreground font-black rounded-2xl shadow-xl shadow-primary/10 flex items-center justify-center gap-3 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50"
               >
-                {submitting ? <Loader2 className="animate-spin" /> : <><ShieldCheck size={20} /> Sign & Finalize Monthly Statement</>}
+                {submitting ? <Loader2 className="animate-spin" /> : <><ShieldCheck size={20} /> Sign & Finalize Statement</>}
               </button>
             </form>
           </div>
@@ -208,48 +202,45 @@ const MasterReviewPage: React.FC = () => {
 
         {/* RIGHT: HISTORY & STATS */}
         <div className="space-y-6">
-          <div className="bg-primary text-white rounded-3xl p-8 shadow-xl relative overflow-hidden">
+          <div className="bg-primary text-primary-foreground rounded-3xl p-8 shadow-xl relative overflow-hidden">
              <Clock className="absolute -right-4 -bottom-4 opacity-10" size={140} />
-             <h3 className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-6">Voyage Activity Snapshot</h3>
+             <h3 className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-6">Voyage Activity</h3>
              <div className="space-y-6 relative z-10">
-                <div className="flex justify-between items-end border-b border-white/10 pb-3">
+                <div className="flex justify-between items-end border-b border-primary-foreground/10 pb-3">
                    <span className="text-xs font-bold opacity-80 uppercase tracking-tighter">Steering Hours</span>
                    <span className="text-2xl font-black tracking-tight">{watchStats.steering_hours}h</span>
                 </div>
-                <div className="flex justify-between items-end border-b border-white/10 pb-3">
+                <div className="flex justify-between items-end border-b border-primary-foreground/10 pb-3">
                    <span className="text-xs font-bold opacity-80 uppercase tracking-tighter">Total Bridge Time</span>
                    <span className="text-2xl font-black tracking-tight">{watchStats.bridge_hours}h</span>
                 </div>
              </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
-            <div className="flex items-center gap-2 mb-8 text-slate-400">
+          <div className="bg-card border border-border rounded-3xl p-8 shadow-sm">
+            <div className="flex items-center gap-2 mb-8 text-muted-foreground">
               <History size={18} />
-              <h2 className="font-black uppercase text-xs tracking-widest">Review History</h2>
+              <h2 className="font-black uppercase text-xs tracking-widest text-foreground">Review History</h2>
             </div>
 
             {history.length === 0 ? (
               <div className="text-center py-12">
-                <Calendar className="mx-auto text-slate-100 mb-4" size={48} />
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-tighter">No previous records</p>
+                <Calendar className="mx-auto text-muted/30 mb-4" size={48} />
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-tighter">No previous records</p>
               </div>
             ) : (
               <div className="space-y-6">
                 {history.map((rev) => (
-                  <div key={rev.id} className="p-5 border border-slate-100 rounded-2xl bg-slate-50/50 space-y-3">
+                  <div key={rev.id} className="p-5 border border-border rounded-2xl bg-accent/20 space-y-3">
                     <div className="flex justify-between items-center">
-                      <span className="font-black text-xs text-slate-700 uppercase">{new Date(0, rev.review_month - 1).toLocaleString('en', { month: 'short' })} {rev.review_year}</span>
+                      <span className="font-black text-xs text-foreground uppercase">{new Date(0, rev.review_month - 1).toLocaleString('en', { month: 'short' })} {rev.review_year}</span>
                       <div className="flex gap-0.5">
                         {Array.from({ length: 5 }).map((_, i) => (
-                          <Star key={i} size={10} className={i < rev.performance_score ? "text-orange-500" : "text-slate-200"} fill="currentColor" />
+                          <Star key={i} size={10} className={i < rev.performance_score ? "text-orange-500" : "text-muted"} fill="currentColor" />
                         ))}
                       </div>
                     </div>
-                    <p className="text-xs text-slate-500 font-medium leading-relaxed italic">"{rev.comments}"</p>
-                    <div className="pt-3 border-t border-slate-200/50 flex justify-between items-center text-[9px] font-black text-primary uppercase tracking-widest">
-                       <span>Signed: {rev.reviewer?.rank || 'Master'}</span>
-                    </div>
+                    <p className="text-xs text-muted-foreground font-medium italic">"{rev.comments}"</p>
                   </div>
                 ))}
               </div>

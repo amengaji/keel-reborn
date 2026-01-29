@@ -1,4 +1,4 @@
-//keel-backend/src/controllers/watchkeeping.controller.ts
+// keel-backend/src/controllers/watchkeeping.controller.ts
 
 import { Request, Response } from 'express';
 import WatchkeepingLog from '../models/WatchkeepingLog';
@@ -56,12 +56,13 @@ export const syncWatchkeepingLogs = async (req: Request, res: Response) => {
 };
 
 /**
- * GET STATS FOR CERTIFICATE
+ * GET STATS FOR CERTIFICATE / REVIEW SIDEBAR
  * Calculates total Steering, Lookout, and Bridge hours for a specific cadet.
- * Used by the Web Dashboard for the Certificate Generation.
+ * Used by the Web Dashboard for the Master Review Page & Certificate Generation.
  */
 export const getWatchkeepingStats = async (req: Request, res: Response) => {
     try {
+        // ✅ Ensure this matches the key in the route definition (:cadetId)
         const { cadetId } = req.params;
 
         const logs = await WatchkeepingLog.findAll({
@@ -71,33 +72,40 @@ export const getWatchkeepingStats = async (req: Request, res: Response) => {
         // Aggregation Logic
         let totalSteeringHours = 0;
         let totalBridgeHours = 0;
-        let totalNightHours = 0; // Simple approximation: 20:00 to 06:00
+        let totalNightHours = 0; 
 
         logs.forEach(log => {
+            if (!log.start_time || !log.end_time) return;
+
             const start = new Date(log.start_time);
             const end = new Date(log.end_time);
             const durationHrs = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
 
-            if (durationHrs <= 0) return;
+            if (durationHrs <= 0 || durationHrs > 24) return; // Sanity check for faulty logs
+
+            const location = (log.location || '').toLowerCase();
+            const discipline = (log.discipline || '').toLowerCase();
+            const watchType = (log.watch_type || '').toLowerCase();
 
             // 1. Total Bridge Time
-            if (log.location?.toLowerCase().includes('bridge')) {
+            // Includes specifically marked locations or "Navigation" watches at sea
+            if (location.includes('bridge') || watchType.includes('navigation') || watchType.includes('bridge')) {
                 totalBridgeHours += durationHrs;
             }
 
             // 2. Specific Discipline (Steering)
-            if (log.discipline?.toLowerCase().includes('steering')) {
+            if (discipline.includes('steering') || discipline.includes('helmsman')) {
                 totalSteeringHours += durationHrs;
             }
 
-            // 3. Night Hours Check (Basic overlapping logic)
-            // Checks if any part of the watch falls between 20:00 and 06:00
+            // 3. Night Hours Check (20:00 to 06:00)
             const startHour = start.getHours();
             if (startHour >= 20 || startHour < 6) {
                 totalNightHours += durationHrs;
             }
         });
 
+        // Return keys that match exactly what MasterReviewPage side-bar expects
         res.json({
             steering_hours: Math.round(totalSteeringHours * 10) / 10,
             bridge_hours: Math.round(totalBridgeHours * 10) / 10,
@@ -107,6 +115,12 @@ export const getWatchkeepingStats = async (req: Request, res: Response) => {
 
     } catch (error: any) {
         console.error("Stats Error:", error);
-        res.status(500).json({ message: "Failed to calculate stats", error: error.message });
+        res.status(500).json({ 
+            message: "Failed to calculate stats", 
+            steering_hours: 0, 
+            bridge_hours: 0, 
+            night_hours: 0,
+            error: error.message 
+        });
     }
 };
