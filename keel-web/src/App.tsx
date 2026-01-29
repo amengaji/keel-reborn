@@ -37,6 +37,7 @@ import MasterApprovalQueue from './pages/master/MasterApprovalQueue';
 import CertificatePreviewPage from './pages/master/CertificatePreviewPage';
 import MasterReviewPage from './pages/master/MasterReviewPage';
 
+
 export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">

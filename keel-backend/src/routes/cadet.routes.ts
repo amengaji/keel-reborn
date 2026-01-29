@@ -11,6 +11,9 @@ const router = Router();
 // Get all cadets (Protected)
 router.get('/', authenticate, CadetController.getCadets);
 
+
+router.get('/:id', authenticate, CadetController.getCadetById);
+
 // Create cadet (Admin/Manager only) + LICENSE CHECK
 // We add 'checkSeatAvailability' here so it runs BEFORE the controller
 router.post(

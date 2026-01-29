@@ -1,4 +1,4 @@
-//keel-web/src/pages/master/MasterDashboard.tsx
+// keel-web/src/pages/master/MasterDashboard.tsx
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
@@ -26,17 +26,26 @@ const MasterDashboard: React.FC = () => {
   const navigate = useNavigate();
   const BRAND_COLOR = '#3194A0';
 
+  // Get User from Storage to display vessel name in header
+  const userJson = localStorage.getItem('keel_user');
+  const user = userJson ? JSON.parse(userJson) : null;
+
   useEffect(() => {
     loadVesselData();
   }, []);
 
   const loadVesselData = async () => {
     try {
+      setLoading(true);
+      // ✅ This service call hits the backend getCadets() which 
+      // now filters by the logged-in Master's vessel_id
       const data = await cadetService.getAll();
-      // Filter for Active Onboard Crew
-      // NOTE: In a real production scenario, the backend should filter this by the Master's Vessel ID.
-      // For now, we show all 'Onboard' cadets for the company.
-      const onboard = data.filter((t: any) => t.status === 'Onboard');
+      
+      // Filter for Onboard status (matching your SQL output "Onboard")
+      const onboard = data.filter((t: any) => 
+        t.status === 'Onboard' || t.status === 'ONBOARD'
+      );
+      
       setVesselCrew(onboard);
     } catch (err) {
       console.error("Failed to load roster:", err);
@@ -46,7 +55,6 @@ const MasterDashboard: React.FC = () => {
     }
   };
 
-  // --- DYNAMIC ALERTS LOGIC ---
   const stats = useMemo(() => {
     return {
       totalOnboard: vesselCrew.length,
@@ -75,7 +83,9 @@ const MasterDashboard: React.FC = () => {
           </div>
           <div>
             <h1 className="text-2xl font-black text-foreground uppercase tracking-tight">Commanding Officer's Portal</h1>
-            <p className="text-muted-foreground text-sm font-medium italic">Final Review Authority & Certification Center</p>
+            <p className="text-muted-foreground text-sm font-medium italic">
+               {user?.vesselName || "Final Review Authority"} • Certification Center
+            </p>
           </div>
         </div>
         <button 
@@ -88,7 +98,6 @@ const MasterDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* 2. ONBOARD PERSONNEL ROSTER (Cross-Departmental) */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex justify-between items-center px-2">
             <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -108,7 +117,7 @@ const MasterDashboard: React.FC = () => {
                 <div key={trainee.id} className="bg-card border border-border p-5 rounded-2xl hover:border-primary transition-all group shadow-sm">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center font-bold text-primary border border-border">
+                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center font-bold text-primary border border-border uppercase">
                         {trainee.first_name?.[0]}{trainee.last_name?.[0]}
                       </div>
                       <div>
@@ -139,6 +148,13 @@ const MasterDashboard: React.FC = () => {
                       >
                         REVIEW SYLLABUS
                       </button>
+                      <button 
+                        onClick={() => navigate(`/master-reviews/${trainee.id}`)}
+                        className="px-3 py-2 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-all border border-primary/20"
+                        title="Perform Monthly Review"
+                      >
+                         <ClipboardCheck size={16} />
+                      </button>
                       {(trainee.progress || 0) >= 90 && (
                         <button 
                           onClick={() => navigate('/master-certification')}
@@ -156,62 +172,35 @@ const MasterDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. MASTER'S ALERTS (Real Data) */}
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
             <Award size={20} className="text-amber-500" /> Command Alerts
           </h2>
-          
           <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col gap-4">
-            
-            {/* ALERT 1: CERTIFICATION READY */}
             {stats.readyForCert > 0 ? (
               <div className="p-4 bg-teal-500/5 border border-teal-500/20 rounded-xl flex gap-3 animate-in slide-in-from-right-2">
                 <Award size={18} className="text-teal-600 shrink-0 mt-1" />
                 <div>
                   <p className="text-xs font-bold text-foreground">{stats.readyForCert} Ready for Endorsement</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Crew members have crossed 90% completion. Review and issue Steering/Competency certificates.
-                  </p>
-                  <button 
-                    onClick={() => navigate('/master-certification')}
-                    className="mt-2 text-[10px] font-bold text-teal-700 hover:underline flex items-center gap-1"
-                  >
-                    Go to Certification Hub <ChevronRight size={10} />
-                  </button>
+                  <p className="text-[10px] text-muted-foreground mt-1">Crew members have crossed 90% completion.</p>
+                  <button onClick={() => navigate('/master-certification')} className="mt-2 text-[10px] font-bold text-teal-700 hover:underline flex items-center gap-1">Go to Certification Hub <ChevronRight size={10} /></button>
                 </div>
               </div>
             ) : (
               <div className="p-4 bg-muted/30 border border-border rounded-xl flex gap-3 opacity-70">
                  <CheckCircle2 size={18} className="text-muted-foreground shrink-0" />
-                 <div>
-                    <p className="text-xs font-bold text-foreground">No Pending Certifications</p>
-                    <p className="text-[10px] text-muted-foreground mt-1">All qualified crew have been endorsed.</p>
-                 </div>
+                 <div><p className="text-xs font-bold text-foreground">No Pending Certifications</p></div>
               </div>
             )}
-            
-            {/* ALERT 2: LOW PERFORMANCE / ATTENTION */}
             {stats.lowPerformance > 0 && (
               <div className="p-4 bg-orange-500/5 border border-orange-500/20 rounded-xl flex gap-3">
                 <AlertCircle size={18} className="text-orange-600 shrink-0 mt-1" />
-                <div>
-                  <p className="text-xs font-bold text-foreground">Attention Required</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    {stats.lowPerformance} trainees are below 20% progress. Consider reviewing their training plan.
-                  </p>
-                </div>
+                <div><p className="text-xs font-bold text-foreground">Attention Required</p><p className="text-[10px] text-muted-foreground mt-1">{stats.lowPerformance} trainees are below 20% progress.</p></div>
               </div>
             )}
-
             <div className="mt-4 pt-4 border-t border-border">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase mb-3">Quick Actions</p>
-                <button 
-                  onClick={() => toast.info("Report generation started...")}
-                  className="w-full mb-2 py-2.5 text-xs font-bold border border-border rounded-lg hover:bg-muted transition-all flex items-center justify-center gap-2"
-                >
-                    <FileText size={14} /> Download Vessel Training Report
-                </button>
+                <button onClick={() => toast.info("Report generation started...")} className="w-full mb-2 py-2.5 text-xs font-bold border border-border rounded-lg hover:bg-muted transition-all flex items-center justify-center gap-2"><FileText size={14} /> Download Vessel Training Report</button>
             </div>
           </div>
         </div>

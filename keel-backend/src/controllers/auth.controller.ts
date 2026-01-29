@@ -7,7 +7,7 @@ import User from "../models/User";
 import Role from "../models/Role";
 import Company from "../models/Company";
 import Vessel from "../models/Vessel";
-import TraineeAssignment from "../models/TraineeAssignment"; // <--- Import this
+import TraineeAssignment from "../models/TraineeAssignment"; 
 
 // --- HELPER: DEEP RESOLVE VESSEL ---
 // Checks User table -> then TraineeAssignment table -> Self-Heals if needed
@@ -24,8 +24,7 @@ const resolveVesselInfo = async (user: User) => {
       if (v) return { id: v.id, name: v.name };
   }
 
-  // 3. Fallback B (The Fix): Check TraineeAssignment table
-  // This handles cases where User.vessel_id is NULL but they are actually assigned
+  // 3. Fallback B: Check TraineeAssignment table (Primarily for Cadets)
   const activeAssignment = await TraineeAssignment.findOne({
       where: { 
           trainee_id: user.id,
@@ -35,7 +34,7 @@ const resolveVesselInfo = async (user: User) => {
   });
 
   if (activeAssignment && activeAssignment.vessel) {
-      // SELF-HEAL: Update the user record so it's correct next time
+      // SELF-HEAL: Update the user record
       console.log(`🛠️ Self-Healing User ${user.email}: Linking to Vessel ${activeAssignment.vessel.name}`);
       await User.update(
           { vessel_id: activeAssignment.vessel.id, status: 'Onboard' },
@@ -103,7 +102,7 @@ export const login = async (req: Request, res: Response) => {
         role: user.role?.name,
         company_id: user.company_id,
         department: user.department,
-        vessel_id: vesselInfo.id // Use the resolved ID
+        vessel_id: vesselInfo.id // ✅ Use the resolved ID
       },
       process.env.JWT_SECRET || "maritime_secret_key",
       { expiresIn: "12h" }
@@ -129,7 +128,7 @@ export const login = async (req: Request, res: Response) => {
 
         // --- VESSEL CONTEXT ---
         vesselId: vesselInfo.id,
-        vesselName: vesselInfo.name, // <--- GUARANTEED VALUE
+        vesselName: vesselInfo.name, 
         
         avatar: user.avatar_url,
         cocNumber: user.coc_number,
