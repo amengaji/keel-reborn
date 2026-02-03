@@ -1,27 +1,30 @@
-//keel-web/src/pages/VesselsPage.tsx
+// keel-web/src/pages/VesselsPage.tsx
 
 import React, { useEffect, useState } from 'react';
 import { 
   Ship, Plus, Search, Upload, Edit, Trash2, 
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, 
-  ArrowUpDown, Users, AlertCircle 
+  ArrowUpDown, Users, AlertCircle, X 
 } from 'lucide-react';
 import { cadetService } from '../services/cadetService'; 
 import { vesselService } from '../services/vesselService'; 
+import { cadetAssignmentService } from '../services/cadetAssignmentService'; // ✅ Added
 import ImportVesselModal from '../components/vessels/ImportVesselModal';
 import AddVesselModal from '../components/vessels/AddVesselModal';
-import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal'; // New Import
+import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal'; 
 import { toast } from 'sonner';
 
 /**
  * VesselsPage Component
  * Manages display and CRUD for the Fleet.
- * UPDATED: Uses custom glassmorphic Delete Modal and adds "Delete All" capability.
+ * FIXED: Trainee counts now pull from cadetAssignmentService.getActive()
+ * FEATURE: Clickable Cadet Count to view specific onboard trainees.
  */
 const VesselsPage: React.FC = () => {
   // State management
   const [vessels, setVessels] = useState<any[]>([]);
   const [trainees, setTrainees] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]); // ✅ Added
   const [isLoading, setIsLoading] = useState(true);
   
   // UI State
@@ -30,6 +33,9 @@ const VesselsPage: React.FC = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingVessel, setEditingVessel] = useState<any>(null); 
   
+  // Crew View State
+  const [viewingCrewVessel, setViewingCrewVessel] = useState<any>(null); // State for the new Quick-View modal
+
   // Delete Modal State
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
@@ -47,12 +53,16 @@ const VesselsPage: React.FC = () => {
   const refreshData = async () => {
     setIsLoading(true);
     try {
-      const [fleet, crew] = await Promise.all([
+      // ✅ Now fetching active assignments alongside fleet and crew
+      const [fleet, crew, activeAssignments] = await Promise.all([
         vesselService.getAll(),
-        cadetService.getAll()
+        cadetService.getAll(),
+        cadetAssignmentService.getActive()
       ]);
+      
       setVessels(Array.isArray(fleet) ? fleet : []);
       setTrainees(Array.isArray(crew) ? crew : []);
+      setAssignments(Array.isArray(activeAssignments) ? activeAssignments : []);
     } catch (error) {
       console.error("Failed to load fleet data", error);
       toast.error("Database connection error.");
@@ -65,13 +75,27 @@ const VesselsPage: React.FC = () => {
     refreshData();
   }, []);
 
-  const getCadetCount = (vesselId: number) => {
-    return trainees.filter((t: any) => {
-      const isOnboard = t.status === 'Onboard';
-      const directMatch = Number(t.vessel_id) === Number(vesselId);
-      const associationMatch = t.assignments?.some((a: any) => Number(a.vessel_id) === Number(vesselId) && a.status === 'ACTIVE');
-      return isOnboard && (directMatch || associationMatch);
-    }).length;
+  /**
+   * FIXED: Count now relies on the active assignments list
+   */
+  const getCadetCount = (vesselId: any) => {
+    if (!assignments || assignments.length === 0) return 0;
+    
+    // Filter assignments where vessel matches and status is ACTIVE
+    return assignments.filter((a: any) => 
+      String(a.vessel_id) === String(vesselId) && 
+      (a.status === 'ACTIVE' || a.status === 'active')
+    ).length;
+  };
+
+  /**
+   * Helper to get the actual trainee objects for a specific vessel
+   */
+  const getOnboardTrainees = (vesselId: any) => {
+    return assignments
+      .filter((a: any) => String(a.vessel_id) === String(vesselId) && (a.status === 'ACTIVE' || a.status === 'active'))
+      .map((a: any) => a.trainee)
+      .filter(Boolean);
   };
 
   // --- SAVE / UPDATE ---
@@ -106,7 +130,6 @@ const VesselsPage: React.FC = () => {
 
   // --- DELETE HANDLERS ---
   
-  // 1. Open Modal for Single Delete
   const handleDeleteClick = (vessel: any) => {
     setDeleteModal({
       isOpen: true,
@@ -117,7 +140,6 @@ const VesselsPage: React.FC = () => {
     });
   };
 
-  // 2. Open Modal for Delete All
   const handleDeleteAllClick = () => {
     if (vessels.length === 0) return;
     setDeleteModal({
@@ -128,7 +150,6 @@ const VesselsPage: React.FC = () => {
     });
   };
 
-  // 3. Confirm Logic
   const handleConfirmDelete = async () => {
     setDeleteModal(prev => ({ ...prev, isDeleting: true }));
     
@@ -144,10 +165,10 @@ const VesselsPage: React.FC = () => {
       }
       
       refreshData();
-      setDeleteModal({ isOpen: false, type: 'single' }); // Reset
+      setDeleteModal({ isOpen: false, type: 'single' }); 
     } catch (error: any) {
       toast.error(error.message || "Delete operation failed.");
-      setDeleteModal(prev => ({ ...prev, isDeleting: false })); // Stop loading only on error
+      setDeleteModal(prev => ({ ...prev, isDeleting: false })); 
     }
   };
 
@@ -327,10 +348,18 @@ const VesselsPage: React.FC = () => {
                                 </span>
                              </td>
                              <td className="p-4">
-                                <div className={`flex items-center gap-1.5 font-extrabold ${cadetCount > 0 ? 'text-primary' : 'text-muted-foreground/40'}`}>
+                                {/* FEATURE: Wrapped in a clickable button to view crew */}
+                                <button 
+                                  onClick={() => cadetCount > 0 && setViewingCrewVessel(vessel)}
+                                  className={`flex items-center gap-1.5 font-extrabold transition-all px-2 py-1 rounded-lg ${
+                                    cadetCount > 0 
+                                      ? 'text-primary hover:bg-primary/10 cursor-pointer' 
+                                      : 'text-muted-foreground/40 cursor-default'
+                                  }`}
+                                >
                                    <Users size={14} />
                                    <span>{cadetCount}</span>
-                                </div>
+                                </button>
                              </td>
                              <td className="p-4 text-right">
                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
@@ -342,7 +371,7 @@ const VesselsPage: React.FC = () => {
                                       <Edit size={16} />
                                    </button>
                                    <button 
-                                      onClick={() => handleDeleteClick(vessel)} // Changed to use Modal Handler
+                                      onClick={() => handleDeleteClick(vessel)}
                                       className="p-2 bg-background hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive border border-border shadow-xs transition-colors"
                                       title="Delete Vessel"
                                    >
@@ -388,7 +417,6 @@ const VesselsPage: React.FC = () => {
         editData={editingVessel}
       />
 
-      {/* NEW DELETE MODAL */}
       <DeleteConfirmationModal
         isOpen={deleteModal.isOpen}
         onClose={() => setDeleteModal(prev => ({ ...prev, isOpen: false, isDeleting: false }))}
@@ -402,6 +430,42 @@ const VesselsPage: React.FC = () => {
         isDeleting={deleteModal.isDeleting}
         isDeleteAll={deleteModal.type === 'all'}
       />
+
+      {/* NEW FEATURE: CREW QUICK-VIEW MODAL */}
+      {viewingCrewVessel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-card w-full max-w-sm rounded-2xl shadow-2xl border border-border overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-border bg-muted/30 flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-foreground flex items-center gap-2 text-sm"><Users size={16} className="text-primary"/> Onboard Trainees</h3>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{viewingCrewVessel.name}</p>
+              </div>
+              <button onClick={() => setViewingCrewVessel(null)} className="p-1.5 hover:bg-muted rounded-full transition-colors"><X size={18}/></button>
+            </div>
+            <div className="p-2 max-h-87.5 overflow-y-auto space-y-1">
+              {getOnboardTrainees(viewingCrewVessel.id).map((c: any) => (
+                <div key={c.id} className="flex items-center gap-3 p-2.5 hover:bg-muted/50 rounded-xl transition-colors group">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold border border-primary/20 shrink-0 capitalize">
+                    {c.first_name?.charAt(0)}{c.last_name?.charAt(0)}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-foreground">{c.first_name} {c.last_name}</span>
+                    <span className="text-[9px] text-muted-foreground uppercase font-extrabold tracking-widest">{c.rank || 'Trainee'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-3 bg-muted/10 border-t border-border flex justify-end">
+              <button 
+                onClick={() => setViewingCrewVessel(null)} 
+                className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground px-2 py-1 transition-colors"
+              >
+                Close View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

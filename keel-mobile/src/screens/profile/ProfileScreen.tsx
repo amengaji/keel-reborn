@@ -28,7 +28,7 @@ import { useAuth } from "../../auth/AuthContext";
 import DateInputField from "../../components/inputs/DateInputField";
 import PhotoCaptureModal from "../../components/profile/PhotoCaptureModal";
 import { RELATIONSHIPS } from "../../constants/maritime"; 
-import { reviewService } from "../../services/reviewService"; // ✅ New Service
+import { reviewService } from "../../services/reviewService"; 
 
 const { width } = Dimensions.get('window');
 
@@ -124,15 +124,16 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Divider style={styles.heroDivider} />
-            <div style={styles.statusRow}>
+            {/* ✅ FIXED: Changed <div> to <View> */}
+            <View style={styles.statusRow}>
               <View style={styles.statusItem}><ShieldCheck size={14} color="#4ADE80" /><Text style={styles.statusText}>VERIFIED</Text></View>
               <View style={styles.statusItem}><Fingerprint size={14} color="#FFF" /><Text style={styles.statusText}>BIOMETRICS</Text></View>
               <View style={styles.statusItem}><Info size={14} color="#FFF" /><Text style={styles.statusText}>SYNCED</Text></View>
-            </div>
+            </View>
           </LinearGradient>
         </Surface>
 
-        {/* ✅ NEW SECTION: MONTHLY TRAINING REVIEWS */}
+        {/* ✅ MONTHLY TRAINING REVIEWS */}
         <SectionHeader icon={<History size={18} color="#3194A0" />} title="MONTHLY STATEMENTS" />
         <ProfileTealCard>
           {loadingReviews ? (
@@ -242,7 +243,8 @@ export default function ProfileScreen() {
       <Modal visible={menuVisible} transparent animationType="slide">
         <View style={styles.menuOverlay}>
           <BlurView intensity={90} tint="dark" style={styles.menuContent}>
-            <div style={styles.menuHandle} />
+            {/* ✅ FIXED: Changed <div> to <View> */}
+            <View style={styles.menuHandle} />
             <Text style={styles.menuTitle}>UPDATE PROFILE PHOTO</Text>
             <TouchableOpacity style={styles.menuItem} onPress={() => {setCameraVisible(true); setMenuVisible(false);}}>
               <View style={[styles.menuIconBox, { backgroundColor: '#3194A0' }]}><Camera size={22} color="#FFF" /></View>
@@ -302,7 +304,6 @@ const styles = StyleSheet.create({
   menuIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   menuItemText: { color: '#FFF', marginLeft: 16, fontSize: 16, fontWeight: '700' },
 
-  // ✅ New Review Section Styles
   emptyReviewText: { fontSize: 12, fontStyle: 'italic', color: '#94A3B8', textAlign: 'center', paddingVertical: 10 },
   reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   reviewMonth: { fontSize: 13, fontWeight: '800', color: '#1A2426' },

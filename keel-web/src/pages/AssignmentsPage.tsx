@@ -10,8 +10,7 @@ import { toast } from 'sonner';
 /**
  * AssignmentsPage Component
  * Manages vessel crew assignments with drag-and-drop.
- * FIXED: Removed scale transform on hover to prevent overlapping.
- * FIXED: Grid items now push content down naturally.
+ * FIXED: Trainees now disappear from Ready Pool once assigned.
  */
 const AssignmentsPage: React.FC = () => {
   const [cadets, setCadets] = useState<any[]>([]);
@@ -124,10 +123,18 @@ const AssignmentsPage: React.FC = () => {
 
   // --- FILTERING LOGIC ---
 
-  const readyCadets = cadets.filter(c => 
-    (c.status === 'Ready' || c.status === 'Leave' || c.status === 'Training') &&
-    getTraineeName(c).toLowerCase().includes(searchReady.toLowerCase())
-  );
+  const readyCadets = cadets.filter(c => {
+    // 1. Check if they have the correct status
+    const hasReadyStatus = (c.status === 'Ready' || c.status === 'Leave' || c.status === 'Training');
+    
+    // 2. Check if they are already assigned in the current assignments state
+    const isAlreadyAssigned = assignments.some(a => String(a.trainee_id) === String(c.id) && a.status === 'ACTIVE');
+    
+    // 3. Match Search
+    const matchesSearch = getTraineeName(c).toLowerCase().includes(searchReady.toLowerCase());
+
+    return hasReadyStatus && !isAlreadyAssigned && matchesSearch;
+  });
 
   const filteredVessels = vessels.filter(v =>
     (v.name || '').toLowerCase().includes(searchFleet.toLowerCase())
@@ -211,7 +218,6 @@ const AssignmentsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 🔥 FIX: Changed 'items-start' to ensure items stretch row height properly */}
           <div className="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-max content-start">
             {filteredVessels.map(vessel => {
               const crew = assignments
@@ -228,7 +234,6 @@ const AssignmentsPage: React.FC = () => {
                   onDragOver={(e) => handleDragOver(e, vessel.id)}
                   onDragLeave={() => setDragOverVesselId(null)}
                   onDrop={(e) => handleDrop(e, vessel)}
-                  // 🔥 FIX: Removed scale transform. Use border highlight instead for interaction.
                   className={`border rounded-xl p-4 flex flex-col h-full min-h-35 transition-colors duration-200 shadow-sm ${
                     isDragOver 
                       ? 'border-dashed border-2 border-primary bg-primary/5' 
