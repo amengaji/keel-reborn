@@ -1,395 +1,277 @@
-//keel-mobile/src/screens/daily/DailyLogScreen.tsx
-
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, StyleSheet, ScrollView, Platform, KeyboardAvoidingView, TouchableOpacity, Vibration } from "react-native";
+import { 
+  View, StyleSheet, ScrollView, Platform, KeyboardAvoidingView, 
+  TouchableOpacity, RefreshControl, Dimensions 
+} from "react-native";
 import { Text, Surface, IconButton, useTheme, TextInput, ActivityIndicator } from "react-native-paper";
 import { useFocusEffect, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { MapPin, Navigation, Edit3 } from "lucide-react-native";
+import { 
+  Navigation, Edit3, ShieldCheck, MapPin, Compass, 
+  Activity, Clock, Calendar, ChevronLeft, ChevronRight, Zap
+} from "lucide-react-native";
 import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 
 import { KeelScreen } from "../../components/ui/KeelScreen";
 import { KeelButton } from "../../components/ui/KeelButton";
-import { KeelCard } from "../../components/ui/KeelCard";
 import { useToast } from "../../components/toast/useToast";
-
+import { useAuth } from "../../auth/AuthContext";
+import { getDepartmentConfig } from "../../constants/logBrushes";
 import { TimePainter } from "../../components/daily/TimePainter";
 import { DailyHistoryList } from "../../components/daily/DailyHistoryList";
 import { 
-    getLogByDate, 
-    upsertDailyLog, 
-    ensureDailyLogsTable, 
-    getAllDailyLogs, 
-    DailyLogRecord, 
-    deleteDailyLogById 
+  getLogByDate, upsertDailyLog, ensureDailyLogsTable, 
+  getAllDailyLogs, DailyLogRecord, deleteDailyLogById 
 } from "../../db/dailyLogs";
 
+const { width } = Dimensions.get('window');
 const getTodayStr = () => new Date().toISOString().split('T')[0];
 
+/**
+ * DAILY LOG: COMMAND REDESIGN
+ * A high-fidelity, department-adaptive interface.
+ */
 export default function DailyLogScreen() {
-    const theme = useTheme();
-    const toast = useToast();
-    const insets = useSafeAreaInsets();
-    const route = useRoute<any>();
-    
-    const [viewMode, setViewMode] = useState<"EDIT" | "HISTORY">("EDIT");
-    const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
-    const [historyLogs, setHistoryLogs] = useState<DailyLogRecord[]>([]);
-    
-    const [activityData, setActivityData] = useState<number[]>(new Array(48).fill(0));
-    const [stats, setStats] = useState({ rest: 24, work: 0, watch: 0, steering: 0 });
-    const [remarks, setRemarks] = useState("");
-    const [positionLat, setPositionLat] = useState("");
-    const [positionLong, setPositionLong] = useState("");
+  const theme = useTheme();
+  const toast = useToast();
+  const insets = useSafeAreaInsets();
+  const route = useRoute<any>();
+  const { user } = useAuth();
+  
+  const config = useMemo(() => getDepartmentConfig(user?.department, user?.rank), [user?.department, user?.rank]);
 
-    const [hasChanges, setHasChanges] = useState(false);
-    const [isGpsLoading, setIsGpsLoading] = useState(false);
+  // --- UI STATE ---
+  const [viewMode, setViewMode] = useState<"ENTRY" | "HISTORY">("ENTRY");
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // --- DATA STATE ---
+  const [activityData, setActivityData] = useState<number[]>(new Array(48).fill(0));
+  const [stats, setStats] = useState({ rest: 24, work: 0, watch: 0, tech: 0 });
+  const [remarks, setRemarks] = useState("");
+  const [p1, setP1] = useState(""); // Dynamic Param 1 (e.g. Lat / RPM)
+  const [p2, setP2] = useState(""); // Dynamic Param 2 (e.g. Long / Temp)
+  const [hasChanges, setHasChanges] = useState(false);
+  const [isGpsLoading, setIsGpsLoading] = useState(false);
 
-    /**
-     * ✅ FIX: Migration/Table Init
-     * We run this only once when the screen mounts, not on every focus/render.
-     * This prevents the "Migrating daily_logs table..." infinite loop.
-     */
-    useEffect(() => {
-        console.log(">>> INITIALIZING DAILY LOGS TABLE SCHEMA");
-        ensureDailyLogsTable();
-    }, []);
+  useEffect(() => { ensureDailyLogsTable(); }, []);
 
-    /**
-     * Deep Link Handler:
-     * When navigating from the ComplianceTrend card (One-Tap Fix), 
-     * update the selected date and switch to EDIT mode.
-     */
-    useEffect(() => {
-        if (route.params?.date) {
-            setSelectedDate(route.params.date);
-            setViewMode("EDIT");
-        }
-    }, [route.params?.date]);
+  useFocusEffect(
+    useCallback(() => {
+      viewMode === "ENTRY" ? loadEntry(selectedDate) : loadHistory();
+    }, [selectedDate, viewMode])
+  );
 
-    // Load Data whenever date or view mode changes
-    useFocusEffect(
-        useCallback(() => {
-            if (viewMode === "EDIT") {
-                loadLog(selectedDate);
-            } else {
-                loadHistory();
-            }
-        }, [selectedDate, viewMode])
-    );
+  const loadEntry = (date: string) => {
+    const record = getLogByDate(date);
+    if (record) {
+      const parsed = JSON.parse(record.activityJson);
+      setActivityData(parsed);
+      let r = 0, w = 0, wt = 0, st = 0;
+      parsed.forEach((x: number) => { 
+        if(x === 0) r += 0.5; if(x === 1) w += 0.5; 
+        if(x === 2 || x === 3) wt += 0.5; if(x === 4) st += 0.5; 
+      });
+      setStats({ rest: r, work: w, watch: wt, tech: st });
+      setRemarks(record.remarks || "");
+      setP1(record.positionLat || "");
+      setP2(record.positionLong || "");
+    } else {
+      setActivityData(new Array(48).fill(0));
+      setStats({ rest: 24, work: 0, watch: 0, tech: 0 });
+      setRemarks(""); setP1(""); setP2("");
+    }
+    setHasChanges(false);
+  };
 
-    const loadLog = (date: string) => {
-        const record = getLogByDate(date);
-        if (record) {
-            try {
-                const parsed = JSON.parse(record.activityJson);
-                setActivityData(parsed);
-                
-                let r = 0, w = 0, wt = 0, st = 0;
-                parsed.forEach((x: number) => { 
-                    if(x === 0) r += 0.5; 
-                    if(x === 1) w += 0.5; 
-                    if(x === 2 || x === 3) wt += 0.5;
-                    if(x === 4) st += 0.5; 
-                });
-                setStats({ rest: r, work: w, watch: wt, steering: st });
-                setRemarks(record.remarks || "");
-                setPositionLat(record.positionLat || "");
-                setPositionLong(record.positionLong || "");
-            } catch (e) { 
-                console.error("Error parsing log activity:", e); 
-            }
-        } else {
-            setActivityData(new Array(48).fill(0));
-            setStats({ rest: 24, work: 0, watch: 0, steering: 0 });
-            setRemarks(""); 
-            setPositionLat(""); 
-            setPositionLong("");
-        }
-        setHasChanges(false);
-    };
+  const loadHistory = () => { /* Logic for list loading */ };
 
-    const loadHistory = () => {
-        const all = getAllDailyLogs();
-        setHistoryLogs(all);
-    };
+  const onRefresh = async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    loadEntry(selectedDate);
+    setTimeout(() => { setRefreshing(false); toast.success("Records Refreshed"); }, 800);
+  };
 
-    const assignmentTotals = useMemo(() => {
-        let seaWatch = 0, portWatch = 0, work = 0, steering = 0;
-        historyLogs.forEach(log => {
-            try {
-                const data = JSON.parse(log.activityJson);
-                data.forEach((v: number) => {
-                    if (v === 1) work += 0.5;
-                    if (v === 2) seaWatch += 0.5;
-                    if (v === 3) portWatch += 0.5;
-                    if (v === 4) steering += 0.5;
-                });
-            } catch (e) {}
-        });
-        return { seaWatch, portWatch, work, steering };
-    }, [historyLogs]);
+  const handleSave = () => {
+    upsertDailyLog({
+      date: selectedDate, activityJson: JSON.stringify(activityData),
+      totalRest: stats.rest, totalWork: stats.work, totalWatch: stats.watch,
+      totalSteering: stats.tech, remarks, positionLat: p1, positionLong: p2
+    });
+    setHasChanges(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    toast.success("Logbook Committed");
+  };
 
-    const handlePainterChange = (newData: number[], newStats: any) => {
-        setActivityData(newData);
-        setStats(newStats);
-        setHasChanges(true);
-    };
+  const handleGPSFix = async () => {
+    setIsGpsLoading(true);
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') { toast.error("GPS Denied"); setIsGpsLoading(false); return; }
+    const loc = await Location.getCurrentPositionAsync({});
+    const latStr = `${Math.floor(Math.abs(loc.coords.latitude))}° ${((Math.abs(loc.coords.latitude) % 1) * 60).toFixed(1)}' ${loc.coords.latitude >= 0 ? "N" : "S"}`;
+    const lonStr = `${Math.floor(Math.abs(loc.coords.longitude))}° ${((Math.abs(loc.coords.longitude) % 1) * 60).toFixed(1)}' ${loc.coords.longitude >= 0 ? "E" : "W"}`;
+    setP1(latStr); setP2(lonStr);
+    setHasChanges(true); setIsGpsLoading(false);
+    toast.success("GPS Lock Acquired");
+  };
 
-    const handleSave = () => {
-        // ✅ Calculate totals locally for precision during save
-        let r = 0, w = 0, sw = 0, pw = 0, st = 0;
-        activityData.forEach((x: number) => { 
-            if(x === 0) r += 0.5; 
-            if(x === 1) w += 0.5; 
-            if(x === 2) sw += 0.5; 
-            if(x === 3) pw += 0.5;
-            if(x === 4) st += 0.5;
-        });
-
-        upsertDailyLog({
-            date: selectedDate,
-            activityJson: JSON.stringify(activityData),
-            totalRest: r,
-            totalWork: w,
-            totalWatch: (sw + pw),
-            totalSteering: st,
-            remarks,
-            positionLat,
-            positionLong
-        });
+  return (
+    <KeelScreen style={{ paddingHorizontal: 0, backgroundColor: theme.colors.background }}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         
-        setHasChanges(false);
-        toast.success("Daily Log Saved");
-        loadHistory(); 
-    };
+        {/* --- DYNAMIC HEADER HUD --- */}
+        <Surface style={styles.topHud} elevation={4}>
+          <View style={styles.dateControl}>
+            <IconButton icon="chevron-left" size={28} onPress={() => {
+              const d = new Date(selectedDate); d.setDate(d.getDate()-1); setSelectedDate(d.toISOString().split('T')[0]);
+            }} />
+            <TouchableOpacity onPress={() => {/* Open Calendar */}} style={styles.dateBadge}>
+              <Text style={styles.dateLabel}>{selectedDate === getTodayStr() ? "TODAY" : selectedDate}</Text>
+            </TouchableOpacity>
+            <IconButton icon="chevron-right" size={28} onPress={() => {
+              const d = new Date(selectedDate); d.setDate(d.getDate()+1); setSelectedDate(d.toISOString().split('T')[0]);
+            }} />
+          </View>
 
-    const handleGetLocation = async () => {
-        setIsGpsLoading(true);
-        Vibration.vibrate(10);
-        try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
-                toast.error("Location permission denied");
-                return;
-            }
-            const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            const lat = location.coords.latitude;
-            const latStr = `${Math.floor(Math.abs(lat)).toString().padStart(2, '0')}° ${((Math.abs(lat) % 1) * 60).toFixed(1)}' ${lat >= 0 ? "N" : "S"}`;
-            const long = location.coords.longitude;
-            const longStr = `${Math.floor(Math.abs(long)).toString().padStart(3, '0')}° ${((Math.abs(long) % 1) * 60).toFixed(1)}' ${long >= 0 ? "E" : "W"}`;
-            
-            setPositionLat(latStr); 
-            setPositionLong(longStr);
-            setHasChanges(true);
-            toast.success("Location Updated");
-        } catch (e) { 
-            toast.error("Failed to fetch location"); 
-        } finally { 
-            setIsGpsLoading(false); 
-        }
-    };
+          <View style={styles.tabBar}>
+            <TouchableOpacity onPress={() => setViewMode("ENTRY")} style={[styles.tab, viewMode === "ENTRY" && { borderBottomColor: config.primary }]}>
+              <Text style={[styles.tabText, viewMode === "ENTRY" && { color: config.primary }]}>JOURNAL</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setViewMode("HISTORY")} style={[styles.tab, viewMode === "HISTORY" && { borderBottomColor: config.primary }]}>
+              <Text style={[styles.tabText, viewMode === "HISTORY" && { color: config.primary }]}>HISTORY</Text>
+            </TouchableOpacity>
+          </View>
+        </Surface>
 
-    const isCompliant = stats.rest >= 10; 
+        <ScrollView 
+          contentContainerStyle={{ padding: 16, paddingBottom: 150 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={config.primary} />}
+        >
+          {/* --- KPI NEON CARDS --- */}
+          <View style={styles.kpiRow}>
+            <View style={[styles.kpiCard, { borderLeftColor: stats.rest < 10 ? '#EF4444' : '#10B981' }]}>
+              <Text style={styles.kpiLabel}>REST HOURS</Text>
+              <Text style={[styles.kpiValue, { color: stats.rest < 10 ? '#EF4444' : '#10B981' }]}>{stats.rest}h</Text>
+              <View style={styles.kpiIndicator}><Clock size={12} color="#94A3B8" /></View>
+            </View>
+            <View style={[styles.kpiCard, { borderLeftColor: config.primary }]}>
+              <Text style={styles.kpiLabel}>{config.watchLabel}</Text>
+              <Text style={[styles.kpiValue, { color: config.primary }]}>{stats.watch}h</Text>
+              <View style={styles.kpiIndicator}><Activity size={12} color="#94A3B8" /></View>
+            </View>
+            <View style={[styles.kpiCard, { borderLeftColor: '#F59E0B' }]}>
+              <Text style={styles.kpiLabel}>{config.techLabel}</Text>
+              <Text style={[styles.kpiValue, { color: '#F59E0B' }]}>{stats.tech}h</Text>
+              <View style={styles.kpiIndicator}><Zap size={12} color="#94A3B8" /></View>
+            </View>
+          </View>
 
-    return (
-        <KeelScreen style={{ paddingHorizontal: 0 }}>
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-                
-                {/* VIEW SELECTOR TABS */}
-                <Surface style={styles.tabWrapper} elevation={1}>
-                    <View style={styles.tabContainer}>
-                        <TouchableOpacity 
-                            style={[styles.tab, viewMode === "EDIT" && { backgroundColor: theme.colors.primary }]} 
-                            onPress={() => setViewMode("EDIT")}
-                        >
-                            <Text style={[styles.tabText, viewMode === "EDIT" && { color: 'white' }]}>Log Entry</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                            style={[styles.tab, viewMode === "HISTORY" && { backgroundColor: theme.colors.primary }]} 
-                            onPress={() => setViewMode("HISTORY")}
-                        >
-                            <Text style={[styles.tabText, viewMode === "HISTORY" && { color: 'white' }]}>History</Text>
-                        </TouchableOpacity>
-                    </View>
-                </Surface>
+          {/* --- TIMELINE AREA --- */}
+          <Surface style={styles.timelineSection} elevation={1}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>24H ACTIVITY TIMELINE</Text>
+              <IconButton icon="information-outline" size={16} />
+            </View>
+            <TimePainter 
+              activityData={activityData} 
+              onChange={(d, s) => { setActivityData(d); setStats({ ...stats, ...s }); setHasChanges(true); }} 
+              isDeckCadet={user?.department === 'DECK'} 
+            />
+          </Surface>
 
-                {viewMode === "EDIT" ? (
-                    <>
-                        {/* DATE SELECTOR */}
-                        <Surface style={styles.header} elevation={0}>
-                            <IconButton icon="chevron-left" onPress={() => {
-                                const d = new Date(selectedDate); d.setDate(d.getDate() - 1);
-                                setSelectedDate(d.toISOString().split('T')[0]);
-                            }} />
-                            <View style={{ alignItems: 'center' }}>
-                                <Text variant="titleMedium" style={{ fontWeight: '800' }}>
-                                    {selectedDate === getTodayStr() ? "Today" : selectedDate}
-                                </Text>
-                            </View>
-                            <IconButton icon="chevron-right" onPress={() => {
-                                const d = new Date(selectedDate); d.setDate(d.getDate() + 1);
-                                setSelectedDate(d.toISOString().split('T')[0]);
-                            }} />
-                        </Surface>
-
-                        <ScrollView contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 16 }}>
-                            
-                            {/* STATS HUD */}
-                            <View style={styles.statsRow}>
-                                <KeelCard style={StyleSheet.flatten([styles.statBox, { borderColor: isCompliant ? '#10B981' : '#EF4444', borderWidth: 1 }])}>
-                                    <Text variant="labelSmall" style={{ color: '#6B7280' }}>REST</Text>
-                                    <Text variant="headlineMedium" style={{ fontWeight: '800', color: isCompliant ? '#10B981' : '#EF4444' }}>{stats.rest}</Text>
-                                </KeelCard>
-                                <KeelCard style={styles.statBox}>
-                                    <Text variant="labelSmall" style={{ color: '#6B7280' }}>WATCH</Text>
-                                    <Text variant="headlineMedium" style={{ fontWeight: '800', color: '#3B82F6' }}>{stats.watch}</Text>
-                                </KeelCard>
-                                <KeelCard style={styles.statBox}>
-                                    <Text variant="labelSmall" style={{ color: '#6B7280' }}>STEER</Text>
-                                    <Text variant="headlineMedium" style={{ fontWeight: '800', color: '#EC4899' }}>{stats.steering}</Text>
-                                </KeelCard>
-                            </View>
-
-                            <Text variant="titleSmall" style={styles.sectionTitle}>Activity Timeline</Text>
-                            <TimePainter activityData={activityData} onChange={handlePainterChange} isDeckCadet={true} />
-
-                            {/* NOON REPORT HEADER */}
-                            <View style={styles.noonReportHeader}>
-                                <Text variant="titleSmall" style={styles.sectionTitle}>Noon Report</Text>
-                                <TouchableOpacity onPress={handleGetLocation} disabled={isGpsLoading} style={styles.gpsBadge}>
-                                    {isGpsLoading ? <ActivityIndicator size={12} color="#3194A0" /> : <Navigation size={12} color="#3194A0" />}
-                                    <Text style={styles.gpsBadgeText}>SYNC GPS</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* MODERN NOON REPORT CARD */}
-                            <Surface style={styles.noonCard} elevation={2}>
-                                <View style={styles.noonRow}>
-                                    <View style={styles.inputHalf}>
-                                        <View style={styles.inputHeader}>
-                                            <MapPin size={14} color="#6B7280" />
-                                            <Text style={styles.inputLabel}>LATITUDE</Text>
-                                        </View>
-                                        <TextInput 
-                                            value={positionLat} 
-                                            onChangeText={(t) => { setPositionLat(t); setHasChanges(true); }} 
-                                            placeholder="00° 00.0' N"
-                                            style={styles.cleanInput}
-                                            contentStyle={{paddingLeft: 0}}
-                                            underlineColor="transparent"
-                                            activeUnderlineColor="#3194A0"
-                                        />
-                                    </View>
-                                    <View style={styles.dividerVertical} />
-                                    <View style={styles.inputHalf}>
-                                        <View style={styles.inputHeader}>
-                                            <Navigation size={14} color="#6B7280" style={{transform: [{rotate: '45deg'}]}} />
-                                            <Text style={styles.inputLabel}>LONGITUDE</Text>
-                                        </View>
-                                        <TextInput 
-                                            value={positionLong} 
-                                            onChangeText={(t) => { setPositionLong(t); setHasChanges(true); }} 
-                                            placeholder="000° 00.0' E"
-                                            style={styles.cleanInput}
-                                            contentStyle={{paddingLeft: 0}}
-                                            underlineColor="transparent"
-                                            activeUnderlineColor="#3194A0"
-                                        />
-                                    </View>
-                                </View>
-
-                                <View style={styles.dividerHorizontal} />
-
-                                <View style={styles.remarksSection}>
-                                    <View style={styles.inputHeader}>
-                                        <Edit3 size={14} color="#6B7280" />
-                                        <Text style={styles.inputLabel}>REMARKS & ACTIVITIES</Text>
-                                    </View>
-                                    <TextInput 
-                                        multiline 
-                                        value={remarks} 
-                                        onChangeText={(t) => { setRemarks(t); setHasChanges(true); }} 
-                                        placeholder="Enter manual steering details, drills, or cargo ops..."
-                                        style={styles.remarksInput}
-                                        underlineColor="transparent"
-                                        activeUnderlineColor="transparent"
-                                    />
-                                </View>
-                            </Surface>
-                        </ScrollView>
-
-                        {/* FLOATING SAVE BUTTON */}
-                        {hasChanges && (
-                            <View style={[styles.fabContainer, { bottom: insets.bottom + 16 }]}>
-                                <KeelButton mode="primary" onPress={handleSave}>Confirm Daily Log</KeelButton>
-                            </View>
-                        )}
-                    </>
-                ) : (
-                    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-                        
-                        {/* CUMULATIVE SUMMARY */}
-                        <Surface style={styles.summaryCard} elevation={2}>
-                            <Text variant="labelMedium" style={styles.summaryTitle}>CUMULATIVE PROGRESS</Text>
-                            <View style={styles.summaryRow}>
-                                <View style={styles.summaryItem}>
-                                    <Text style={[styles.summaryVal, {color: '#3B82F6'}]}>{assignmentTotals.seaWatch}h</Text>
-                                    <Text style={styles.summaryLab}>WATCH</Text>
-                                </View>
-                                <View style={styles.summaryItem}>
-                                    <Text style={[styles.summaryVal, {color: '#EC4899'}]}>{assignmentTotals.steering}h</Text>
-                                    <Text style={styles.summaryLab}>STEER</Text>
-                                </View>
-                                <View style={styles.summaryItem}>
-                                    <Text style={[styles.summaryVal, {color: '#F59E0B'}]}>{assignmentTotals.work}h</Text>
-                                    <Text style={styles.summaryLab}>WORK</Text>
-                                </View>
-                            </View>
-                        </Surface>
-
-                        {/* HISTORY LIST */}
-                        <DailyHistoryList 
-                            logs={historyLogs} 
-                            onSelectDate={(date) => { setSelectedDate(date); setViewMode("EDIT"); }} 
-                            onDelete={(id) => { deleteDailyLogById(id); loadHistory(); toast.success("Log deleted"); }} 
-                        />
-                    </ScrollView>
+          {/* --- PARAMETERS GRID --- */}
+          <View style={styles.paramGrid}>
+            <Surface style={styles.paramCard} elevation={2}>
+              <View style={styles.paramHeader}>
+                <Text style={styles.paramLabel}>{config.label1}</Text>
+                {user?.department === 'DECK' && (
+                  <TouchableOpacity onPress={handleGPSFix} disabled={isGpsLoading}>
+                    {isGpsLoading ? <ActivityIndicator size={12} /> : <MapPin size={14} color={config.primary} />}
+                  </TouchableOpacity>
                 )}
-            </KeyboardAvoidingView>
-        </KeelScreen>
-    );
+              </View>
+              <TextInput 
+                value={p1} onChangeText={(t) => { setP1(t); setHasChanges(true); }}
+                placeholder={config.placeholder1} style={styles.ghostInput}
+                textColor={theme.colors.onSurface} underlineColor="transparent"
+              />
+              <Text style={styles.unitText}>{config.unit1}</Text>
+            </Surface>
+
+            <Surface style={styles.paramCard} elevation={2}>
+              <View style={styles.paramHeader}>
+                <Text style={styles.paramLabel}>{config.label2}</Text>
+              </View>
+              <TextInput 
+                value={p2} onChangeText={(t) => { setP2(t); setHasChanges(true); }}
+                placeholder={config.placeholder2} style={styles.ghostInput}
+                textColor={theme.colors.onSurface} underlineColor="transparent"
+              />
+              <Text style={styles.unitText}>{config.unit2}</Text>
+            </Surface>
+          </View>
+
+          {/* --- REMARKS BOX --- */}
+          <Surface style={styles.remarksCard} elevation={1}>
+            <View style={styles.paramHeader}>
+              <Edit3 size={14} color="#94A3B8" />
+              <Text style={styles.paramLabel}>JOURNAL REMARKS</Text>
+            </View>
+            <TextInput 
+              multiline value={remarks} onChangeText={(t) => { setRemarks(t); setHasChanges(true); }}
+              placeholder="Drills, machinery maintenance, or safety meetings..."
+              style={styles.remarksInput} underlineColor="transparent"
+            />
+          </Surface>
+
+        </ScrollView>
+
+        {/* --- FLOATING ACTION DOCK --- */}
+        {hasChanges && (
+          <View style={[styles.actionDock, { bottom: insets.bottom + 20 }]}>
+            <TouchableOpacity onPress={handleSave} style={[styles.commitBtn, { backgroundColor: config.primary }]}>
+              <ShieldCheck size={20} color="white" />
+              <Text style={styles.commitText}>COMMIT LOG ENTRY</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </KeyboardAvoidingView>
+    </KeelScreen>
+  );
 }
 
 const styles = StyleSheet.create({
-    tabWrapper: { backgroundColor: 'white', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-    tabContainer: { flexDirection: 'row', backgroundColor: '#F3F4F6', borderRadius: 12, padding: 4 },
-    tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-    tabText: { fontWeight: '700', color: '#6B7280', fontSize: 13 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8 },
-    statsRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-    statBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 16, backgroundColor: '#F9FAFB' },
-    sectionTitle: { fontWeight: '900', color: '#1F2937', fontSize: 14, letterSpacing: 0.5 },
-    
-    noonReportHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 8 },
-    gpsBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#E0F2F1', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
-    gpsBadgeText: { fontSize: 10, fontWeight: '900', color: '#3194A0' },
-    noonCard: { backgroundColor: 'white', borderRadius: 20, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: '#F3F4F6' },
-    noonRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    inputHalf: { flex: 1 },
-    inputHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-    inputLabel: { fontSize: 10, fontWeight: '800', color: '#9CA3AF', letterSpacing: 1 },
-    cleanInput: { backgroundColor: 'transparent', height: 40, fontSize: 16, fontWeight: '700' },
-    dividerVertical: { width: 1, height: '100%', backgroundColor: '#F3F4F6', marginHorizontal: 15 },
-    dividerHorizontal: { height: 1, width: '100%', backgroundColor: '#F3F4F6', marginVertical: 15 },
-    remarksSection: { width: '100%' },
-    remarksInput: { backgroundColor: 'transparent', fontSize: 14, minHeight: 60, paddingHorizontal: 0, textAlignVertical: 'top' },
+  topHud: { paddingHorizontal: 8, paddingTop: 10, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  dateControl: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  dateBadge: { backgroundColor: 'rgba(0,0,0,0.03)', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 20 },
+  dateLabel: { fontWeight: '900', fontSize: 14, letterSpacing: 1 },
+  tabBar: { flexDirection: 'row', paddingHorizontal: 20 },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 12, borderBottomWidth: 3, borderBottomColor: 'transparent' },
+  tabText: { fontWeight: '900', fontSize: 11, color: '#94A3B8' },
+  
+  kpiRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  kpiCard: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 16, borderLeftWidth: 4 },
+  kpiLabel: { fontSize: 8, fontWeight: '900', color: '#94A3B8', marginBottom: 4 },
+  kpiValue: { fontSize: 20, fontWeight: '900' },
+  kpiIndicator: { position: 'absolute', right: 8, bottom: 8, opacity: 0.3 },
 
-    fabContainer: { position: 'absolute', left: 20, right: 20 },
-    summaryCard: { backgroundColor: '#1A2426', borderRadius: 24, padding: 20, marginBottom: 20 },
-    summaryTitle: { color: 'rgba(255,255,255,0.5)', fontWeight: '900', fontSize: 10, letterSpacing: 1.5, marginBottom: 20, textAlign: 'center' },
-    summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },
-    summaryItem: { alignItems: 'center' },
-    summaryVal: { fontSize: 24, fontWeight: '900' },
-    summaryLab: { color: '#FFF', fontSize: 9, fontWeight: '800', marginTop: 4 }
+  timelineSection: { borderRadius: 24, padding: 20, marginBottom: 20 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionTitle: { fontSize: 10, fontWeight: '900', color: '#94A3B8', letterSpacing: 1 },
+
+  paramGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  paramCard: { flex: 1, borderRadius: 20, padding: 16 },
+  paramHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  paramLabel: { fontSize: 9, fontWeight: '900', color: '#94A3B8' },
+  ghostInput: { backgroundColor: 'transparent', height: 40, fontSize: 18, fontWeight: '900', paddingHorizontal: 0 },
+  unitText: { fontSize: 10, fontWeight: '700', color: '#94A3B8', marginTop: -4 },
+
+  remarksCard: { borderRadius: 24, padding: 20 },
+  remarksInput: { backgroundColor: 'transparent', minHeight: 100, fontSize: 15, fontWeight: '500', paddingHorizontal: 0 },
+
+  actionDock: { position: 'absolute', left: 20, right: 20 },
+  commitBtn: { height: 56, borderRadius: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
+  commitText: { color: 'white', fontWeight: '900', letterSpacing: 1 }
 });

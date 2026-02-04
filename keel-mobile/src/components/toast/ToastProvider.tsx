@@ -27,6 +27,7 @@ export type ToastType = "success" | "error" | "warning" | "info";
  * Context shape.
  */
 export interface ToastContextType {
+  show: any;
   success: (message: string) => void;
   error: (message: string) => void;
   warning: (message: string) => void;
