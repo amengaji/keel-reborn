@@ -1,239 +1,278 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+//keel-mobile/src/screens/daily/DailyLogScreen.tsx
+
+import React, { useState, useEffect, useCallback } from "react";
 import { 
   View, StyleSheet, ScrollView, Platform, KeyboardAvoidingView, 
-  TouchableOpacity, RefreshControl, Dimensions 
+  TouchableOpacity, RefreshControl 
 } from "react-native";
-import { Text, Surface, IconButton, useTheme, TextInput, ActivityIndicator } from "react-native-paper";
-import { useFocusEffect, useRoute } from "@react-navigation/native";
+import { Text, Surface, IconButton, useTheme, TextInput, ActivityIndicator, Divider } from "react-native-paper";
+import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { 
-  Navigation, Edit3, ShieldCheck, MapPin, Compass, 
-  Activity, Clock, Calendar, ChevronLeft, ChevronRight, Zap
+  ShieldCheck, Anchor, HardHat, Coffee, Wrench, History, BookOpen, Plus, Trash2, Clock, CheckCircle2
 } from "lucide-react-native";
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 
+// --- UI COMPONENTS ---
 import { KeelScreen } from "../../components/ui/KeelScreen";
-import { KeelButton } from "../../components/ui/KeelButton";
 import { useToast } from "../../components/toast/useToast";
 import { useAuth } from "../../auth/AuthContext";
-import { getDepartmentConfig } from "../../constants/logBrushes";
-import { TimePainter } from "../../components/daily/TimePainter";
 import { DailyHistoryList } from "../../components/daily/DailyHistoryList";
+import YesNoCapsule from "../../components/common/YesNoCapsule";
+
+// --- DEPARTMENTAL FIELD COMPONENTS ---
+import DeckLogFields from "../../components/daily/departments/DeckLogFields";
+import EngineLogFields from "../../components/daily/departments/EngineLogFields";
+import EtoLogFields from "../../components/daily/departments/EtoLogFields";
+import CateringLogFields from "../../components/daily/departments/CateringLogFields";
+
+// --- DATABASE LOGIC ---
 import { 
-  getLogByDate, upsertDailyLog, ensureDailyLogsTable, 
-  getAllDailyLogs, DailyLogRecord, deleteDailyLogById 
+  getLogByDate, upsertDailyLog, ensureDailyLogsTable, getAllDailyLogs, deleteDailyLogById 
 } from "../../db/dailyLogs";
 
-const { width } = Dimensions.get('window');
 const getTodayStr = () => new Date().toISOString().split('T')[0];
 
+interface ActivityBlock {
+  id: string;
+  start: string;
+  end: string;
+  activity: string;
+}
+
 /**
- * DAILY LOG: COMMAND REDESIGN
- * A high-fidelity, department-adaptive interface.
+ * DAILY LOG SCREEN - REDESIGNED
+ * Focus: Structured activity logging for professional TRB audit trails.
  */
 export default function DailyLogScreen() {
   const theme = useTheme();
   const toast = useToast();
   const insets = useSafeAreaInsets();
-  const route = useRoute<any>();
   const { user } = useAuth();
-  
-  const config = useMemo(() => getDepartmentConfig(user?.department, user?.rank), [user?.department, user?.rank]);
+  const primaryBrand = "#3194A0";
 
   // --- UI STATE ---
   const [viewMode, setViewMode] = useState<"ENTRY" | "HISTORY">("ENTRY");
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
-  const [refreshing, setRefreshing] = useState(false);
-  
-  // --- DATA STATE ---
-  const [activityData, setActivityData] = useState<number[]>(new Array(48).fill(0));
-  const [stats, setStats] = useState({ rest: 24, work: 0, watch: 0, tech: 0 });
-  const [remarks, setRemarks] = useState("");
-  const [p1, setP1] = useState(""); // Dynamic Param 1 (e.g. Lat / RPM)
-  const [p2, setP2] = useState(""); // Dynamic Param 2 (e.g. Long / Temp)
   const [hasChanges, setHasChanges] = useState(false);
-  const [isGpsLoading, setIsGpsLoading] = useState(false);
+  const [historyLogs, setHistoryLogs] = useState<any[]>([]);
+
+  // --- LOG DATA ---
+  const [remarks, setRemarks] = useState("");
+  const [p1, setP1] = useState(""); 
+  const [p2, setP2] = useState(""); 
+  const [activities, setActivities] = useState<ActivityBlock[]>([]);
+
+  // --- COMPLIANCE & DEPT STATES ---
+  const [stcwRestHoursOk, setStcwRestHoursOk] = useState(true);
+  const [isLookout, setIsLookout] = useState(false);
+  const [umsStatus, setUmsStatus] = useState(true);
+  const [hygieneCheck, setHygieneCheck] = useState(true);
 
   useEffect(() => { ensureDailyLogsTable(); }, []);
 
   useFocusEffect(
     useCallback(() => {
-      viewMode === "ENTRY" ? loadEntry(selectedDate) : loadHistory();
+      viewMode === "ENTRY" ? loadEntry(selectedDate) : refreshHistory();
     }, [selectedDate, viewMode])
   );
+
+  const refreshHistory = () => {
+    const logs = getAllDailyLogs();
+    setHistoryLogs((logs || []).map(l => ({ ...l, id: String(l.id) })));
+  };
 
   const loadEntry = (date: string) => {
     const record = getLogByDate(date);
     if (record) {
-      const parsed = JSON.parse(record.activityJson);
-      setActivityData(parsed);
-      let r = 0, w = 0, wt = 0, st = 0;
-      parsed.forEach((x: number) => { 
-        if(x === 0) r += 0.5; if(x === 1) w += 0.5; 
-        if(x === 2 || x === 3) wt += 0.5; if(x === 4) st += 0.5; 
-      });
-      setStats({ rest: r, work: w, watch: wt, tech: st });
       setRemarks(record.remarks || "");
       setP1(record.positionLat || "");
       setP2(record.positionLong || "");
+      try {
+        const parsed = JSON.parse(record.activityJson);
+        setActivities(Array.isArray(parsed) ? parsed : []);
+      } catch { setActivities([]); }
     } else {
-      setActivityData(new Array(48).fill(0));
-      setStats({ rest: 24, work: 0, watch: 0, tech: 0 });
-      setRemarks(""); setP1(""); setP2("");
+      setRemarks(""); setP1(""); setP2(""); setActivities([]);
     }
     setHasChanges(false);
   };
 
-  const loadHistory = () => { /* Logic for list loading */ };
+  const addActivity = () => {
+    const newAct: ActivityBlock = { 
+        id: `block_${Date.now()}_${Math.random().toString(36).substring(7)}`, 
+        start: "08:00", 
+        end: "12:00", 
+        activity: "" 
+    };
+    setActivities([...activities, newAct]);
+    setHasChanges(true);
+  };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    loadEntry(selectedDate);
-    setTimeout(() => { setRefreshing(false); toast.success("Records Refreshed"); }, 800);
+  const handleDeleteLog = (id: string) => {
+    const numericId = parseInt(id, 10);
+    if (!isNaN(numericId)) {
+      deleteDailyLogById(String(numericId));
+      refreshHistory();
+      toast.success("Log Deleted");
+    }
   };
 
   const handleSave = () => {
     upsertDailyLog({
-      date: selectedDate, activityJson: JSON.stringify(activityData),
-      totalRest: stats.rest, totalWork: stats.work, totalWatch: stats.watch,
-      totalSteering: stats.tech, remarks, positionLat: p1, positionLong: p2
+      date: selectedDate,
+      activityJson: JSON.stringify(activities),
+      remarks,
+      positionLat: p1,
+      positionLong: p2,
+      totalRest: 0, totalWork: 0, totalWatch: 0, totalSteering: 0 
     });
     setHasChanges(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success("Logbook Committed");
+    toast.success("Ship's Log Committed");
   };
 
-  const handleGPSFix = async () => {
-    setIsGpsLoading(true);
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') { toast.error("GPS Denied"); setIsGpsLoading(false); return; }
-    const loc = await Location.getCurrentPositionAsync({});
-    const latStr = `${Math.floor(Math.abs(loc.coords.latitude))}° ${((Math.abs(loc.coords.latitude) % 1) * 60).toFixed(1)}' ${loc.coords.latitude >= 0 ? "N" : "S"}`;
-    const lonStr = `${Math.floor(Math.abs(loc.coords.longitude))}° ${((Math.abs(loc.coords.longitude) % 1) * 60).toFixed(1)}' ${loc.coords.longitude >= 0 ? "E" : "W"}`;
-    setP1(latStr); setP2(lonStr);
-    setHasChanges(true); setIsGpsLoading(false);
-    toast.success("GPS Lock Acquired");
+  /**
+   * THE DYNAMIC DEPARTMENT ENGINE
+   * Pass specific props to the correct department file.
+   */
+  const renderDeptFields = () => {
+    const props = { 
+      p1, setP1: (t:string)=>{setP1(t); setHasChanges(true)}, 
+      p2, setP2: (t:string)=>{setP2(t); setHasChanges(true)} 
+    };
+
+    switch(user?.department) {
+      case 'DECK': 
+        return <DeckLogFields {...props} onGps={()=>{}} isLookout={isLookout} setIsLookout={(v)=>{setIsLookout(v); setHasChanges(true)}} />;
+      case 'ENGINE': 
+        return <EngineLogFields {...props} umsStatus={umsStatus} setUmsStatus={(v)=>{setUmsStatus(v); setHasChanges(true)}} />;
+      case 'ETO': 
+        return <EtoLogFields {...props} umsStatus={umsStatus} setUmsStatus={(v)=>{setUmsStatus(v); setHasChanges(true)}} />;
+      case 'CATERING': 
+        return <CateringLogFields {...props} hygieneCheck={hygieneCheck} setHygieneCheck={(v)=>{setHygieneCheck(v); setHasChanges(true)}} />;
+      default: 
+        return <Text style={{ textAlign: 'center', padding: 20 }}>Please set Department in Settings</Text>;
+    }
   };
 
   return (
-    <KeelScreen style={{ paddingHorizontal: 0, backgroundColor: theme.colors.background }}>
+    <KeelScreen style={{ paddingHorizontal: 0 }}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         
-        {/* --- DYNAMIC HEADER HUD --- */}
-        <Surface style={styles.topHud} elevation={4}>
-          <View style={styles.dateControl}>
-            <IconButton icon="chevron-left" size={28} onPress={() => {
-              const d = new Date(selectedDate); d.setDate(d.getDate()-1); setSelectedDate(d.toISOString().split('T')[0]);
-            }} />
-            <TouchableOpacity onPress={() => {/* Open Calendar */}} style={styles.dateBadge}>
-              <Text style={styles.dateLabel}>{selectedDate === getTodayStr() ? "TODAY" : selectedDate}</Text>
-            </TouchableOpacity>
-            <IconButton icon="chevron-right" size={28} onPress={() => {
-              const d = new Date(selectedDate); d.setDate(d.getDate()+1); setSelectedDate(d.toISOString().split('T')[0]);
-            }} />
+        {/* --- HUD HEADER --- */}
+        <Surface style={styles.header} elevation={3}>
+          <View style={styles.headerTop}>
+            <View style={styles.deptBadge}>
+               {user?.department === 'ENGINE' && <HardHat size={22} color={primaryBrand} />}
+               {user?.department === 'DECK' && <Anchor size={22} color={primaryBrand} />}
+               {user?.department === 'ETO' && <Wrench size={22} color={primaryBrand} />}
+               {user?.department === 'CATERING' && <Coffee size={22} color={primaryBrand} />}
+               <Text style={styles.deptText}>{user?.department} JOURNAL</Text>
+            </View>
+            <View style={styles.dateNav}>
+               <IconButton icon="chevron-left" size={20} onPress={() => {
+                 const d = new Date(selectedDate); d.setDate(d.getDate()-1); setSelectedDate(d.toISOString().split('T')[0]);
+               }} />
+               <Text style={styles.dateLabel}>{selectedDate}</Text>
+               <IconButton icon="chevron-right" size={20} onPress={() => {
+                 const d = new Date(selectedDate); d.setDate(d.getDate()+1); setSelectedDate(d.toISOString().split('T')[0]);
+               }} />
+            </View>
           </View>
-
-          <View style={styles.tabBar}>
-            <TouchableOpacity onPress={() => setViewMode("ENTRY")} style={[styles.tab, viewMode === "ENTRY" && { borderBottomColor: config.primary }]}>
-              <Text style={[styles.tabText, viewMode === "ENTRY" && { color: config.primary }]}>JOURNAL</Text>
+          <View style={styles.tabs}>
+            <TouchableOpacity onPress={() => setViewMode("ENTRY")} style={[styles.tab, viewMode === "ENTRY" && styles.activeTab]}>
+              <BookOpen size={16} color={viewMode === "ENTRY" ? primaryBrand : "#94A3B8"} />
+              <Text style={[styles.tabText, viewMode === "ENTRY" && { color: primaryBrand }]}>JOURNAL</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setViewMode("HISTORY")} style={[styles.tab, viewMode === "HISTORY" && { borderBottomColor: config.primary }]}>
-              <Text style={[styles.tabText, viewMode === "HISTORY" && { color: config.primary }]}>HISTORY</Text>
+            <TouchableOpacity onPress={() => setViewMode("HISTORY")} style={[styles.tab, viewMode === "HISTORY" && styles.activeTab]}>
+              <History size={16} color={viewMode === "HISTORY" ? primaryBrand : "#94A3B8"} />
+              <Text style={[styles.tabText, viewMode === "HISTORY" && { color: primaryBrand }]}>HISTORY</Text>
             </TouchableOpacity>
           </View>
         </Surface>
 
-        <ScrollView 
-          contentContainerStyle={{ padding: 16, paddingBottom: 150 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={config.primary} />}
-        >
-          {/* --- KPI NEON CARDS --- */}
-          <View style={styles.kpiRow}>
-            <View style={[styles.kpiCard, { borderLeftColor: stats.rest < 10 ? '#EF4444' : '#10B981' }]}>
-              <Text style={styles.kpiLabel}>REST HOURS</Text>
-              <Text style={[styles.kpiValue, { color: stats.rest < 10 ? '#EF4444' : '#10B981' }]}>{stats.rest}h</Text>
-              <View style={styles.kpiIndicator}><Clock size={12} color="#94A3B8" /></View>
-            </View>
-            <View style={[styles.kpiCard, { borderLeftColor: config.primary }]}>
-              <Text style={styles.kpiLabel}>{config.watchLabel}</Text>
-              <Text style={[styles.kpiValue, { color: config.primary }]}>{stats.watch}h</Text>
-              <View style={styles.kpiIndicator}><Activity size={12} color="#94A3B8" /></View>
-            </View>
-            <View style={[styles.kpiCard, { borderLeftColor: '#F59E0B' }]}>
-              <Text style={styles.kpiLabel}>{config.techLabel}</Text>
-              <Text style={[styles.kpiValue, { color: '#F59E0B' }]}>{stats.tech}h</Text>
-              <View style={styles.kpiIndicator}><Zap size={12} color="#94A3B8" /></View>
-            </View>
-          </View>
+        {viewMode === "ENTRY" ? (
+          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 150 }}>
+            
+            {/* --- COMPLIANCE CARD --- */}
+            <Surface style={styles.card} elevation={1}>
+              <View style={styles.sectionHeaderInner}>
+                <CheckCircle2 size={16} color={primaryBrand} />
+                <Text style={styles.cardTitle}>REGULATORY COMPLIANCE</Text>
+              </View>
+              <View style={styles.capsuleRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.capsuleLabel}>REST HOURS COMPLIED?</Text>
+                  <Text style={styles.capsuleSub}>STCW Regulation VIII/1</Text>
+                </View>
+                <YesNoCapsule value={stcwRestHoursOk} onChange={(v) => {setStcwRestHoursOk(v); setHasChanges(true)}} />
+              </View>
+            </Surface>
 
-          {/* --- TIMELINE AREA --- */}
-          <Surface style={styles.timelineSection} elevation={1}>
+            {/* --- DEPARTMENTAL CARD --- */}
+            <Surface style={styles.card} elevation={1}>
+              {renderDeptFields()}
+            </Surface>
+
+            {/* --- ACTIVITY BLOCKS --- */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>24H ACTIVITY TIMELINE</Text>
-              <IconButton icon="information-outline" size={16} />
+               <Text style={styles.sectionTitle}>WORK & TRAINING BLOCKS</Text>
+               <TouchableOpacity style={styles.addBtn} onPress={addActivity}>
+                  <Plus size={16} color="white" />
+                  <Text style={styles.addBtnText}>ADD BLOCK</Text>
+               </TouchableOpacity>
             </View>
-            <TimePainter 
-              activityData={activityData} 
-              onChange={(d, s) => { setActivityData(d); setStats({ ...stats, ...s }); setHasChanges(true); }} 
-              isDeckCadet={user?.department === 'DECK'} 
-            />
-          </Surface>
 
-          {/* --- PARAMETERS GRID --- */}
-          <View style={styles.paramGrid}>
-            <Surface style={styles.paramCard} elevation={2}>
-              <View style={styles.paramHeader}>
-                <Text style={styles.paramLabel}>{config.label1}</Text>
-                {user?.department === 'DECK' && (
-                  <TouchableOpacity onPress={handleGPSFix} disabled={isGpsLoading}>
-                    {isGpsLoading ? <ActivityIndicator size={12} /> : <MapPin size={14} color={config.primary} />}
-                  </TouchableOpacity>
-                )}
-              </View>
+            {activities.map((act, index) => (
+              <Surface key={act.id} style={styles.activityCard} elevation={1}>
+                <View style={styles.actRow}>
+                  <TextInput mode="flat" label="From" value={act.start} style={styles.timeInput} dense onChangeText={(t) => {
+                    const n = [...activities]; n[index].start = t; setActivities(n); setHasChanges(true);
+                  }} />
+                  <TextInput mode="flat" label="To" value={act.end} style={styles.timeInput} dense onChangeText={(t) => {
+                    const n = [...activities]; n[index].end = t; setActivities(n); setHasChanges(true);
+                  }} />
+                  <IconButton icon="trash-can-outline" iconColor={theme.colors.error} size={20} onPress={() => {
+                    setActivities(activities.filter(a => a.id !== act.id)); setHasChanges(true);
+                  }} />
+                </View>
+                <TextInput 
+                  mode="outlined" 
+                  placeholder="Task Description..." 
+                  value={act.activity}
+                  onChangeText={(t) => {
+                    const newActs = [...activities];
+                    newActs[index].activity = t;
+                    setActivities(newActs);
+                    setHasChanges(true);
+                  }}
+                  style={styles.actDesc}
+                  outlineStyle={{ borderRadius: 12 }}
+                />
+              </Surface>
+            ))}
+
+            <Surface style={[styles.card, { marginTop: 24 }]} elevation={1}>
+              <Text style={styles.cardTitle}>NARRATIVE JOURNAL</Text>
               <TextInput 
-                value={p1} onChangeText={(t) => { setP1(t); setHasChanges(true); }}
-                placeholder={config.placeholder1} style={styles.ghostInput}
-                textColor={theme.colors.onSurface} underlineColor="transparent"
+                multiline value={remarks} onChangeText={(t)=>{setRemarks(t); setHasChanges(true)}} 
+                placeholder="Daily summary..." 
+                style={styles.remarks} underlineColor="transparent" 
               />
-              <Text style={styles.unitText}>{config.unit1}</Text>
             </Surface>
 
-            <Surface style={styles.paramCard} elevation={2}>
-              <View style={styles.paramHeader}>
-                <Text style={styles.paramLabel}>{config.label2}</Text>
-              </View>
-              <TextInput 
-                value={p2} onChangeText={(t) => { setP2(t); setHasChanges(true); }}
-                placeholder={config.placeholder2} style={styles.ghostInput}
-                textColor={theme.colors.onSurface} underlineColor="transparent"
-              />
-              <Text style={styles.unitText}>{config.unit2}</Text>
-            </Surface>
-          </View>
+          </ScrollView>
+        ) : (
+          <DailyHistoryList logs={historyLogs} onDelete={handleDeleteLog} onSelectDate={(d) => { setSelectedDate(d); setViewMode("ENTRY"); }} />
+        )}
 
-          {/* --- REMARKS BOX --- */}
-          <Surface style={styles.remarksCard} elevation={1}>
-            <View style={styles.paramHeader}>
-              <Edit3 size={14} color="#94A3B8" />
-              <Text style={styles.paramLabel}>JOURNAL REMARKS</Text>
-            </View>
-            <TextInput 
-              multiline value={remarks} onChangeText={(t) => { setRemarks(t); setHasChanges(true); }}
-              placeholder="Drills, machinery maintenance, or safety meetings..."
-              style={styles.remarksInput} underlineColor="transparent"
-            />
-          </Surface>
-
-        </ScrollView>
-
-        {/* --- FLOATING ACTION DOCK --- */}
         {hasChanges && (
-          <View style={[styles.actionDock, { bottom: insets.bottom + 20 }]}>
-            <TouchableOpacity onPress={handleSave} style={[styles.commitBtn, { backgroundColor: config.primary }]}>
-              <ShieldCheck size={20} color="white" />
-              <Text style={styles.commitText}>COMMIT LOG ENTRY</Text>
+          <View style={[styles.fab, { bottom: insets.bottom + 16 }]}>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+              <ShieldCheck color="white" size={24} />
+              <Text style={styles.saveText}>COMMIT DAILY LOG</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -243,35 +282,37 @@ export default function DailyLogScreen() {
 }
 
 const styles = StyleSheet.create({
-  topHud: { paddingHorizontal: 8, paddingTop: 10, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
-  dateControl: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  dateBadge: { backgroundColor: 'rgba(0,0,0,0.03)', paddingHorizontal: 24, paddingVertical: 8, borderRadius: 20 },
-  dateLabel: { fontWeight: '900', fontSize: 14, letterSpacing: 1 },
-  tabBar: { flexDirection: 'row', paddingHorizontal: 20 },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 12, borderBottomWidth: 3, borderBottomColor: 'transparent' },
-  tabText: { fontWeight: '900', fontSize: 11, color: '#94A3B8' },
+  header: { borderBottomLeftRadius: 36, borderBottomRightRadius: 36, backgroundColor: 'white' },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 },
+  deptBadge: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  deptText: { fontWeight: '900', fontSize: 13, color: '#64748B', letterSpacing: 1.2 },
+  dateNav: { flexDirection: 'row', alignItems: 'center' },
+  dateLabel: { fontWeight: '900', color: '#3194A0', fontSize: 14 },
+  tabs: { flexDirection: 'row' },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 20, borderBottomWidth: 5, borderBottomColor: 'transparent' },
+  activeTab: { borderBottomColor: '#3194A0' },
+  tabText: { fontWeight: '900', fontSize: 12, color: '#94A3B8', letterSpacing: 1 },
+
+  card: { borderRadius: 28, padding: 20, marginBottom: 16, backgroundColor: 'white' },
+  sectionHeaderInner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  cardTitle: { fontSize: 10, fontWeight: '900', color: '#3194A0', letterSpacing: 1.5 },
   
-  kpiRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  kpiCard: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 16, borderLeftWidth: 4 },
-  kpiLabel: { fontSize: 8, fontWeight: '900', color: '#94A3B8', marginBottom: 4 },
-  kpiValue: { fontSize: 20, fontWeight: '900' },
-  kpiIndicator: { position: 'absolute', right: 8, bottom: 8, opacity: 0.3 },
+  capsuleRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(148, 163, 184, 0.08)', padding: 16, borderRadius: 24 },
+  capsuleLabel: { fontSize: 13, fontWeight: '800', color: '#1E293B' },
+  capsuleSub: { fontSize: 10, color: '#64748B' },
 
-  timelineSection: { borderRadius: 24, padding: 20, marginBottom: 20 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 10, fontWeight: '900', color: '#94A3B8', letterSpacing: 1 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 16 },
+  sectionTitle: { fontSize: 11, fontWeight: '900', color: '#94A3B8', letterSpacing: 1 },
+  addBtn: { backgroundColor: '#3194A0', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 25, gap: 6 },
+  addBtnText: { color: 'white', fontWeight: '900', fontSize: 11 },
 
-  paramGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  paramCard: { flex: 1, borderRadius: 20, padding: 16 },
-  paramHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  paramLabel: { fontSize: 9, fontWeight: '900', color: '#94A3B8' },
-  ghostInput: { backgroundColor: 'transparent', height: 40, fontSize: 18, fontWeight: '900', paddingHorizontal: 0 },
-  unitText: { fontSize: 10, fontWeight: '700', color: '#94A3B8', marginTop: -4 },
+  activityCard: { borderRadius: 28, padding: 16, marginBottom: 16, borderLeftWidth: 10, borderLeftColor: '#3194A0', backgroundColor: 'white' },
+  actRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  timeInput: { flex: 1, backgroundColor: 'transparent', height: 45 },
+  actDesc: { backgroundColor: 'transparent', fontSize: 15 },
+  remarks: { backgroundColor: 'transparent', minHeight: 120, fontSize: 16 },
 
-  remarksCard: { borderRadius: 24, padding: 20 },
-  remarksInput: { backgroundColor: 'transparent', minHeight: 100, fontSize: 15, fontWeight: '500', paddingHorizontal: 0 },
-
-  actionDock: { position: 'absolute', left: 20, right: 20 },
-  commitBtn: { height: 56, borderRadius: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
-  commitText: { color: 'white', fontWeight: '900', letterSpacing: 1 }
+  fab: { position: 'absolute', left: 24, right: 24 },
+  saveBtn: { height: 72, backgroundColor: '#3194A0', borderRadius: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, elevation: 12 },
+  saveText: { color: 'white', fontWeight: '900', fontSize: 17, letterSpacing: 1.5 }
 });

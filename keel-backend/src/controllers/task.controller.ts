@@ -135,44 +135,38 @@ export const getTasks = async (req: Request, res: Response) => {
     // @ts-ignore
     const user = req.user;
     
-    let whereClause = {};
-
-    if (user.role === 'SUPER_ADMIN') {
-      whereClause = {}; 
-    } else {
-      whereClause = {
-        [Op.or]: [
-          { company_id: null },
-          { company_id: user.company_id }
-        ]
-      };
-    }
-
-    const tasks = await Task.findAll({ 
+    let whereClause = {
+      [Op.or]: [
+        { company_id: null },
+        { company_id: user.company_id }
+      ]
+    };
+ 
+    const tasks = await Task.findAll({
       where: whereClause,
-      order: [['function_code', 'ASC'], ['code', 'ASC']] 
+      order: [['function_code', 'ASC'], ['code', 'ASC']]
     });
     
     const tree: any[] = [];
-
+ 
     tasks.forEach((task: any) => {
       const funcNum =
         task.function_code && STCW_MAP[task.function_code]
           ? task.function_code
           : '1';
-
+ 
       const funcId = `FUNC-${funcNum}`;
       
       let funcNode = tree.find(f => f.id === funcId);
       if (!funcNode) {
-        funcNode = { 
-          id: funcId, 
-          title: `Function ${funcNum}: ${STCW_MAP[funcNum] || 'General'}`, 
-          topics: [] 
+        funcNode = {
+          id: funcId,
+          title: `Function ${funcNum}: ${STCW_MAP[funcNum] || 'General'}`,
+          topics: []
         };
         tree.push(funcNode);
       }
-
+ 
       const topicTitle = task.category || 'General Tasks';
       const topicId = `TOPIC-${topicTitle.replace(/\s+/g, '-')}`;
       
@@ -181,15 +175,15 @@ export const getTasks = async (req: Request, res: Response) => {
         topicNode = { id: topicId, title: topicTitle, tasks: [] };
         funcNode.topics.push(topicNode);
       }
-
+ 
       topicNode.tasks.push({
         id: task.id,
         code: task.code,
         title: task.title,
         description: task.description || '',
         instructions: task.instructions || '',
-        stcw: task.stcw_code || '', 
-        company_id: task.company_id, 
+        stcw: task.stcw_code || '',
+        company_id: task.company_id,
         is_global: task.company_id === null,
         function_code: task.function_code,
         category: task.category,
@@ -202,11 +196,11 @@ export const getTasks = async (req: Request, res: Response) => {
         verification: task.verification_method,
       });
     });
-
+ 
     tree.sort((a, b) => a.id.localeCompare(b.id));
-    res.json(tree); 
+    return res.status(200).json({ success: true, message: "Tasks fetched successfully", data: tree });
   } catch (error: any) {
-    res.status(500).json({ message: 'Error fetching tasks', error: error.message });
+    return res.status(500).json({ success: false, message: 'Error fetching tasks', error: error.message });
   }
 };
 
