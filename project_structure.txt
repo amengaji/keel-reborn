@@ -1,370 +1,340 @@
 +-- keel-backend
-ï¿½   +-- db
-ï¿½   ï¿½   +-- init_db.sql
-ï¿½   +-- src
-ï¿½   ï¿½   +-- config
-ï¿½   ï¿½   ï¿½   +-- database.ts
-ï¿½   ï¿½   +-- controllers
-ï¿½   ï¿½   ï¿½   +-- analytics.controller.ts
-ï¿½   ï¿½   ï¿½   +-- assignment.controller.ts
-ï¿½   ï¿½   ï¿½   +-- auth.controller.ts
-ï¿½   ï¿½   ï¿½   +-- cadet.controller.ts
-ï¿½   ï¿½   ï¿½   +-- company.controller.ts
-ï¿½   ï¿½   ï¿½   +-- import.controller.ts
-ï¿½   ï¿½   ï¿½   +-- reports.controller.ts
-ï¿½   ï¿½   ï¿½   +-- task.controller.ts
-ï¿½   ï¿½   ï¿½   +-- traineeAssignment.controller.ts
-ï¿½   ï¿½   ï¿½   +-- vessel.controller.ts
-ï¿½   ï¿½   +-- middleware
-ï¿½   ï¿½   ï¿½   +-- auth.middleware.ts
-ï¿½   ï¿½   ï¿½   +-- role.middleware.ts
-ï¿½   ï¿½   ï¿½   +-- subscription.middleware.ts
-ï¿½   ï¿½   ï¿½   +-- upload.middleware.ts
-ï¿½   ï¿½   +-- models
-ï¿½   ï¿½   ï¿½   +-- Assignment.ts
-ï¿½   ï¿½   ï¿½   +-- associations.ts
-ï¿½   ï¿½   ï¿½   +-- Company.ts
-ï¿½   ï¿½   ï¿½   +-- Role.ts
-ï¿½   ï¿½   ï¿½   +-- ShipType.ts
-ï¿½   ï¿½   ï¿½   +-- Subscription.ts
-ï¿½   ï¿½   ï¿½   +-- Task.ts
-ï¿½   ï¿½   ï¿½   +-- TraineeAssignment.ts
-ï¿½   ï¿½   ï¿½   +-- User.ts
-ï¿½   ï¿½   ï¿½   +-- Vessel.ts
-ï¿½   ï¿½   +-- routes
-ï¿½   ï¿½   ï¿½   +-- analytics.routes.ts
-ï¿½   ï¿½   ï¿½   +-- assignment.routes.ts
-ï¿½   ï¿½   ï¿½   +-- auth.routes.ts
-ï¿½   ï¿½   ï¿½   +-- cadet.routes.ts
-ï¿½   ï¿½   ï¿½   +-- company.routes.ts
-ï¿½   ï¿½   ï¿½   +-- import.routes.ts
-ï¿½   ï¿½   ï¿½   +-- reports.routes.ts
-ï¿½   ï¿½   ï¿½   +-- task.routes.ts
-ï¿½   ï¿½   ï¿½   +-- traineeAssignment.routes.ts
-ï¿½   ï¿½   ï¿½   +-- vessel.routes.ts
-ï¿½   ï¿½   +-- scripts
-ï¿½   ï¿½   ï¿½   +-- add_cto_columns.ts
-ï¿½   ï¿½   ï¿½   +-- add_department_col.ts
-ï¿½   ï¿½   ï¿½   +-- checkLogin.ts
-ï¿½   ï¿½   ï¿½   +-- createCTO.ts
-ï¿½   ï¿½   ï¿½   +-- createMaster.ts
-ï¿½   ï¿½   ï¿½   +-- createTestTrainee.ts
-ï¿½   ï¿½   ï¿½   +-- fix_vessel_id.ts
-ï¿½   ï¿½   ï¿½   +-- forceReset.ts
-ï¿½   ï¿½   ï¿½   +-- repair_missing_accounts.ts
-ï¿½   ï¿½   ï¿½   +-- resetAdmin.ts
-ï¿½   ï¿½   ï¿½   +-- resetSuperAdmin.ts
-ï¿½   ï¿½   ï¿½   +-- seed.ts
-ï¿½   ï¿½   ï¿½   +-- seedNewPc.ts
-ï¿½   ï¿½   ï¿½   +-- setupDatabase.ts
-ï¿½   ï¿½   ï¿½   +-- wipeCadets.ts
-ï¿½   ï¿½   +-- index.ts
-ï¿½   +-- .env
-ï¿½   +-- .gitignore
-ï¿½   +-- package.json
-ï¿½   +-- tsconfig.json
+¦   +-- db
+¦   ¦   +-- init_db.sql
+¦   +-- src
+¦   ¦   +-- config
+¦   ¦   ¦   +-- database.ts
+¦   ¦   +-- controllers
+¦   ¦   ¦   +-- analytics.controller.ts
+¦   ¦   ¦   +-- assignment.controller.ts
+¦   ¦   ¦   +-- auth.controller.ts
+¦   ¦   ¦   +-- cadet.controller.ts
+¦   ¦   ¦   +-- company.controller.ts
+¦   ¦   ¦   +-- dailyLog.controller.ts
+¦   ¦   ¦   +-- import.controller.ts
+¦   ¦   ¦   +-- monthlyReview.controller.ts
+¦   ¦   ¦   +-- reports.controller.ts
+¦   ¦   ¦   +-- task.controller.ts
+¦   ¦   ¦   +-- traineeAssignment.controller.ts
+¦   ¦   ¦   +-- vessel.controller.ts
+¦   ¦   ¦   +-- watchkeeping.controller.ts
+¦   ¦   +-- middleware
+¦   ¦   ¦   +-- auth.middleware.ts
+¦   ¦   ¦   +-- role.middleware.ts
+¦   ¦   ¦   +-- subscription.middleware.ts
+¦   ¦   ¦   +-- upload.middleware.ts
+¦   ¦   +-- models
+¦   ¦   ¦   +-- Assignment.ts
+¦   ¦   ¦   +-- associations.ts
+¦   ¦   ¦   +-- Company.ts
+¦   ¦   ¦   +-- DailyLog.ts
+¦   ¦   ¦   +-- MonthlyReview.ts
+¦   ¦   ¦   +-- Role.ts
+¦   ¦   ¦   +-- ShipType.ts
+¦   ¦   ¦   +-- Subscription.ts
+¦   ¦   ¦   +-- Task.ts
+¦   ¦   ¦   +-- TaskEvidence.ts
+¦   ¦   ¦   +-- TraineeAssignment.ts
+¦   ¦   ¦   +-- User.ts
+¦   ¦   ¦   +-- Vessel.ts
+¦   ¦   ¦   +-- WatchkeepingLog.ts
+¦   ¦   +-- routes
+¦   ¦   ¦   +-- analytics.routes.ts
+¦   ¦   ¦   +-- assignment.routes.ts
+¦   ¦   ¦   +-- auth.routes.ts
+¦   ¦   ¦   +-- cadet.routes.ts
+¦   ¦   ¦   +-- company.routes.ts
+¦   ¦   ¦   +-- dailyLog.routes.ts
+¦   ¦   ¦   +-- import.routes.ts
+¦   ¦   ¦   +-- monthlyReview.routes.ts
+¦   ¦   ¦   +-- reports.routes.ts
+¦   ¦   ¦   +-- task.routes.ts
+¦   ¦   ¦   +-- traineeAssignment.routes.ts
+¦   ¦   ¦   +-- vessel.routes.ts
+¦   ¦   ¦   +-- watchkeeping.routes.ts
+¦   ¦   +-- scripts
+¦   ¦   ¦   +-- add_assignment_cols.ts
+¦   ¦   ¦   +-- add_cto_columns.ts
+¦   ¦   ¦   +-- add_department_col.ts
+¦   ¦   ¦   +-- checkLogin.ts
+¦   ¦   ¦   +-- createCTO.ts
+¦   ¦   ¦   +-- createMaster.ts
+¦   ¦   ¦   +-- createTestTrainee.ts
+¦   ¦   ¦   +-- createVesselMasters.ts
+¦   ¦   ¦   +-- fix_vessel_id.ts
+¦   ¦   ¦   +-- forceReset.ts
+¦   ¦   ¦   +-- prepare_mobile_test.ts
+¦   ¦   ¦   +-- repair_missing_accounts.ts
+¦   ¦   ¦   +-- resetAdmin.ts
+¦   ¦   ¦   +-- resetSuperAdmin.ts
+¦   ¦   ¦   +-- seed.ts
+¦   ¦   ¦   +-- seedNewPc.ts
+¦   ¦   ¦   +-- setupDatabase.ts
+¦   ¦   ¦   +-- wipeCadets.ts
+¦   ¦   +-- services
+¦   ¦   +-- index.ts
+¦   +-- .env
+¦   +-- .gitignore
+¦   +-- package.json
+¦   +-- tsconfig.json
 +-- keel-mobile
-ï¿½   +-- android
-ï¿½   ï¿½   +-- app
-ï¿½   ï¿½   ï¿½   +-- src
-ï¿½   ï¿½   ï¿½   ï¿½   +-- debug
-ï¿½   ï¿½   ï¿½   ï¿½   ï¿½   +-- AndroidManifest.xml
-ï¿½   ï¿½   ï¿½   ï¿½   +-- debugOptimized
-ï¿½   ï¿½   ï¿½   ï¿½   ï¿½   +-- AndroidManifest.xml
-ï¿½   ï¿½   ï¿½   ï¿½   +-- main
-ï¿½   ï¿½   ï¿½   ï¿½       +-- java
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- com
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½       +-- anonymous
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½           +-- keelmobile
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½               +-- MainActivity.kt
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½               +-- MainApplication.kt
-ï¿½   ï¿½   ï¿½   ï¿½       +-- res
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- drawable
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_background.xml
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- rn_edit_text_material.xml
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- drawable-hdpi
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- splashscreen_logo.png
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- drawable-mdpi
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- splashscreen_logo.png
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- drawable-xhdpi
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- splashscreen_logo.png
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- drawable-xxhdpi
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- splashscreen_logo.png
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- drawable-xxxhdpi
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- splashscreen_logo.png
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- mipmap-anydpi-v26
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_round.xml
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher.xml
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- mipmap-hdpi
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_foreground.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_round.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- mipmap-mdpi
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_foreground.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_round.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- mipmap-xhdpi
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_foreground.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_round.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- mipmap-xxhdpi
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_foreground.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_round.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- mipmap-xxxhdpi
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_foreground.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher_round.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- ic_launcher.webp
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- values
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- colors.xml
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- strings.xml
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   ï¿½   +-- styles.xml
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½   +-- values-night
-ï¿½   ï¿½   ï¿½   ï¿½       ï¿½       +-- colors.xml
-ï¿½   ï¿½   ï¿½   ï¿½       +-- AndroidManifest.xml
-ï¿½   ï¿½   ï¿½   +-- build.gradle
-ï¿½   ï¿½   ï¿½   +-- debug.keystore
-ï¿½   ï¿½   ï¿½   +-- proguard-rules.pro
-ï¿½   ï¿½   +-- gradle
-ï¿½   ï¿½   ï¿½   +-- wrapper
-ï¿½   ï¿½   ï¿½       +-- gradle-wrapper.jar
-ï¿½   ï¿½   ï¿½       +-- gradle-wrapper.properties
-ï¿½   ï¿½   +-- .gitignore
-ï¿½   ï¿½   +-- build.gradle
-ï¿½   ï¿½   +-- gradle.properties
-ï¿½   ï¿½   +-- gradlew
-ï¿½   ï¿½   +-- gradlew.bat
-ï¿½   ï¿½   +-- settings.gradle
-ï¿½   +-- assets
-ï¿½   ï¿½   +-- adaptive-icon.png
-ï¿½   ï¿½   +-- favicon.png
-ï¿½   ï¿½   +-- icon.png
-ï¿½   ï¿½   +-- keel-logo.png
-ï¿½   ï¿½   +-- splash-icon.png
-ï¿½   +-- src
-ï¿½   ï¿½   +-- auth
-ï¿½   ï¿½   ï¿½   +-- AuthContext.tsx
-ï¿½   ï¿½   +-- components
-ï¿½   ï¿½   ï¿½   +-- common
-ï¿½   ï¿½   ï¿½   ï¿½   +-- CheckboxBox.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- YesNoCapsule.tsx
-ï¿½   ï¿½   ï¿½   +-- home
-ï¿½   ï¿½   ï¿½   ï¿½   +-- AttentionItem.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- ComplianceIndicatorCard.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- PendingTasksCard.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- ProgressCard.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- QuickActionsRow.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- VesselCard.tsx
-ï¿½   ï¿½   ï¿½   +-- inputs
-ï¿½   ï¿½   ï¿½   ï¿½   +-- DateInputField.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- LatLongInput.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- TimeInputField.tsx
-ï¿½   ï¿½   ï¿½   +-- layout
-ï¿½   ï¿½   ï¿½   ï¿½   +-- AppHeader.tsx
-ï¿½   ï¿½   ï¿½   +-- profile
-ï¿½   ï¿½   ï¿½   ï¿½   +-- PhotoCaptureModal.tsx
-ï¿½   ï¿½   ï¿½   +-- tasks
-ï¿½   ï¿½   ï¿½   ï¿½   +-- index.ts
-ï¿½   ï¿½   ï¿½   ï¿½   +-- TaskAttachments.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- TaskInfoSheet.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- TaskListItem.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- TaskRow.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- TaskSectionCard.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- TaskStatusBadge.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- TaskStatusChip.tsx
-ï¿½   ï¿½   ï¿½   +-- toast
-ï¿½   ï¿½   ï¿½   ï¿½   +-- GlobalToast.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- ToastProvider.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- useToast.ts
-ï¿½   ï¿½   ï¿½   +-- ui
-ï¿½   ï¿½   ï¿½       +-- KeelButton.tsx
-ï¿½   ï¿½   ï¿½       +-- KeelCard.tsx
-ï¿½   ï¿½   ï¿½       +-- KeelScreen.tsx
-ï¿½   ï¿½   +-- config
-ï¿½   ï¿½   ï¿½   +-- cargoProfiles.ts
-ï¿½   ï¿½   ï¿½   +-- seaServiceSections.ts
-ï¿½   ï¿½   ï¿½   +-- shipTypes.ts
-ï¿½   ï¿½   +-- constants
-ï¿½   ï¿½   ï¿½   +-- maritime.ts
-ï¿½   ï¿½   +-- daily-logs
-ï¿½   ï¿½   ï¿½   +-- DailyLogsContext.tsx
-ï¿½   ï¿½   ï¿½   +-- dailyLogsDomain.ts
-ï¿½   ï¿½   +-- db
-ï¿½   ï¿½   ï¿½   +-- tasks
-ï¿½   ï¿½   ï¿½   ï¿½   +-- index.ts
-ï¿½   ï¿½   ï¿½   ï¿½   +-- taskQueries.ts
-ï¿½   ï¿½   ï¿½   ï¿½   +-- taskSeed.ts
-ï¿½   ï¿½   ï¿½   ï¿½   +-- taskStatusMachine.ts
-ï¿½   ï¿½   ï¿½   +-- dailyLogs.ts
-ï¿½   ï¿½   ï¿½   +-- database.ts
-ï¿½   ï¿½   ï¿½   +-- seaService.ts
-ï¿½   ï¿½   ï¿½   +-- taskAttachments.ts
-ï¿½   ï¿½   ï¿½   +-- taskGuidance.ts
-ï¿½   ï¿½   ï¿½   +-- tasks.ts
-ï¿½   ï¿½   ï¿½   +-- watchkeeping.ts
-ï¿½   ï¿½   +-- navigation
-ï¿½   ï¿½   ï¿½   +-- AppNavigator.tsx
-ï¿½   ï¿½   ï¿½   +-- AuthNavigator.tsx
-ï¿½   ï¿½   ï¿½   +-- BottomTabNavigator.tsx
-ï¿½   ï¿½   ï¿½   +-- MainNavigator.tsx
-ï¿½   ï¿½   ï¿½   +-- OnboardingNavigator.tsx
-ï¿½   ï¿½   ï¿½   +-- tasksNavigator.tsx
-ï¿½   ï¿½   ï¿½   +-- types.ts
-ï¿½   ï¿½   +-- screens
-ï¿½   ï¿½   ï¿½   +-- tasks
-ï¿½   ï¿½   ï¿½   ï¿½   +-- index.ts
-ï¿½   ï¿½   ï¿½   ï¿½   +-- TaskSectionScreen.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- TasksHomeScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- DailyScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- EnableBiometricsScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- HomeScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- LoginScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- LogPositionScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- OnboardingIntroScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- ProfileScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- SafetyMapScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- SeaServiceScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- SeaServiceWizardScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- SettingsScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- StartSeaServiceScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- TaskDetailsScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- TaskListScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- VesselParticularsScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- WatchEntryScreen.tsx
-ï¿½   ï¿½   ï¿½   +-- WelcomeScreen.tsx
-ï¿½   ï¿½   +-- sea-service
-ï¿½   ï¿½   ï¿½   +-- sections
-ï¿½   ï¿½   ï¿½   ï¿½   +-- AuxMachineryElectricalSection.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- CargoCapabilitiesSection.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- DeckMachineryManeuveringSection.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- DimensionsTonnageSection.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- FireFightingAppliancesSection.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- GeneralIdentitySection.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- InertGasSystemSection.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- LifeSavingAppliancesSection.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- NavigationCommunicationSection.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- PollutionPreventionSection.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- PropulsionPerformanceSection.tsx
-ï¿½   ï¿½   ï¿½   +-- SeaServiceContext.tsx
-ï¿½   ï¿½   ï¿½   +-- seaServiceDefaults.ts
-ï¿½   ï¿½   ï¿½   +-- seaServiceSchema.ts
-ï¿½   ï¿½   ï¿½   +-- seaServiceStatus.ts
-ï¿½   ï¿½   ï¿½   +-- SeaServiceWizard.tsx
-ï¿½   ï¿½   +-- services
-ï¿½   ï¿½   ï¿½   +-- api.ts
-ï¿½   ï¿½   +-- tasks
-ï¿½   ï¿½   ï¿½   +-- guidance
-ï¿½   ï¿½   ï¿½   ï¿½   +-- data
-ï¿½   ï¿½   ï¿½   ï¿½   ï¿½   +-- tasks.deck.cadet.json
-ï¿½   ï¿½   ï¿½   ï¿½   ï¿½   +-- tasks.deck.rating.json
-ï¿½   ï¿½   ï¿½   ï¿½   ï¿½   +-- tasks.engine.cadet.json
-ï¿½   ï¿½   ï¿½   ï¿½   ï¿½   +-- tasks.engine.rating.json
-ï¿½   ï¿½   ï¿½   ï¿½   +-- __README__.md
-ï¿½   ï¿½   ï¿½   ï¿½   +-- guidance.loader.ts
-ï¿½   ï¿½   ï¿½   ï¿½   +-- guidance.types.ts
-ï¿½   ï¿½   ï¿½   ï¿½   +-- index.ts
-ï¿½   ï¿½   ï¿½   +-- taskCatalog.static.ts
-ï¿½   ï¿½   ï¿½   +-- taskCatalog.ts
-ï¿½   ï¿½   +-- theme
-ï¿½   ï¿½   ï¿½   +-- AppTheme.ts
-ï¿½   ï¿½   ï¿½   +-- keelTheme.ts
-ï¿½   ï¿½   +-- types
-ï¿½   ï¿½   ï¿½   +-- tasks.ts
-ï¿½   ï¿½   +-- utils
-ï¿½   ï¿½   ï¿½   +-- secureStore.ts
-ï¿½   ï¿½   ï¿½   +-- stcwCompliance.ts
-ï¿½   ï¿½   ï¿½   +-- watchAggregation.ts
-ï¿½   ï¿½   ï¿½   +-- watchHours.ts
-ï¿½   ï¿½   ï¿½   +-- watchWeeklyAggregation.ts
-ï¿½   ï¿½   +-- watchkeeping
-ï¿½   ï¿½       +-- WatchkeepingContext.tsx
-ï¿½   ï¿½       +-- watchkeepingDomain.ts
-ï¿½   +-- .gitignore
-ï¿½   +-- app.json
-ï¿½   +-- App.tsx
-ï¿½   +-- index.ts
-ï¿½   +-- package.json
-ï¿½   +-- tsconfig.json
+¦   +-- assets
+¦   ¦   +-- adaptive-icon.png
+¦   ¦   +-- favicon.png
+¦   ¦   +-- icon.png
+¦   ¦   +-- keel-logo.png
+¦   ¦   +-- splash-icon.png
+¦   +-- src
+¦   ¦   +-- auth
+¦   ¦   ¦   +-- AuthContext.tsx
+¦   ¦   +-- components
+¦   ¦   ¦   +-- common
+¦   ¦   ¦   ¦   +-- CheckboxBox.tsx
+¦   ¦   ¦   ¦   +-- YesNoCapsule.tsx
+¦   ¦   ¦   +-- daily
+¦   ¦   ¦   ¦   +-- departments
+¦   ¦   ¦   ¦   ¦   +-- CateringLogFields.tsx
+¦   ¦   ¦   ¦   ¦   +-- DeckLogFields.tsx
+¦   ¦   ¦   ¦   ¦   +-- EngineLogFields.tsx
+¦   ¦   ¦   ¦   ¦   +-- EtoLogFields.tsx
+¦   ¦   ¦   ¦   +-- DailyHistoryList.tsx
+¦   ¦   ¦   +-- home
+¦   ¦   ¦   ¦   +-- AttentionItem.tsx
+¦   ¦   ¦   ¦   +-- ComplianceIndicatorCard.tsx
+¦   ¦   ¦   ¦   +-- ComplianceTrend.tsx
+¦   ¦   ¦   ¦   +-- MilestoneModal.tsx
+¦   ¦   ¦   ¦   +-- PendingTasksCard.tsx
+¦   ¦   ¦   ¦   +-- ProgressCard.tsx
+¦   ¦   ¦   ¦   +-- QuickActionsRow.tsx
+¦   ¦   ¦   ¦   +-- VesselCard.tsx
+¦   ¦   ¦   +-- inputs
+¦   ¦   ¦   ¦   +-- DateInputField.tsx
+¦   ¦   ¦   ¦   +-- LatLongInput.tsx
+¦   ¦   ¦   ¦   +-- TimeInputField.tsx
+¦   ¦   ¦   +-- layout
+¦   ¦   ¦   ¦   +-- AppHeader.tsx
+¦   ¦   ¦   +-- profile
+¦   ¦   ¦   ¦   +-- PhotoCaptureModal.tsx
+¦   ¦   ¦   +-- tasks
+¦   ¦   ¦   ¦   +-- index.ts
+¦   ¦   ¦   ¦   +-- TaskAttachments.tsx
+¦   ¦   ¦   ¦   +-- TaskInfoSheet.tsx
+¦   ¦   ¦   ¦   +-- TaskListItem.tsx
+¦   ¦   ¦   ¦   +-- TaskRow.tsx
+¦   ¦   ¦   ¦   +-- TaskSectionCard.tsx
+¦   ¦   ¦   ¦   +-- TaskStatusBadge.tsx
+¦   ¦   ¦   ¦   +-- TaskStatusChip.tsx
+¦   ¦   ¦   +-- toast
+¦   ¦   ¦   ¦   +-- GlobalToast.tsx
+¦   ¦   ¦   ¦   +-- ToastProvider.tsx
+¦   ¦   ¦   ¦   +-- useToast.ts
+¦   ¦   ¦   +-- trainee
+¦   ¦   ¦   +-- ui
+¦   ¦   ¦       +-- KeelButton.tsx
+¦   ¦   ¦       +-- KeelCard.tsx
+¦   ¦   ¦       +-- KeelProgressBar.tsx
+¦   ¦   ¦       +-- KeelScreen.tsx
+¦   ¦   +-- config
+¦   ¦   ¦   +-- cargoProfiles.ts
+¦   ¦   ¦   +-- seaServiceSections.ts
+¦   ¦   ¦   +-- shipTypes.ts
+¦   ¦   +-- constants
+¦   ¦   ¦   +-- logBrushes.ts
+¦   ¦   ¦   +-- maritime.ts
+¦   ¦   +-- daily-logs
+¦   ¦   ¦   +-- DailyLogsContext.tsx
+¦   ¦   ¦   +-- dailyLogsDomain.ts
+¦   ¦   +-- db
+¦   ¦   ¦   +-- tasks
+¦   ¦   ¦   ¦   +-- index.ts
+¦   ¦   ¦   ¦   +-- taskQueries.ts
+¦   ¦   ¦   ¦   +-- taskSeed.ts
+¦   ¦   ¦   ¦   +-- taskStatusMachine.ts
+¦   ¦   ¦   +-- dailyLogs.ts
+¦   ¦   ¦   +-- database.ts
+¦   ¦   ¦   +-- seaService.ts
+¦   ¦   ¦   +-- taskAttachments.ts
+¦   ¦   ¦   +-- taskGuidance.ts
+¦   ¦   ¦   +-- tasks.ts
+¦   ¦   ¦   +-- watchkeeping.ts
+¦   ¦   +-- hooks
+¦   ¦   +-- navigation
+¦   ¦   ¦   +-- AppNavigator.tsx
+¦   ¦   ¦   +-- AuthNavigator.tsx
+¦   ¦   ¦   +-- BottomTabNavigator.tsx
+¦   ¦   ¦   +-- MainNavigator.tsx
+¦   ¦   ¦   +-- OnboardingNavigator.tsx
+¦   ¦   ¦   +-- tasksNavigator.tsx
+¦   ¦   ¦   +-- types.ts
+¦   ¦   +-- screens
+¦   ¦   ¦   +-- auth
+¦   ¦   ¦   ¦   +-- LoginScreen.tsx
+¦   ¦   ¦   ¦   +-- WelcomeScreen.tsx
+¦   ¦   ¦   +-- daily
+¦   ¦   ¦   ¦   +-- DailyLogScreen.tsx
+¦   ¦   ¦   ¦   +-- LogPositionScreen.tsx
+¦   ¦   ¦   +-- main
+¦   ¦   ¦   ¦   +-- HomeScreen.tsx
+¦   ¦   ¦   +-- onboarding
+¦   ¦   ¦   ¦   +-- EnableBiometricsScreen.tsx
+¦   ¦   ¦   ¦   +-- OnboardingIntroScreen.tsx
+¦   ¦   ¦   ¦   +-- VesselDetailsScreen.tsx
+¦   ¦   ¦   ¦   +-- VesselStatusScreen.tsx
+¦   ¦   ¦   +-- profile
+¦   ¦   ¦   ¦   +-- ProfileScreen.tsx
+¦   ¦   ¦   ¦   +-- SettingsScreen.tsx
+¦   ¦   ¦   +-- sea-service
+¦   ¦   ¦   ¦   +-- SeaServiceScreen.tsx
+¦   ¦   ¦   ¦   +-- SeaServiceWizardScreen.tsx
+¦   ¦   ¦   +-- tasks
+¦   ¦   ¦   ¦   +-- index.ts
+¦   ¦   ¦   ¦   +-- TaskDetailsScreen.tsx
+¦   ¦   ¦   ¦   +-- TaskListScreen.tsx
+¦   ¦   ¦   ¦   +-- TaskSectionScreen.tsx
+¦   ¦   ¦   ¦   +-- TasksHomeScreen.tsx
+¦   ¦   ¦   +-- vessel
+¦   ¦   ¦   ¦   +-- SafetyMapScreen.tsx
+¦   ¦   ¦   +-- DataSyncScreen.tsx
+¦   ¦   +-- sea-service
+¦   ¦   ¦   +-- sections
+¦   ¦   ¦   ¦   +-- AuxMachineryElectricalSection.tsx
+¦   ¦   ¦   ¦   +-- CargoCapabilitiesSection.tsx
+¦   ¦   ¦   ¦   +-- DeckMachineryManeuveringSection.tsx
+¦   ¦   ¦   ¦   +-- DimensionsTonnageSection.tsx
+¦   ¦   ¦   ¦   +-- FireFightingAppliancesSection.tsx
+¦   ¦   ¦   ¦   +-- GeneralIdentitySection.tsx
+¦   ¦   ¦   ¦   +-- InertGasSystemSection.tsx
+¦   ¦   ¦   ¦   +-- LifeSavingAppliancesSection.tsx
+¦   ¦   ¦   ¦   +-- NavigationCommunicationSection.tsx
+¦   ¦   ¦   ¦   +-- PollutionPreventionSection.tsx
+¦   ¦   ¦   ¦   +-- PropulsionPerformanceSection.tsx
+¦   ¦   ¦   +-- SeaServiceContext.tsx
+¦   ¦   ¦   +-- seaServiceDefaults.ts
+¦   ¦   ¦   +-- seaServiceSchema.ts
+¦   ¦   ¦   +-- seaServiceStatus.ts
+¦   ¦   ¦   +-- SeaServiceWizard.tsx
+¦   ¦   +-- services
+¦   ¦   ¦   +-- api.ts
+¦   ¦   ¦   +-- reviewService.ts
+¦   ¦   ¦   +-- SyncService.ts
+¦   ¦   +-- tasks
+¦   ¦   ¦   +-- guidance
+¦   ¦   ¦   ¦   +-- data
+¦   ¦   ¦   ¦   ¦   +-- tasks.deck.cadet.json
+¦   ¦   ¦   ¦   ¦   +-- tasks.deck.rating.json
+¦   ¦   ¦   ¦   ¦   +-- tasks.engine.cadet.json
+¦   ¦   ¦   ¦   ¦   +-- tasks.engine.rating.json
+¦   ¦   ¦   ¦   +-- guidance.loader.ts
+¦   ¦   ¦   ¦   +-- guidance.types.ts
+¦   ¦   ¦   ¦   +-- index.ts
+¦   ¦   ¦   ¦   +-- __README__.md
+¦   ¦   ¦   +-- taskCatalog.static.ts
+¦   ¦   ¦   +-- taskCatalog.ts
+¦   ¦   +-- theme
+¦   ¦   ¦   +-- AppTheme.ts
+¦   ¦   ¦   +-- keelTheme.ts
+¦   ¦   +-- types
+¦   ¦   ¦   +-- tasks.ts
+¦   ¦   +-- utils
+¦   ¦   ¦   +-- secureStore.ts
+¦   ¦   ¦   +-- stcwCompliance.ts
+¦   ¦   ¦   +-- watchAggregation.ts
+¦   ¦   ¦   +-- watchHours.ts
+¦   ¦   ¦   +-- watchWeeklyAggregation.ts
+¦   ¦   +-- watchkeeping
+¦   ¦       +-- WatchkeepingContext.tsx
+¦   ¦       +-- watchkeepingDomain.ts
+¦   +-- .gitignore
+¦   +-- app.json
+¦   +-- App.tsx
+¦   +-- index.ts
+¦   +-- package.json
+¦   +-- tsconfig.json
 +-- keel-web
-ï¿½   +-- src
-ï¿½   ï¿½   +-- components
-ï¿½   ï¿½   ï¿½   +-- auth
-ï¿½   ï¿½   ï¿½   ï¿½   +-- IdleTimer.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- LogoutWarningModal.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- ProtectedRoute.tsx
-ï¿½   ï¿½   ï¿½   +-- common
-ï¿½   ï¿½   ï¿½   ï¿½   +-- DeleteConfirmationModal.tsx
-ï¿½   ï¿½   ï¿½   +-- layout
-ï¿½   ï¿½   ï¿½   ï¿½   +-- DashboardLayout.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- Sidebar.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- Topbar.tsx
-ï¿½   ï¿½   ï¿½   +-- trainees
-ï¿½   ï¿½   ï¿½   ï¿½   +-- AddCadetModal.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- AssignVesselModal.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- ImportCadetModal.tsx
-ï¿½   ï¿½   ï¿½   +-- trb
-ï¿½   ï¿½   ï¿½   ï¿½   +-- ImportTaskModal.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- TaskFormModal.tsx
-ï¿½   ï¿½   ï¿½   +-- vessels
-ï¿½   ï¿½   ï¿½       +-- AddVesselModal.tsx
-ï¿½   ï¿½   ï¿½       +-- ImportVesselModal.tsx
-ï¿½   ï¿½   +-- constants
-ï¿½   ï¿½   ï¿½   +-- cadetData.ts
-ï¿½   ï¿½   ï¿½   +-- maritimeData.ts
-ï¿½   ï¿½   +-- layout
-ï¿½   ï¿½   ï¿½   +-- AdminLayout.tsx
-ï¿½   ï¿½   +-- pages
-ï¿½   ï¿½   ï¿½   +-- cto
-ï¿½   ï¿½   ï¿½   ï¿½   +-- CTOApprovalQueue.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- CTOVesselDashboard.tsx
-ï¿½   ï¿½   ï¿½   +-- master
-ï¿½   ï¿½   ï¿½   ï¿½   +-- MasterApprovalQueue.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- MasterCertificationHub.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- MasterDashboard.tsx
-ï¿½   ï¿½   ï¿½   ï¿½   +-- SteeringCertificate.tsx
-ï¿½   ï¿½   ï¿½   +-- ApprovalsPage.tsx
-ï¿½   ï¿½   ï¿½   +-- AssignmentsPage.tsx
-ï¿½   ï¿½   ï¿½   +-- AuditLogsPage.tsx
-ï¿½   ï¿½   ï¿½   +-- CadetsPage.tsx
-ï¿½   ï¿½   ï¿½   +-- CompaniesPage.tsx
-ï¿½   ï¿½   ï¿½   +-- ConstantsPage.tsx
-ï¿½   ï¿½   ï¿½   +-- Dashboard.tsx
-ï¿½   ï¿½   ï¿½   +-- EvidencePage.tsx
-ï¿½   ï¿½   ï¿½   +-- LockedTRBPage.tsx
-ï¿½   ï¿½   ï¿½   +-- LoginPage.tsx
-ï¿½   ï¿½   ï¿½   +-- ReportsPage.tsx
-ï¿½   ï¿½   ï¿½   +-- SettingsPage.tsx
-ï¿½   ï¿½   ï¿½   +-- TasksPage.tsx
-ï¿½   ï¿½   ï¿½   +-- TrainingProgressPage.tsx
-ï¿½   ï¿½   ï¿½   +-- TRBViewerPage.tsx
-ï¿½   ï¿½   ï¿½   +-- UsersPage.tsx
-ï¿½   ï¿½   ï¿½   +-- VesselsPage.tsx
-ï¿½   ï¿½   +-- services
-ï¿½   ï¿½   ï¿½   +-- analyticsService.ts
-ï¿½   ï¿½   ï¿½   +-- assignmentService.ts
-ï¿½   ï¿½   ï¿½   +-- authService.ts
-ï¿½   ï¿½   ï¿½   +-- cadetAssignmentService.ts
-ï¿½   ï¿½   ï¿½   +-- cadetService.ts
-ï¿½   ï¿½   ï¿½   +-- companyService.ts
-ï¿½   ï¿½   ï¿½   +-- dataService.ts
-ï¿½   ï¿½   ï¿½   +-- importService.ts
-ï¿½   ï¿½   ï¿½   +-- reportService.ts
-ï¿½   ï¿½   ï¿½   +-- taskService.ts
-ï¿½   ï¿½   ï¿½   +-- vesselService.ts
-ï¿½   ï¿½   +-- App.tsx
-ï¿½   ï¿½   +-- index.css
-ï¿½   ï¿½   +-- main.tsx
-ï¿½   +-- .gitignore
-ï¿½   +-- index.html
-ï¿½   +-- package.json
-ï¿½   +-- tsconfig.json
-ï¿½   +-- vite.config.ts
+¦   +-- src
+¦   ¦   +-- components
+¦   ¦   ¦   +-- auth
+¦   ¦   ¦   ¦   +-- IdleTimer.tsx
+¦   ¦   ¦   ¦   +-- LogoutWarningModal.tsx
+¦   ¦   ¦   ¦   +-- ProtectedRoute.tsx
+¦   ¦   ¦   +-- common
+¦   ¦   ¦   ¦   +-- DeleteConfirmationModal.tsx
+¦   ¦   ¦   +-- layout
+¦   ¦   ¦   ¦   +-- DashboardLayout.tsx
+¦   ¦   ¦   ¦   +-- Sidebar.tsx
+¦   ¦   ¦   ¦   +-- Topbar.tsx
+¦   ¦   ¦   +-- trainees
+¦   ¦   ¦   ¦   +-- AddCadetModal.tsx
+¦   ¦   ¦   ¦   +-- AssignVesselModal.tsx
+¦   ¦   ¦   ¦   +-- ImportCadetModal.tsx
+¦   ¦   ¦   +-- trb
+¦   ¦   ¦   ¦   +-- ImportTaskModal.tsx
+¦   ¦   ¦   ¦   +-- TaskFormModal.tsx
+¦   ¦   ¦   +-- vessels
+¦   ¦   ¦       +-- AddVesselModal.tsx
+¦   ¦   ¦       +-- ImportVesselModal.tsx
+¦   ¦   +-- constants
+¦   ¦   ¦   +-- cadetData.ts
+¦   ¦   ¦   +-- maritimeData.ts
+¦   ¦   +-- layout
+¦   ¦   ¦   +-- AdminLayout.tsx
+¦   ¦   +-- pages
+¦   ¦   ¦   +-- cto
+¦   ¦   ¦   ¦   +-- CTOApprovalQueue.tsx
+¦   ¦   ¦   ¦   +-- CTOVesselDashboard.tsx
+¦   ¦   ¦   +-- master
+¦   ¦   ¦   ¦   +-- CertificatePreviewPage.tsx
+¦   ¦   ¦   ¦   +-- MasterApprovalQueue.tsx
+¦   ¦   ¦   ¦   +-- MasterCertificationHub.tsx
+¦   ¦   ¦   ¦   +-- MasterDashboard.tsx
+¦   ¦   ¦   ¦   +-- MasterReviewPage.tsx
+¦   ¦   ¦   ¦   +-- SteeringCertificate.tsx
+¦   ¦   ¦   +-- ApprovalsPage.tsx
+¦   ¦   ¦   +-- AssignmentsPage.tsx
+¦   ¦   ¦   +-- AuditLogsPage.tsx
+¦   ¦   ¦   +-- CadetsPage.tsx
+¦   ¦   ¦   +-- CompaniesPage.tsx
+¦   ¦   ¦   +-- ConstantsPage.tsx
+¦   ¦   ¦   +-- Dashboard.tsx
+¦   ¦   ¦   +-- EvidencePage.tsx
+¦   ¦   ¦   +-- LockedTRBPage.tsx
+¦   ¦   ¦   +-- LoginPage.tsx
+¦   ¦   ¦   +-- ReportsPage.tsx
+¦   ¦   ¦   +-- SettingsPage.tsx
+¦   ¦   ¦   +-- TasksPage.tsx
+¦   ¦   ¦   +-- TrainingProgressPage.tsx
+¦   ¦   ¦   +-- TRBViewerPage.tsx
+¦   ¦   ¦   +-- UsersPage.tsx
+¦   ¦   ¦   +-- VesselsPage.tsx
+¦   ¦   +-- services
+¦   ¦   ¦   +-- analyticsService.ts
+¦   ¦   ¦   +-- assignmentService.ts
+¦   ¦   ¦   +-- authService.ts
+¦   ¦   ¦   +-- cadetAssignmentService.ts
+¦   ¦   ¦   +-- cadetService.ts
+¦   ¦   ¦   +-- companyService.ts
+¦   ¦   ¦   +-- dataService.ts
+¦   ¦   ¦   +-- importService.ts
+¦   ¦   ¦   +-- reportService.ts
+¦   ¦   ¦   +-- taskService.ts
+¦   ¦   ¦   +-- vesselService.ts
+¦   ¦   +-- App.tsx
+¦   ¦   +-- index.css
+¦   ¦   +-- main.tsx
+¦   +-- .gitignore
+¦   +-- index.html
+¦   +-- package.json
+¦   +-- tsconfig.json
+¦   +-- vite.config.ts
 +-- .gitignore
-+-- ~$keel_trb_smart_template.xlsx
++-- ETO Trainee.pdf
 +-- keel_cadet_import_template.xlsx
++-- keel_trb_smart_template (DGS).xlsx
 +-- keel_trb_smart_template.xlsx
 +-- keel_vessel_import_template (Blank).xlsx
 +-- keel_vessel_import_template.xlsx
 +-- package.json
 +-- project_structure.txt
++-- TRB Deck - DG Shipping.pdf
 +-- tree.ps1
++-- ~$keel_trb_smart_template.xlsx

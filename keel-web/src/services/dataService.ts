@@ -397,42 +397,122 @@ export const clearSyllabus = () => {
 
 export const processTRBImport = (flatData: any[]) => {
   const tree: any[] = [];
-  const getPartNum = (raw: any) => {
-    const str = String(raw).trim();
-    return str.split(/[\s-]+/)[0]; 
+
+  // -------------------------------
+  // Helpers (very defensive)
+  // -------------------------------
+  const normalize = (v: any) => String(v ?? "").trim();
+
+  const extractFunctionNum = (raw: any) => {
+    // Accepts: "1", "01", "1 - Navigation", "Function 1 - Navigation", "FUNC-1"
+    const s = normalize(raw);
+    const match = s.match(/\d+/);
+    return match ? String(parseInt(match[0], 10)) : "1";
   };
-  const parts = [...new Set(flatData.map(item => getPartNum(item['part_number'])))].sort();
-  
-  parts.forEach((partNum) => {
-    const partRows = flatData.filter(r => getPartNum(r['part_number']) === partNum);
-    const sections = [...new Set(partRows.map(r => r['section_name']))];
-    
-    const topics = sections.map((sectionName: any) => {
-       const taskRows = partRows.filter(r => r['section_name'] === sectionName);
-       const tasks = taskRows.map((row: any) => ({
-         id: `TASK-${partNum}-${Date.now()}-${Math.floor(Math.random()*10000)}`,
-         title: row['title'],
-         description: row['description'],
-         instruction: row['instructions'],
-         stcw: row['stcw_reference'],
-         dept: row['department'],
-         traineeType: row['trainee_type'],
-         safety: row['safety_requirements'],
-         evidence: row['evidence_type'] || 'DOCUMENT/PHOTO', 
-         verification: row['verification_method'] || 'OBSERVATION',
-         frequency: row['frequency'] || 'ONCE',
-         mandatory: row['mandatory_for_all'] === true || row['mandatory_for_all'] === 'TRUE'
-       }));
-       return {
-         id: `TOPIC-${String(sectionName).replace(/\s+/g, '-')}-${Math.floor(Math.random()*1000)}`,
-         title: sectionName,
-         tasks: tasks
-       };
-    });
-    tree.push({ id: `FUNC-${partNum}`, title: `Function ${partNum}`, topics: topics });
+
+  const truthy = (v: any) => {
+    if (typeof v === "boolean") return v;
+    const s = normalize(v).toUpperCase();
+    return s === "TRUE" || s === "YES" || s === "1";
+  };
+
+  // -------------------------------
+  // 1) Normalize rows from ANY source
+  // (ImportTaskModal template OR legacy imports)
+  // -------------------------------
+  const rows = (flatData || []).map((r: any, idx: number) => {
+    const functionNum = extractFunctionNum(
+      r.function_code ??
+        r["Function (Select from List)"] ??
+        r.part_number ??
+        r["part_number"] ??
+        r.section // legacy/mobile
+    );
+
+    const topicTitle = normalize(
+      r.category ??
+        r["Section / Topic"] ??
+        r.section_name ??
+        r["section_name"] ??
+        r.topic ??
+        "General Tasks"
+    ) || "General Tasks";
+
+    return {
+      __idx: idx,
+      functionNum,
+      topicTitle,
+
+      // Task fields (support both new + old keys)
+      title: normalize(r.title ?? r["Task Title"] ?? "Untitled Task") || "Untitled Task",
+      description: normalize(r.description ?? r["Description / Competence"] ?? ""),
+      instructions: normalize(r.instructions ?? r.instruction ?? ""),
+      stcw: normalize(r.stcw ?? r.stcw_reference ?? r["STCW Ref"] ?? r.stcw_code ?? ""),
+      department: normalize(r.department ?? r.dept ?? "Deck") || "Deck",
+      trainee_type: normalize(r.trainee_type ?? r.traineeType ?? r.rank ?? "DECK_CADET") || "DECK_CADET",
+      safety_level: normalize(r.safety_level ?? r.safety ?? "None") || "None",
+      frequency: normalize(r.frequency ?? "ONCE") || "ONCE",
+      mandatory: truthy(r.mandatory ?? r.mandatory_for_all ?? false),
+      evidence_type: normalize(r.evidence_type ?? r.evidence ?? "DOCUMENT/PHOTO") || "DOCUMENT/PHOTO",
+      verification_method: normalize(r.verification_method ?? r.verification ?? "OBSERVATION") || "OBSERVATION",
+      code: normalize(r.code ?? "") // optional
+    };
   });
+
+  // -------------------------------
+  // 2) Build Functions -> Topics -> Tasks
+  // -------------------------------
+  const funcNums = Array.from(new Set(rows.map(r => r.functionNum)))
+    .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+
+  for (const functionNum of funcNums) {
+    const funcRows = rows.filter(r => r.functionNum === functionNum);
+
+    const topicTitles = Array.from(new Set(funcRows.map(r => r.topicTitle)))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+
+    const topics = topicTitles.map((topicTitle) => {
+      const topicRows = funcRows.filter(r => r.topicTitle === topicTitle);
+
+      const tasks = topicRows.map((row) => ({
+        // stable-ish unique id (won't collide inside same import)
+        id: `TASK-${functionNum}-${Date.now()}-${row.__idx}-${Math.floor(Math.random() * 10000)}`,
+
+        // UI expects these keys in your current TasksPage
+        title: row.title,
+        description: row.description,
+        instruction: row.instructions,
+        stcw: row.stcw,
+        dept: row.department,
+        traineeType: row.trainee_type,
+        safety: row.safety_level,
+        evidence: row.evidence_type,
+        verification: row.verification_method,
+        frequency: row.frequency,
+        mandatory: row.mandatory,
+
+        // keep code if present (harmless)
+        code: row.code || undefined,
+      }));
+
+      return {
+        id: `TOPIC-${topicTitle.replace(/\s+/g, "-")}-${Math.floor(Math.random() * 1000)}`,
+        title: topicTitle,
+        tasks,
+      };
+    });
+
+    tree.push({
+      id: `FUNC-${functionNum}`,
+      title: `Function ${functionNum}`,
+      topics,
+    });
+  }
+
   return tree;
 };
+
 
 // --- PROGRESS OPERATIONS ---
 export const getAllProgress = () => {

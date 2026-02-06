@@ -10,7 +10,7 @@ import {
   TrendingUp, Award, LifeBuoy, MapPin, Gauge, ShieldAlert
 } from 'lucide-react';
 import { cadetService } from '../services/cadetService';
-import { taskService } from '../services/taskService';
+import { getTasks } from '../services/taskService';
 import { toast } from 'sonner';
 
 // --- MARITIME STCW FUNCTION MAPPING (Global Standards) ---
@@ -66,7 +66,7 @@ const TRBViewerPage: React.FC = () => {
       // Sync Trainee Profile and Syllabus Tasks in parallel
       const [cadetData, allTasks] = await Promise.all([
         cadetService.getById(Number(id)),
-        taskService.getAll()
+        getTasks()
       ]);
 
       if (!cadetData) {
