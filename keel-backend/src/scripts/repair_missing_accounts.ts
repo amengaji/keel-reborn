@@ -22,19 +22,19 @@ const repairAccounts = async () => {
 
     for (const v of vessels) {
         const imo = v.imo_number;
-        const expectedId = \ctodeck.\\;
+        const expectedId = `ctodeck.${imo}`; 
         
         // Check if accounts exist
         const exists = await User.findOne({ where: { email: expectedId } });
         
         if (!exists) {
-            console.log(\⚠️ Fixing accounts for Vessel: \ (IMO: \)\);
+            console.log(`⚠️ Fixing accounts for Vessel: ${v.name} (IMO: ${imo})`);
             
             const ctoAccounts = [
-                { id: \ctodeck.\\, name: 'CTO Deck', dept: 'Deck' },
-                { id: \ctoeng.\\, name: 'CTO Engine', dept: 'Engine' },
-                { id: \ctoeto.\\, name: 'CTO Electrical', dept: 'Electrical' },
-                { id: \ctocat.\\, name: 'CTO Catering', dept: 'Catering' },
+                { id: `ctodeck.${imo}`, name: 'CTO Deck', dept: 'Deck' },
+                { id: `ctoeng.${imo}`, name: 'CTO Engine', dept: 'Engine' },
+                { id: `ctoeto.${imo}`, name: 'CTO Electrical', dept: 'Electrical' },
+                { id: `ctocat.${imo}`, name: 'CTO Catering', dept: 'Catering' },
             ];
 
             for (const cto of ctoAccounts) {
@@ -42,20 +42,20 @@ const repairAccounts = async () => {
                     email: cto.id,
                     password_hash: defaultPass,
                     first_name: 'Chief Training Officer',
-                    last_name: \(\)\,
+                    last_name: `(${cto.dept})`,
                     role_id: ctoRole.id,
                     rank: cto.name,
                     vessel_id: v.id,
                     status: 'Onboard',
                     company_id: v.company_id,
                     department: cto.dept
-                }).catch(err => console.error('Error:', err.message));
+                }).catch(err => console.error(`Error creating ${cto.id}:`, err.message));
             }
             fixedCount++;
         }
     }
 
-    console.log(\✅ Repair Complete. Fixed \ vessels.\);
+    console.log(`✅ Repair Complete. Fixed ${fixedCount} vessels.`);
     process.exit(0);
   } catch (error) {
     console.error('Error:', error);
